@@ -680,7 +680,7 @@ function updateManagerFilter(){
 }
 
 function markDone(id){
-  sbPatch('orders',{status:'🏁 Выполнен',remainder:0},'id=eq.'+id).then(function(){
+  sbPatch('orders',{status:'🏁 Выполнен'},'id=eq.'+id).then(function(){
     toast('🏁 Заказ выполнен!');return loadOrders();
   }).catch(function(e){toast('❌ '+e.message,'err');});
 }
@@ -1948,3 +1948,4 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 </script>
 </body>
 </html>
+            
