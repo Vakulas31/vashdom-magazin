@@ -582,7 +582,7 @@ function orderCard(o){
   var contactTags='';
   if(o.client_phone)contactTags+='<span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span>';
   if(o.client_phone2)contactTags+='<span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span>';
-  if(o.client_address)contactTags+='<span style="background:#FFF3E0;color:#E65100;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span>';
+  if(o.client_address)contactTags+='<a href="https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address)+'" target="_blank" style="background:#FFF3E0;color:#E65100;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;display:inline-block;text-decoration:none">📍 '+o.client_address+'</a>';
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'');
   var hdrBg=isDone?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
 
