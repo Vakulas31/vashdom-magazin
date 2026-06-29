@@ -559,15 +559,6 @@ function checkAppPin(){
 }
 
 window.addEventListener('DOMContentLoaded',function(){
-  // App-level PIN gate
-  var savedPin=localStorage.getItem('vd_pin_ok');
-  if(savedPin===ANALYTICS_PIN){
-    document.getElementById('app-pin-overlay').style.display='none';
-    if(window._startApp)window._startApp();
-  }else{
-    document.getElementById('app-pin-overlay').style.display='flex';
-    setTimeout(function(){document.getElementById('app-pin-input').focus();},100);
-  }
   window._startApp=function startApp(){
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('markup-display').textContent=MARKUP_PCT;
@@ -589,6 +580,15 @@ window.addEventListener('DOMContentLoaded',function(){
   }
   tryInit(1);
   } // end startApp
+  // App-level PIN gate (runs AFTER _startApp is defined)
+  var savedPin=localStorage.getItem('vd_pin_ok');
+  if(savedPin===ANALYTICS_PIN){
+    document.getElementById('app-pin-overlay').style.display='none';
+    window._startApp();
+  }else{
+    document.getElementById('app-pin-overlay').style.display='flex';
+    setTimeout(function(){document.getElementById('app-pin-input').focus();},100);
+  }
 });
 
 function showPage(name){
