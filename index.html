@@ -1,4 +1,4 @@
-h<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -1923,4 +1923,68 @@ function printAct(orderId){
 '«&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;»&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; '+yr+' г.'+
 '</div>'+
 
-'<div class="cl" style="margin-top:6px">3. Недостатки то
+'<div class="cl" style="margin-top:6px">3. Недостатки товара и сопутствующих услуг не выявлены. Покупатель претензий не имеет.</div>'+
+
+'<div class="sigs">'+
+'<div class="sb">'+
+'<div><strong>Сдал:</strong></div>'+
+'<div>Продавец</div>'+
+'<div>ИП Вакуленко С.С.</div>'+
+'<div class="sl"></div>'+
+'<div style="font-size:9pt">подпись</div>'+
+'</div>'+
+'<div class="sb">'+
+'<div><strong>Принял:</strong></div>'+
+'<div>Покупатель</div>'+
+'<div>'+o.client_name+'</div>'+
+'<div class="sl"></div>'+
+'<div style="font-size:9pt">(Ф.И.О. / подпись)</div>'+
+'</div>'+
+'</div>'+
+
+'</body></html>');
+  win.document.close();
+  setTimeout(function(){win.print();},600);
+}
+
+function openMarkupModal(){
+  document.getElementById('markup-input').value=MARKUP_PCT;
+  updateMarkupExample();
+  document.getElementById('modal-markup').classList.add('open');
+}
+function setMarkupPreset(pct){
+  document.getElementById('markup-input').value=pct;
+  updateMarkupExample();
+}
+function updateMarkupExample(){
+  var pct=parseFloat(document.getElementById('markup-input').value)||0;
+  var example=Math.ceil(10000*(1+pct/100)/100)*100;
+  document.getElementById('markup-example').textContent=fmt(example)+' ₽';
+}
+function applyMarkup(){
+  var pct=parseFloat(document.getElementById('markup-input').value)||0;
+  if(pct<0||pct>500){toast('⚠️ Наценка должна быть от 0 до 500%','err');return;}
+  MARKUP_PCT=pct;
+  localStorage.setItem('vashdom_markup',pct);
+  document.getElementById('markup-display').textContent=pct;
+  for(var i=1;i<=itemCount;i++){
+    var ib=document.getElementById('ib-'+i);if(!ib)continue;
+    if(ib.dataset.manual==='1')continue;
+    calcItemPrice(i);
+  }
+  closeModal('modal-markup');
+  toast('✅ Наценка установлена: +'+pct+'%');
+}
+document.addEventListener('input',function(e){if(e.target&&e.target.id==='markup-input')updateMarkupExample();});
+
+function fmt(n){return Math.round(n||0).toLocaleString('ru-RU');}
+function fmtK(n){n=Math.round(n||0);return n>=1000?(n/1000).toFixed(1).replace('.0','')+'K':String(n);}
+function fmtDate(d){if(!d)return'—';var p=d.split('-');return p[2]+'.'+p[1]+'.'+p[0];}
+function fmtMonth(ym){var ms=['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];var p=ym.split('-');return ms[parseInt(p[1])-1]+' '+p[0].slice(2);}
+function initials(n){if(!n)return'?';return n.trim().split(/\s+/).slice(0,2).map(function(w){return w[0]?w[0].toUpperCase():'';}).join('');}
+function hideAc(id,delay){setTimeout(function(){var el=document.getElementById(id);if(el)el.style.display='none';},delay||200);}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+</script>
+</body>
+</html>
