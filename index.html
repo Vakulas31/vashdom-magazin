@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+h<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -534,7 +534,7 @@ window.addEventListener('DOMContentLoaded',function(){
   addFormItem();
   function tryInit(attempt){
     var el=document.getElementById('conn-status');
-    el.textContent='● Подключение'+(attempt>1?' (попытка '+attempt+')'||'')+'...';el.style.color='#aaa';
+    el.textContent='● Подключение'+(attempt>1?' (попытка '+attempt+')':'')+'...';el.style.color='#aaa';
     Promise.all([loadOrders(),loadClients()]).then(function(){
       el.textContent='● Онлайн';el.style.color='#4CAF50';
     }).catch(function(e){
