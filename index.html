@@ -82,6 +82,10 @@ textarea{resize:vertical;min-height:60px}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty{text-align:center;padding:60px 20px;color:var(--text2)}
+.expand-btn{background:none;border:1px solid var(--text2);border-radius:8px;font-size:11px;color:var(--text2);padding:2px 8px;cursor:pointer;margin-left:6px;vertical-align:middle}
+.chip{display:inline-block;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid transparent;transition:background .15s}
+.chip:hover{opacity:.85}
+.chip-active{border-color:var(--primary)!important;background:var(--primary)!important;color:#fff!important}
 .toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius-sm);font-size:13px;z-index:1000;display:none;box-shadow:0 4px 12px rgba(0,0,0,.2);max-width:400px}
 .toast.ok{background:#2e7d32;color:#fff}.toast.err{background:#c62828;color:#fff}
 .toast.show{display:block}
@@ -117,6 +121,14 @@ textarea{resize:vertical;min-height:60px}
       <button class="btn btn-outline" onclick="exportBackup()">💾 Бэкап</button>
       <button class="btn btn-primary" onclick="resetForm();showPage('new')">➕ Новый заказ</button>
     </div>
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" id="chips-row">
+    <span class="chip chip-active" style="background:#f0f4ff;color:#1565C0;border-color:#1565C0" data-chip="all" onclick="setChip('all')">Все</span>
+    <span class="chip" style="background:#FFF3E0;color:#E65100" data-chip="debt" onclick="setChip('debt')">💰 С долгом</span>
+    <span class="chip" style="background:#E3F2FD;color:#1565C0" data-chip="active" onclick="setChip('active')">🔄 В процессе</span>
+    <span class="chip" style="background:#E8F5E9;color:#2E7D32" data-chip="today" onclick="setChip('today')">📅 Сегодня</span>
+    <span class="chip" style="background:#F3E5F5;color:#6A1B9A" data-chip="week" onclick="setChip('week')">🗓 На неделе</span>
+    <span class="chip" style="background:#ECEFF1;color:#546E7A" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -164,6 +176,9 @@ textarea{resize:vertical;min-height:60px}
     </div>
     <div class="form-row">
       <div class="fg"><label>Дата заказа</label><input type="date" id="f-date" class="inp-gold"></div>
+      <div class="fg"><label>📦 Дата доставки</label><input type="date" id="f-delivery-date" class="inp-gold"></div>
+    </div>
+    <div class="form-row">
       <div class="fg"><label>Менеджер *</label><input type="text" id="f-manager" class="inp-gold" placeholder="Имя менеджера"></div>
     </div>
   </div>
@@ -528,7 +543,33 @@ function sbPost(t,d){return sb('POST',t,d);}
 function sbPatch(t,d,p){return sb('PATCH',t,d,p);}
 function sbDel(t,p){return sb('DELETE',t,null,p);}
 
+function checkAppPin(){
+  var input=document.getElementById('app-pin-input').value;
+  var err=document.getElementById('app-pin-err');
+  // Hash the input simply: compare to stored constant
+  if(input===ANALYTICS_PIN){
+    localStorage.setItem('vd_pin_ok',ANALYTICS_PIN);
+    document.getElementById('app-pin-overlay').style.display='none';
+    err.style.display='none';
+    startApp();
+  }else{
+    err.style.display='block';
+    document.getElementById('app-pin-input').value='';
+    document.getElementById('app-pin-input').focus();
+  }
+}
+
 window.addEventListener('DOMContentLoaded',function(){
+  // App-level PIN gate
+  var savedPin=localStorage.getItem('vd_pin_ok');
+  if(savedPin===ANALYTICS_PIN){
+    document.getElementById('app-pin-overlay').style.display='none';
+    startApp();
+  }else{
+    document.getElementById('app-pin-overlay').style.display='flex';
+    setTimeout(function(){document.getElementById('app-pin-input').focus();},100);
+  }
+  function startApp(){
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('markup-display').textContent=MARKUP_PCT;
   addFormItem();
@@ -548,6 +589,7 @@ window.addEventListener('DOMContentLoaded',function(){
     });
   }
   tryInit(1);
+  } // end startApp
 });
 
 function showPage(name){
@@ -600,10 +642,12 @@ function orderCard(o){
   var isDone=o.status==='🏁 Выполнен';
   var isPaid=o.status&&o.status.indexOf('Оплачено')>=0&&o.status.indexOf('Не')<0;
   var contactTags='';
-  if(o.client_phone)contactTags+='<span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span>';
-  if(o.client_phone2)contactTags+='<span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span>';
-  if(o.client_address)contactTags+='<span style="background:#FFF3E0;color:#E65100;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span>';
-  var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'');
+  function telHref(p){return'tel:+7'+p.replace(/^[+7]?[78]?/,'').replace(/\D/g,'');}
+  if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span></a>';
+  if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span></a>';
+  if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span style="background:#FFF3E0;color:#E65100;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span></a>';}
+  var delivBadge=o.delivery_date?'<span style="background:#E8F5E9;color:#2E7D32;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>':'';
+  var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
   var hdrBg=isDone?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
 
   var itemsHtml='';
@@ -618,7 +662,7 @@ function orderCard(o){
     var qtyTag=it.qty>1?'<span class="tag-qty">'+it.qty+' шт.</span>':'';
     var availClass=it.availability==='Есть'?'badge-yes':'badge-order';
     itemsHtml+='<div class="item-row-compact">'+
-      '<div class="item-info"><span class="item-text">'+parts.join(' · ')+'</span>'+
+      '<div class="item-info"><span class="item-text"><strong>'+it.product_name+'</strong>'+(parts.length>1?' · '+parts.slice(1).join(' · '):'')+'</span>'+
       (it.qty>1?'<span class="tag-qty" style="margin-left:6px">'+it.qty+' шт.</span>':'')+
       '</div>'+
       '<div class="item-avail">'+
@@ -651,12 +695,14 @@ function orderCard(o){
   var activeBadge=!isDone?'<span style="font-size:11px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:20px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
 
   return '<div class="'+cardClass+'">'+
-    '<div class="order-hdr" style="'+hdrBg+'">'+
+    '<div class="order-hdr" style="'+hdrBg+(isDone?';cursor:pointer':'')+'">'+
+    (isDone?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
     '<div class="order-meta" style="display:block;flex:1">'+
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
     '<span style="margin:0 6px;color:#ddd">|</span><strong>'+o.client_name+'</strong></div>'+
     (contactTags?'<div style="margin-top:4px">'+contactTags+'</div>':'')+
     '</div>'+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
+    '<div id="order-body-'+o.id+'" style="'+(isDone?'display:none':'')+'">'+
     (itemsHtml||'')+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
     '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(o.goods_discounted||o.goods_total||0)+' ₽</div></div>'+
@@ -667,7 +713,15 @@ function orderCard(o){
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'+
     doneBtn+
     '<button class="btn-danger-sm" onclick="askDelete('+o.id+')">🗑</button>'+
-    '</div></div></div>';
+    '</div></div></div></div>';
+}
+
+function toggleOrderBody(id){
+  var body=document.getElementById('order-body-'+id);
+  var btn=document.getElementById('expand-btn-'+id);
+  if(!body)return;
+  if(body.style.display==='none'){body.style.display='';if(btn)btn.textContent='свернуть ↑';}
+  else{body.style.display='none';if(btn)btn.textContent='развернуть ↓';}
 }
 
 function renderOrders(orders){
@@ -678,15 +732,36 @@ function renderOrders(orders){
   list.innerHTML=html;
 }
 
+var _activeChip='all';
+function setChip(chip){
+  _activeChip=chip;
+  document.querySelectorAll('#chips-row .chip').forEach(function(el){
+    el.classList.remove('chip-active');
+    el.style.borderColor='transparent';
+    if(el.dataset.chip===chip){
+      el.classList.add('chip-active');
+    }
+  });
+  filterOrders();
+}
+
 function filterOrders(){
   var q=document.getElementById('orders-search').value.toLowerCase().trim();
   var st=document.getElementById('filter-status').value;
   var mg=document.getElementById('filter-manager').value;
+  var today=new Date().toISOString().split('T')[0];
+  var weekEnd=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
   var f=allOrders.filter(function(o){
     var txt=[o.client_name,o.client_phone,o.client_phone2,o.client_address,o.notes,o.manager,o.order_number,o.status].join(' ').toLowerCase();
     (o.order_items||[]).forEach(function(i){txt+=' '+(i.product_name||'')+' '+(i.color||'')+' '+(i.supplier||'');});
     var statusMatch=!st||(st==='__active__'?(o.status||'')!=='🏁 Выполнен':o.status===st);
-    return(!q||txt.indexOf(q)>=0)&&statusMatch&&(!mg||o.manager===mg);
+    var chipMatch=true;
+    if(_activeChip==='debt')chipMatch=(o.remainder||0)>0||(o.delivery_paid==='no'&&(o.delivery_cost||0)>0);
+    else if(_activeChip==='active')chipMatch=(o.status||'')!=='🏁 Выполнен';
+    else if(_activeChip==='today')chipMatch=o.delivery_date===today;
+    else if(_activeChip==='week')chipMatch=o.delivery_date&&o.delivery_date>=today&&o.delivery_date<=weekEnd;
+    else if(_activeChip==='done')chipMatch=(o.status||'')==='🏁 Выполнен';
+    return(!q||txt.indexOf(q)>=0)&&statusMatch&&(!mg||o.manager===mg)&&chipMatch;
   });
   renderOrders(f);
 }
@@ -1041,7 +1116,7 @@ function printPriceLabel(){
   }
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'
     +'@page{size:'+pw+' '+ph+';margin:4mm}'
-    +'body{margin:0;padding:0;font-family:Arial,sans-serif}'
+    +'body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'.lbl{width:calc('+pw+' - 8mm);height:calc('+ph+' - 8mm);border:1.5px solid #bbb;border-radius:5px;padding:'+(half?'10px':'5px')+';box-sizing:border-box;display:inline-flex;flex-direction:column;justify-content:space-between;position:relative;background:#fff;overflow:hidden}'
     +'.top-row{display:flex;align-items:center;justify-content:space-between}'
     +'.logo{height:'+(half?'32px':'18px')+';object-fit:contain}'
@@ -1063,7 +1138,7 @@ function printPriceLabel(){
   var waitLoad=imgs.length>0
     ?Promise.all(imgs.map(function(img){return new Promise(function(r){if(img.complete)r();else{img.onload=r;img.onerror=r;}});}))
     :Promise.resolve();
-  waitLoad.then(function(){setTimeout(function(){w.print();},100);});
+  waitLoad.then(function(){setTimeout(function(){w.print();},300);});
 }
 function clearPriceLabel(){
   ['pl-name','pl-color','pl-dims','pl-price','pl-oldprice','pl-qr','pl-supplier'].forEach(function(id){document.getElementById(id).value='';});
@@ -1372,8 +1447,13 @@ function calcItemPrice(id){
   }else{
     var ib=document.getElementById('ib-'+id);
     var baseOpt=parseFloat(ib?ib.dataset.opt:0)||0;
-    var ret2=Math.ceil(baseOpt*(1+MARKUP_PCT/100)*qty/100)*100;
-    itemPrices[id]=ret2;document.getElementById('fi-ret-'+id).textContent=fmt(ret2)+' ₽';
+    var storedRet=parseFloat(ib?ib.dataset.ret:0)||0;
+    var ret2;
+    if(baseOpt>0){ret2=Math.ceil(baseOpt*(1+MARKUP_PCT/100)*qty/100)*100;}
+    else if(storedRet>0){ret2=storedRet*qty;}
+    else{ret2=0;}
+    if(ret2>0&&ib)ib.dataset.ret=Math.round(ret2/qty);
+    itemPrices[id]=ret2;document.getElementById('fi-ret-'+id).textContent=ret2?fmt(ret2)+' ₽':'—';
   }
   recalcTotals();
 }
@@ -1405,6 +1485,7 @@ function recalcTotals(){
 var _saving=false;
 function saveOrder(){
   if(_saving)return;
+  _saving=true;  // guard immediately
   var btn=document.getElementById('save-btn');
   var clientName=document.getElementById('f-client').value.trim();
   var phone=document.getElementById('f-phone').value.trim();
@@ -1421,7 +1502,7 @@ function saveOrder(){
     if(!phone)document.getElementById('f-phone').style.borderColor='#C62828';
     if(!address)document.getElementById('f-address').style.borderColor='#C62828';
     if(!manager)document.getElementById('f-manager').style.borderColor='#C62828';
-    return;
+    _saving=false;return;
   }
   ['f-client','f-phone','f-address','f-manager'].forEach(function(id){document.getElementById(id).style.borderColor='';});
   var items=[];
@@ -1476,8 +1557,8 @@ function saveOrder(){
       sort_order:i
     });
   }
-  if(!items.length){toast('⚠️ Добавьте хотя бы один товар!','err');return;}
-  if(itemErrors.length){toast('⚠️ '+itemErrors[0],'err',4000);return;}
+  if(!items.length){toast('⚠️ Добавьте хотя бы один товар!','err');_saving=false;btn.disabled=false;return;}
+  if(itemErrors.length){toast('⚠️ '+itemErrors[0],'err',4000);_saving=false;btn.disabled=false;return;}
   var goods=Object.values(itemPrices).reduce(function(a,b){return a+b;},0);
   var disc2=parseFloat(document.getElementById('f-discount').value)||0;
   var goodsDisc=Math.round(goods*(1-disc2/100));
@@ -1487,6 +1568,7 @@ function saveOrder(){
   var orderNum=found?found.order_number:Date.now().toString().slice(-6);
   var orderData={
     order_number:orderNum,order_date:document.getElementById('f-date').value,
+    delivery_date:document.getElementById('f-delivery-date').value||null,
     manager:document.getElementById('f-manager').value.trim(),
     client_name:clientName,client_phone:phone,
     client_phone2:document.getElementById('f-phone2').value.trim(),
@@ -1508,7 +1590,7 @@ function saveOrder(){
     toast('⚠️ Укажите способ оплаты','err');return;
   }
   document.getElementById('f-payment').style.borderColor='';
-  btn.innerHTML='<span class="spinner"></span> Сохраняем...';btn.disabled=true;_saving=true;
+  btn.innerHTML='<span class="spinner"></span> Сохраняем...';btn.disabled=true;
   var savePromise;
   if(editId){
     savePromise=sbPatch('orders',orderData,'id=eq.'+editId).then(function(){
@@ -1543,6 +1625,7 @@ function editOrder(id){
   document.getElementById('f-phone2').value=o.client_phone2||'';
   document.getElementById('f-address').value=o.client_address||'';
   document.getElementById('f-date').value=o.order_date||'';
+  document.getElementById('f-delivery-date').value=o.delivery_date||'';
   document.getElementById('f-manager').value=o.manager||'';
   document.getElementById('f-discount').value=o.discount_pct||0;
   document.getElementById('f-delivery').value=o.delivery_cost||0;
@@ -1580,7 +1663,7 @@ function editOrder(id){
       var availEl=document.getElementById('fi-avail-'+id2);
       if(availEl&&item.availability)availEl.value=item.availability;
     }
-    var opt=item.price_opt||Math.round((item.price_retail||0)/(1+MARKUP_PCT/100));
+    var opt=item.price_opt||0;  // don't reverse-calculate; avoids +100₽ rounding drift
     var ret=item.price_retail||0;
     itemPrices[id2]=ret*qty;
     document.getElementById('fi-ret-'+id2).textContent=fmt(ret*qty)+' ₽';
@@ -1986,5 +2069,15 @@ function hideAc(id,delay){setTimeout(function(){var el=document.getElementById(i
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
 </script>
+<div id="app-pin-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:32px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+    <div style="font-size:40px;margin-bottom:12px">🔒</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">ВашДом CRM</div>
+    <div style="font-size:13px;color:#666;margin-bottom:20px">Введите PIN-код для входа</div>
+    <input type="password" id="app-pin-input" placeholder="PIN" style="width:100%;text-align:center;font-size:24px;letter-spacing:8px;border:2px solid #ddd;border-radius:8px;padding:10px;box-sizing:border-box;margin-bottom:12px" onkeydown="if(event.key==='Enter')checkAppPin()" autocomplete="off" inputmode="numeric">
+    <button class="btn btn-primary" onclick="checkAppPin()" style="width:100%;justify-content:center;font-size:16px">Войти →</button>
+    <div id="app-pin-err" style="color:#c62828;font-size:12px;margin-top:10px;display:none">Неверный PIN-код</div>
+  </div>
+</div>
 </body>
 </html>
