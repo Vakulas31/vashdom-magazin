@@ -546,12 +546,11 @@ function sbDel(t,p){return sb('DELETE',t,null,p);}
 function checkAppPin(){
   var input=document.getElementById('app-pin-input').value;
   var err=document.getElementById('app-pin-err');
-  // Hash the input simply: compare to stored constant
   if(input===ANALYTICS_PIN){
     localStorage.setItem('vd_pin_ok',ANALYTICS_PIN);
     document.getElementById('app-pin-overlay').style.display='none';
     err.style.display='none';
-    startApp();
+    if(window._startApp)window._startApp();
   }else{
     err.style.display='block';
     document.getElementById('app-pin-input').value='';
@@ -564,12 +563,12 @@ window.addEventListener('DOMContentLoaded',function(){
   var savedPin=localStorage.getItem('vd_pin_ok');
   if(savedPin===ANALYTICS_PIN){
     document.getElementById('app-pin-overlay').style.display='none';
-    startApp();
+    if(window._startApp)window._startApp();
   }else{
     document.getElementById('app-pin-overlay').style.display='flex';
     setTimeout(function(){document.getElementById('app-pin-input').focus();},100);
   }
-  function startApp(){
+  window._startApp=function startApp(){
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('markup-display').textContent=MARKUP_PCT;
   addFormItem();
