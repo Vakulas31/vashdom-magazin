@@ -832,7 +832,7 @@ function filterOrders(){
     var chipMatch=true;
     if(_activeChip==='debt')chipMatch=(o.remainder||0)>0||(o.delivery_paid==='no'&&(o.delivery_cost||0)>0);
     else if(_activeChip==='active')chipMatch=(o.status||'')!=='🏁 Выполнен';
-    else if(_activeChip==='today')chipMatch=o.delivery_date===today;
+    else if(_activeChip==='today')chipMatch=o.order_date===today;
     else if(_activeChip==='week')chipMatch=o.delivery_date&&o.delivery_date>=today&&o.delivery_date<=weekEnd;
     else if(_activeChip==='done')chipMatch=(o.status||'')==='🏁 Выполнен';
     return(!q||txt.indexOf(q)>=0)&&statusMatch&&(!mg||o.manager===mg)&&chipMatch;
@@ -1253,8 +1253,37 @@ function _collectRows(data,cfg){
   return rows;
 }
 // Автоопределение строки заголовков и колонок (для «Все листы сразу»)
+// Считает, сколько в колонке c (начиная со строки startRow) ценоподобных чисел
+function _plColNumericCount(data,startRow,c){
+  var n=0,seen=0;
+  for(var r=startRow;r<data.length&&seen<60;r++){
+    var v=(data[r]||[])[c];if(v===''||v==null)continue;seen++;
+    var num=_plToNum(v);if(num>=50&&num<=100000000)n++; // цена, а не индекс/год
+  }
+  return n;
+}
+// Ищет первую числовую (ценовую) колонку правее minCol, исключая указанные
+function _plFindPriceCol(data,startRow,minCol,exclude){
+  var best=-1;
+  for(var c=minCol;c<40;c++){
+    if(exclude.indexOf(c)>=0)continue;
+    if(_plColNumericCount(data,startRow,c)>=3){best=c;break;}
+  }
+  return best;
+}
+// Определяет каскадную раскладку: у большинства ценовых строк колонка названия пустая
+function _plLooksCascade(data,startRow,colName,colOpt){
+  var priceNoName=0,both=0;
+  for(var r=startRow;r<data.length;r++){
+    var row=data[r]||[];
+    var nm=String(row[colName]||'').trim();
+    var pr=_plToNum(row[colOpt]);
+    if(pr>0){ if(nm)both++; else priceNoName++; }
+  }
+  return priceNoName>both&&priceNoName>=2;
+}
 function _autoDetectSheet(data){
-  for(var r=0;r<Math.min(12,data.length);r++){
+  for(var r=0;r<Math.min(15,data.length);r++){
     var row=data[r]||[];
     var d={name:-1,opt:-1,ret:-1,art:-1,price:-1};
     for(var i=0;i<row.length;i++){
@@ -1262,11 +1291,20 @@ function _autoDetectSheet(data){
       if(d.name<0&&/наимен|товар|название|модель|издели|product|^name/.test(hl))d.name=i;
       if(d.opt<0&&/опт|\bopt\b|закуп|себест|wholesale/.test(hl))d.opt=i;
       if(d.ret<0&&/розн|retail|продаж/.test(hl))d.ret=i;
-      if(d.art<0&&/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант/.test(hl))d.art=i;
+      if(d.art<0&&/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант|размер/.test(hl))d.art=i;
       if(d.price<0&&/цена|стоимость|price|руб/.test(hl)&&!/розн|retail|продаж/.test(hl))d.price=i;
     }
+    if(d.name<0)continue; // без колонки названия лист не разобрать
     var opt=d.opt>=0?d.opt:d.price;
-    if(d.name>=0&&opt>=0&&d.name!==opt)return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):''};
+    // Фолбэк: заголовка цены нет → берём первую числовую колонку правее названия/характеристики
+    if(opt<0){
+      var minCol=Math.max(d.name,d.art)+1;
+      opt=_plFindPriceCol(data,r+1,minCol,[d.name,d.art,d.ret]);
+    }
+    if(opt>=0&&opt!==d.name){
+      var cascade=_plLooksCascade(data,r+1,d.name,opt);
+      return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):'',cascade:cascade};
+    }
   }
   return null;
 }
@@ -1357,7 +1395,7 @@ async function importAllSheets(){
       src='по шаблону';
     }else{
       var det=_autoDetectSheet(data);
-      if(det){cfg={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:false};src='автоопределение';}
+      if(det){cfg={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade};src='автоопределение'+(det.cascade?' (каскад)':'');}
     }
     if(!cfg){report.push({sheet:sn,count:0,note:'не удалось определить колонки — импортируйте вручную'});return;}
     cfg.supplier=supplier;cfg.sheetName=sn;
@@ -2358,9 +2396,29 @@ function renderStats(){
   var months=Object.keys(byMonth).sort().slice(-6).map(function(k){return{label:fmtMonth(k),val:byMonth[k],display:fmtK(byMonth[k])+' ₽'};});
   barChart('chart-months',months,months.length?Math.max.apply(null,months.map(function(m){return m.val;})):1);
   var byMgr={};
-  orders.forEach(function(o){var m=o.manager||'Не указан';if(!byMgr[m])byMgr[m]={count:0,revenue:0};byMgr[m].count++;byMgr[m].revenue+=(o.goods_discounted||o.goods_total||0);});
-  var mgrs=Object.keys(byMgr).map(function(k){return{label:k.split(' ')[0],val:byMgr[k].revenue,display:byMgr[k].count+' / '+fmtK(byMgr[k].revenue)+' ₽'};}).sort(function(a,b){return b.val-a.val;});
-  barChart('chart-managers',mgrs,mgrs.length?Math.max.apply(null,mgrs.map(function(m){return m.val;})):1,'var(--mid)');
+  orders.forEach(function(o){
+    var m=o.manager||'Не указан';
+    if(!byMgr[m])byMgr[m]={count:0,revenue:0,months:{}};
+    var rev=(o.goods_discounted||o.goods_total||0);
+    byMgr[m].count++;byMgr[m].revenue+=rev;
+    if(o.order_date){var ym=o.order_date.slice(0,7);byMgr[m].months[ym]=(byMgr[m].months[ym]||0)+rev;}
+  });
+  var mgrList=Object.keys(byMgr).map(function(k){return{name:k,data:byMgr[k]};}).sort(function(a,b){return b.data.revenue-a.data.revenue;});
+  var maxMgrRev=mgrList.length?Math.max.apply(null,mgrList.map(function(m){return m.data.revenue;})):1;
+  var maxMonthRev=1;
+  mgrList.forEach(function(m){Object.keys(m.data.months).forEach(function(ym){if(m.data.months[ym]>maxMonthRev)maxMonthRev=m.data.months[ym];});});
+  var mhtml='';
+  mgrList.forEach(function(m){
+    mhtml+='<div class="bar-row" style="margin-bottom:4px"><span class="bar-name" style="font-weight:700;color:var(--text)">'+m.name.split(' ')[0]+'</span>'+
+      '<div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(m.data.revenue/(maxMgrRev||1)*100)+'%;background:var(--mid)"></div></div>'+
+      '<span class="bar-val">'+m.data.count+' / '+fmtK(m.data.revenue)+' ₽</span></div>';
+    Object.keys(m.data.months).sort().forEach(function(ym){
+      mhtml+='<div class="bar-row" style="margin-bottom:3px"><span class="bar-name" style="font-size:11px;color:var(--text2)">↳ '+fmtMonth(ym)+'</span>'+
+        '<div class="bar-wrap" style="height:12px"><div class="bar-fill" style="width:'+Math.round(m.data.months[ym]/(maxMonthRev||1)*100)+'%;background:#90CAF9"></div></div>'+
+        '<span class="bar-val" style="font-weight:500;font-size:11px">'+fmtK(m.data.months[ym])+' ₽</span></div>';
+    });
+  });
+  document.getElementById('chart-managers').innerHTML=mhtml||'<p style="color:var(--text2);font-size:13px">Нет данных</p>';
   var byStatus={};orders.forEach(function(o){byStatus[o.status||'—']=(byStatus[o.status||'—']||0)+1;});
   var statuses=Object.keys(byStatus).map(function(k){return{label:k,val:byStatus[k],display:''+byStatus[k]};}).sort(function(a,b){return b.val-a.val;});
   barChart('chart-statuses',statuses,orders.length,'#4CAF50');
