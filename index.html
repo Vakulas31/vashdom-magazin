@@ -1193,7 +1193,13 @@ async function importPriceList(){
   if(!supplier){toast('⚠️ Укажите название поставщика','err');return;}
   if(colName===''){toast('⚠️ Выберите колонку с названием','err');return;}
   if(colOpt===''){toast('⚠️ Выберите колонку с оптовой ценой','err');return;}
-  var toNum=function(v){return parseFloat(String(v||'').replace(/[^\d,\.]/g,'').replace(',','.'))||0;};
+  var toNum=function(v){
+    var t=String(v||'').replace(/\s+/g,'').replace(/[^\d,\.\-]/g,'');
+    // «27,600» / «1,234,500» — запятая-разделитель тысяч; «1234,50» — десятичная запятая
+    if(/,\d{3}(?=(,\d{3})*$)/.test(t.replace(/\.\d+$/,'')))t=t.replace(/,(?=\d{3}(\D|$))/g,'');
+    t=t.replace(',','.');
+    return parseFloat(t)||0;
+  };
   var cascade=document.getElementById('pl-cascade').checked;
   var currentGroupName=''; // для каскадного режима
   var rows=[];
