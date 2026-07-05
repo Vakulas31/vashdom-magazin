@@ -378,8 +378,9 @@ textarea{resize:vertical;min-height:60px}
         <div id="pl-tpl-status" style="display:none;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px"></div>
 
         <div class="fg" style="margin-bottom:12px">
-          <label>Название поставщика (для базы) *</label>
-          <input type="text" id="pl-sup" class="inp-gold" placeholder="напр. ДСВ, Некрасовы, Про-диван...">
+          <label>Поставщик * <span style="font-weight:400;color:var(--text2)">(выберите существующего или впишите нового)</span></label>
+          <input type="text" id="pl-sup" class="inp-gold" list="pl-sup-list" placeholder="напр. МТК, Добрый дом, БРАВО..." autocomplete="off">
+          <datalist id="pl-sup-list"></datalist>
         </div>
 
         <div style="background:var(--alt);border-radius:6px;padding:10px 12px;margin-bottom:12px">
@@ -1113,6 +1114,22 @@ function onPriceFile(input){
     }catch(err){toast('❌ Не удалось прочитать файл: '+err.message,'err');}
   };
   reader.readAsArrayBuffer(file);
+  loadSupplierDatalist();
+}
+
+// Подсказка существующих поставщиков (чтобы не плодить дубли)
+function _fillSupplierDatalist(names){
+  var dl=document.getElementById('pl-sup-list');if(!dl)return;
+  dl.innerHTML=(names||[]).map(function(n){return'<option value="'+String(n).replace(/"/g,'&quot;')+'">';}).join('');
+}
+async function loadSupplierDatalist(){
+  try{
+    var rows=await sbGet('price_items','select=supplier&limit=10000');
+    var seen={},names=[];
+    (rows||[]).forEach(function(r){if(r.supplier&&!seen[r.supplier]){seen[r.supplier]=1;names.push(r.supplier);}});
+    names.sort(function(a,b){return a.localeCompare(b,'ru');});
+    _fillSupplierDatalist(names);
+  }catch(e){}
 }
 
 // ── ШАБЛОНЫ ПРАЙСОВ ─────────────────────────────────────
@@ -1176,6 +1193,29 @@ function onPriceSheetChange(){
   var sn=document.getElementById('pl-sheet').value;
   var ws=_plWB.Sheets[sn];
   _plData=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+  var store=_getTplStore();
+  var hasTpl=store[sn]||store['sup:'+((document.getElementById('pl-sup').value||'').trim().toLowerCase())];
+  if(!hasTpl){
+    // Нет шаблона → пробуем определить заголовок и колонки сами (в т.ч. если шапка не в 1-й строке)
+    var det=_autoDetectSheet(_plData);
+    if(det){
+      document.getElementById('pl-startrow').value=det.headerRow+2;
+      document.getElementById('pl-cascade').checked=!!det.cascade;
+    }
+    _buildPriceColSelects();
+    var se=document.getElementById('pl-tpl-status');
+    if(det){
+      document.getElementById('pl-col-name').value=det.colName;
+      document.getElementById('pl-col-opt').value=det.colOpt;
+      document.getElementById('pl-col-ret').value=(det.colRet===''||det.colRet==null)?'':det.colRet;
+      document.getElementById('pl-col-art').value=(det.colArt===''||det.colArt==null)?'':det.colArt;
+      if(se){se.style.cssText='display:block;background:#E3F2FD;color:#0D47A1;border:1px solid #90CAF9;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';se.innerHTML='🔍 Колонки определены автоматически (строка данных '+(det.headerRow+2)+') — проверьте и жмите «Импортировать этот лист».';}
+    }else if(_autoDetectMatrix(_plData)){
+      if(se){se.style.cssText='display:block;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';se.innerHTML='📐 Похоже на таблицу с ценами по размерам — жмите «Импортировать этот лист», разложу автоматически.';}
+    }else if(se){se.style.display='none';}
+    _renderPricePreview();
+    return;
+  }
   _buildPriceColSelects();
   var applied=applyPriceTemplate(sn);
   if(!applied)_renderPricePreview();
@@ -1248,6 +1288,11 @@ function _collectRows(data,cfg){
       if(nameVal&&optNum&&!rowCategory)currentGroupName=nameVal;
     }
     if(!nameVal||!optNum)continue;
+    // Защита от переполнения numeric(12,2): цена мебели не бывает > 100 млн.
+    // Больше — это не цена (артикул/штрихкод/склеенное число), строку пропускаем.
+    if(optNum<0||optNum>99999999)continue;
+    if(retVal<0||retVal>99999999)retVal=0;
+    optNum=Math.round(optNum*100)/100;retVal=Math.round(retVal*100)/100;
     rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory,sheet_name:cfg.sheetName||''});
   }
   return rows;
@@ -1287,7 +1332,8 @@ function _autoDetectSheet(data){
     var row=data[r]||[];
     var d={name:-1,opt:-1,ret:-1,art:-1,price:-1};
     for(var i=0;i<row.length;i++){
-      var hl=String(row[i]||'').toLowerCase();if(!hl)continue;
+      // Заголовок колонки — короткая ячейка. Длинные тексты (приветствия, примечания) — не заголовки.
+      var hl=String(row[i]||'').toLowerCase().trim();if(!hl||hl.length>35)continue;
       if(d.name<0&&/наимен|товар|название|модель|издели|product|^name/.test(hl))d.name=i;
       if(d.opt<0&&/опт|\bopt\b|закуп|себест|wholesale/.test(hl))d.opt=i;
       if(d.ret<0&&/розн|retail|продаж/.test(hl))d.ret=i;
@@ -1308,6 +1354,41 @@ function _autoDetectSheet(data){
   }
   return null;
 }
+// ── МАТРИЧНЫЙ ПРАЙС (цены по размерам в столбцах: 800/900/1200…) ──
+function _plIsSize(v){var s=String(v==null?'':v).trim();if(!/^\d{2,4}$/.test(s))return false;var n=parseInt(s);return n>=50&&n<=2500;}
+// Ищет строку-шапку с размерами (≥3 числовых «размерных» ячейки) в первых 7 строках
+function _autoDetectMatrix(data){
+  for(var r=0;r<Math.min(7,data.length);r++){
+    var row=data[r]||[];var sc=[];
+    for(var c=0;c<row.length;c++){if(_plIsSize(row[c]))sc.push({col:c,label:String(row[c]).trim()});}
+    if(sc.length>=3){
+      var firstSize=sc[0].col;var descCols=[];
+      for(var cc=1;cc<firstSize;cc++)descCols.push(cc); // колонки-описания между названием и размерами
+      return{sizeRow:r,sizeCols:sc,nameCol:0,descCols:descCols,dataStart:r+1};
+    }
+  }
+  return null;
+}
+// Разворачивает матрицу в строки: товар × размер
+function _collectMatrix(data,m,supplier,sheetName){
+  var rows=[],lastName='';
+  for(var r=m.dataStart;r<data.length;r++){
+    var row=data[r]||[];
+    var name=String(row[m.nameCol]||'').trim();
+    if(name)lastName=name;
+    var baseName=name||lastName;if(!baseName)continue;
+    var desc=m.descCols.map(function(dc){return String(row[dc]||'').trim();}).filter(Boolean).join(', ');
+    m.sizeCols.forEach(function(s){
+      var p=_plToNum(row[s.col]);
+      if(p>=50&&p<=99999999){
+        var art=('ш'+s.label)+(desc?', '+desc:'');
+        rows.push({supplier:supplier,product_name:baseName,price_opt:Math.round(p*100)/100,price_retail:0,article:art,category:'',sheet_name:sheetName});
+      }
+    });
+  }
+  return rows;
+}
+function _plValidCount(rows){var n=0;for(var i=0;i<rows.length;i++)if((rows[i].price_opt||0)>=50)n++;return n;}
 async function _plPreflight(rows){
   try{await sbGet('price_items','select=category&limit=1');}
   catch(e){if(/category/i.test(e.message))rows.forEach(function(r){delete r.category;});}
@@ -1345,23 +1426,33 @@ async function importPriceList(){
   var colName=document.getElementById('pl-col-name').value;
   var colOpt=document.getElementById('pl-col-opt').value;
   if(!supplier){toast('⚠️ Укажите название поставщика','err');return;}
-  if(colName===''){toast('⚠️ Выберите колонку с названием','err');return;}
-  if(colOpt===''){toast('⚠️ Выберите колонку с оптовой ценой','err');return;}
   var sheetName=document.getElementById('pl-sheet').value;
-  var cfg={supplier:supplier,sheetName:sheetName,
-    start:Math.max(1,parseInt(document.getElementById('pl-startrow').value)||2),
-    colName:parseInt(colName),colOpt:parseInt(colOpt),
-    colRet:document.getElementById('pl-col-ret').value,
-    colArt:document.getElementById('pl-col-art').value,
-    cascade:document.getElementById('pl-cascade').checked};
-  var rows=_collectRows(_plData,cfg);
-  if(!rows.length){toast('⚠️ Нет данных — проверьте номер строки и колонки','err');return;}
+  var rows=[],isMatrix=false;
+  if(colName!==''&&colOpt!==''){
+    var cfg={supplier:supplier,sheetName:sheetName,
+      start:Math.max(1,parseInt(document.getElementById('pl-startrow').value)||2),
+      colName:parseInt(colName),colOpt:parseInt(colOpt),
+      colRet:document.getElementById('pl-col-ret').value,
+      colArt:document.getElementById('pl-col-art').value,
+      cascade:document.getElementById('pl-cascade').checked};
+    rows=_collectRows(_plData,cfg);
+  }
+  // Фолбэк: колонки не выбраны или ничего не собралось → пробуем матрицу (цены по размерам)
+  if(!rows.length){
+    var m=_autoDetectMatrix(_plData);
+    if(m){rows=_collectMatrix(_plData,m,supplier,sheetName);isMatrix=rows.length>0;}
+  }
+  if(!rows.length){
+    if(colName===''||colOpt===''){toast('⚠️ Выберите колонку с названием и оптовой ценой','err');return;}
+    toast('⚠️ Нет данных — проверьте номер строки и колонки','err');return;
+  }
   var btn=document.getElementById('pl-import-btn');
   btn.innerHTML='<span class="spinner"></span> Импорт '+rows.length+' товаров...';
   btn.disabled=true;
   try{
     await _importBatches(supplier,[{sheetName:sheetName,rows:rows}],false);
-    savePriceTemplate(); // запоминаем настройки листа как шаблон
+    if(isMatrix){var _st=_getTplStore();_st[sheetName]={supplier:supplier,matrix:true};localStorage.setItem(_TPL_KEY,JSON.stringify(_st));}
+    else savePriceTemplate(); // запоминаем настройки листа как шаблон
     var many=_plWB&&_plWB.SheetNames.length>1;
     toast('✅ Лист «'+sheetName+'»: '+rows.length+' товаров загружено','ok',3500);
     if(many){
@@ -1388,21 +1479,26 @@ async function importAllSheets(){
   var plan=[],report=[];
   _plWB.SheetNames.forEach(function(sn){
     var data=XLSX.utils.sheet_to_json(_plWB.Sheets[sn],{header:1,defval:'',raw:false});
-    var cfg=null,src='';
+    // Собираем все варианты разбора и берём тот, что даёт больше валидных цен.
+    // Так плохой сохранённый шаблон не мешает — автоопределение его перекроет.
+    var cands=[];
     var tpl=store[sn];
-    if(tpl&&tpl.col_name!==''&&tpl.col_opt!==''){
-      cfg={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade};
-      src='по шаблону';
-    }else{
-      var det=_autoDetectSheet(data);
-      if(det){cfg={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade};src='автоопределение'+(det.cascade?' (каскад)':'');}
+    if(tpl&&tpl.col_name!==''&&tpl.col_opt!==''&&!tpl.matrix){
+      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,supplier:supplier,sheetName:sn};
+      cands.push({rows:_collectRows(data,cfgT),src:'по шаблону',cfg:cfgT,kind:'flat'});
     }
-    if(!cfg){report.push({sheet:sn,count:0,note:'не удалось определить колонки — импортируйте вручную'});return;}
-    cfg.supplier=supplier;cfg.sheetName=sn;
-    var rows=_collectRows(data,cfg);
-    if(!rows.length){report.push({sheet:sn,count:0,note:'нет строк с названием и ценой'});return;}
-    plan.push({sheetName:sn,rows:rows,cfg:cfg});
-    report.push({sheet:sn,count:rows.length,note:src+(cfg.cascade?', каскад':'')});
+    var det=_autoDetectSheet(data);
+    if(det){
+      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,supplier:supplier,sheetName:sn};
+      cands.push({rows:_collectRows(data,cfgA),src:'автоопределение'+(det.cascade?' (каскад)':''),cfg:cfgA,kind:'flat'});
+    }
+    var m=_autoDetectMatrix(data);
+    if(m)cands.push({rows:_collectMatrix(data,m,supplier,sn),src:'таблица размеров',cfg:null,kind:'matrix'});
+    var best=null;
+    cands.forEach(function(c){if(!best||_plValidCount(c.rows)>_plValidCount(best.rows))best=c;});
+    if(!best||!best.rows.length){report.push({sheet:sn,count:0,note:'не удалось определить колонки — импортируйте вручную'});return;}
+    plan.push({sheetName:sn,rows:best.rows,cfg:best.cfg,kind:best.kind});
+    report.push({sheet:sn,count:best.rows.length,note:best.src});
   });
   var total=plan.reduce(function(s,p){return s+p.rows.length;},0);
   if(!total){toast('⚠️ Ни на одном листе не найдены товары — настройте листы вручную по одному','err',6000);return;}
@@ -1417,13 +1513,19 @@ async function importAllSheets(){
     // сохраняем шаблоны всех успешно определённых листов
     var st=_getTplStore();
     plan.forEach(function(p){
-      st[p.sheetName]={supplier:supplier,start_row:String(p.cfg.start),
-        col_name:String(p.cfg.colName),col_opt:String(p.cfg.colOpt),
-        col_ret:(p.cfg.colRet===''||p.cfg.colRet==null)?'':String(p.cfg.colRet),
-        col_art:(p.cfg.colArt===''||p.cfg.colArt==null)?'':String(p.cfg.colArt),
-        cascade:!!p.cfg.cascade};
+      if(p.kind==='matrix'||!p.cfg){
+        // матричный лист колонками не описать — помечаем, чтобы старый шаблон не мешал
+        st[p.sheetName]={supplier:supplier,matrix:true};
+      }else{
+        st[p.sheetName]={supplier:supplier,start_row:String(p.cfg.start),
+          col_name:String(p.cfg.colName),col_opt:String(p.cfg.colOpt),
+          col_ret:(p.cfg.colRet===''||p.cfg.colRet==null)?'':String(p.cfg.colRet),
+          col_art:(p.cfg.colArt===''||p.cfg.colArt==null)?'':String(p.cfg.colArt),
+          cascade:!!p.cfg.cascade};
+      }
     });
-    st['sup:'+supplier.toLowerCase()]=st[plan[0].sheetName];
+    var firstFlat=plan.filter(function(p){return p.kind!=='matrix'&&p.cfg;})[0];
+    if(firstFlat)st['sup:'+supplier.toLowerCase()]=st[firstFlat.sheetName];
     localStorage.setItem(_TPL_KEY,JSON.stringify(st));
     var note=document.getElementById('pl-multi-note');
     note.style.display='block';
@@ -1459,6 +1561,7 @@ async function loadPriceSummary(){
     }
     var bySup={};
     rows.forEach(function(r){bySup[r.supplier]=(bySup[r.supplier]||0)+1;});
+    _fillSupplierDatalist(Object.keys(bySup).sort(function(a,b){return String(a).localeCompare(String(b),'ru');}));
     var html=tplNote
       +'<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Всего товаров в базе: <strong>'+rows.length+'</strong></div>'
       +'<table style="width:100%;border-collapse:collapse">'
@@ -2422,8 +2525,8 @@ function renderStats(){
   var byStatus={};orders.forEach(function(o){byStatus[o.status||'—']=(byStatus[o.status||'—']||0)+1;});
   var statuses=Object.keys(byStatus).map(function(k){return{label:k,val:byStatus[k],display:''+byStatus[k]};}).sort(function(a,b){return b.val-a.val;});
   barChart('chart-statuses',statuses,orders.length,'#4CAF50');
-  var bySup={};orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var s=it.supplier||'Прочее';bySup[s]=(bySup[s]||0)+1;});});
-  var sups=Object.keys(bySup).map(function(k){return{label:k,val:bySup[k],display:''+bySup[k]};}).sort(function(a,b){return b.val-a.val;});
+  var bySup={};orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var s=it.supplier||'Прочее';if(!bySup[s])bySup[s]={c:0,rev:0};bySup[s].c++;bySup[s].rev+=(it.price_discounted||it.price_retail||0)*(it.qty||1);});});
+  var sups=Object.keys(bySup).map(function(k){return{label:k,val:bySup[k].rev,display:bySup[k].c+' / '+fmtK(bySup[k].rev)+' ₽'};}).sort(function(a,b){return b.val-a.val;});
   barChart('chart-suppliers',sups,sups.length?Math.max.apply(null,sups.map(function(s){return s.val;})):1,'#9C27B0');
 }
 
