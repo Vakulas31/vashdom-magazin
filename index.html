@@ -1342,8 +1342,11 @@ function _renderPricePreview(){
 var _plHasSheetCol=true,_plHasFactoryCol=true,_plDeletedSupplier=null,_plImportedSheets={};
 function _plToNum(v){
   var t=String(v||'').replace(/\s+/g,'').replace(/[^\d,\.\-]/g,'');
+  if(!t)return 0;
   // «27,600» / «1,234,500» — запятая-разделитель тысяч; «1234,50» — десятичная запятая
   if(/,\d{3}(?=(,\d{3})*$)/.test(t.replace(/\.\d+$/,'')))t=t.replace(/,(?=\d{3}(\D|$))/g,'');
+  // «1.031» / «1.234.500» — точка-разделитель тысяч (группы ровно по 3, без десятичного хвоста)
+  if(/^-?\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,'');
   t=t.replace(',','.');
   return parseFloat(t)||0;
 }
@@ -1406,19 +1409,23 @@ function _plLooksCascade(data,startRow,colName,colOpt){
 function _autoDetectSheet(data){
   for(var r=0;r<Math.min(15,data.length);r++){
     var row=data[r]||[];
-    var d={name:-1,opt:-1,ret:-1,art:-1,price:-1};
+    var d={name:-1,ret:-1,art:-1};var priceCands=[];
     for(var i=0;i<row.length;i++){
       // Заголовок колонки — короткая ячейка. Длинные тексты (приветствия, примечания) — не заголовки.
       var hl=String(row[i]||'').toLowerCase().trim();if(!hl||hl.length>35)continue;
       if(d.name<0&&/наимен|номенклатур|товар|название|модель|издели|product|^name/.test(hl))d.name=i;
-      if(d.opt<0&&/опт|\bopt\b|закуп|себест|wholesale/.test(hl))d.opt=i;
       if(d.ret<0&&/розн|retail|продаж/.test(hl))d.ret=i;
       if(d.art<0&&/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант|размер/.test(hl))d.art=i;
-      if(d.price<0&&/цена|стоимость|price|руб/.test(hl)&&!/розн|retail|продаж/.test(hl))d.price=i;
+      // ценовые кандидаты: приоритет «опт», затем «цена/стоимость» (розницу исключаем)
+      if(/опт|\bopt\b|закуп|себест|wholesale/.test(hl))priceCands.push({c:i,pri:2});
+      else if(/цена|стоимость|price|руб/.test(hl)&&!/розн|retail|продаж/.test(hl))priceCands.push({c:i,pri:1});
     }
     if(d.name<0)continue; // без колонки названия лист не разобрать
-    var opt=d.opt>=0?d.opt:d.price;
-    // Фолбэк: заголовка цены нет → берём первую числовую колонку правее названия/характеристики
+    // Из ценовых кандидатов берём колонку с реальными (ненулевыми) ценами, приоритет «опт».
+    // Так «Общая стоимость = 0» не побеждает настоящую «Цена».
+    var opt=-1,best=-1;
+    priceCands.forEach(function(p){if(p.c===d.name)return;var cnt=_plColNumericCount(data,r+1,p.c);if(cnt>=3&&(cnt*10+p.pri)>best){best=cnt*10+p.pri;opt=p.c;}});
+    // Фолбэк: подходящей ценовой колонки по заголовку нет → первая числовая правее названия/характеристики
     if(opt<0){
       var minCol=Math.max(d.name,d.art)+1;
       opt=_plFindPriceCol(data,r+1,minCol,[d.name,d.art,d.ret]);
