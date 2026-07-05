@@ -1309,7 +1309,7 @@ function _buildPriceColSelects(){
   var _optFound=false;
   hdrRow.forEach(function(h,i){
     var hl=(String(h)||'').toLowerCase();
-    if(/наимен|номенклатур|товар|название|модель|product|^name/.test(hl))document.getElementById('pl-col-name').value=i;
+    if(/наимен|номенклатур|продукц|товар|название|модель|product|^name/.test(hl))document.getElementById('pl-col-name').value=i;
     if(/опт|\bopt\b|закуп|себест|wholesale/.test(hl)){document.getElementById('pl-col-opt').value=i;_optFound=true;}
     if(/розн|retail|продаж/.test(hl))document.getElementById('pl-col-ret').value=i;
     if(/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант/.test(hl))document.getElementById('pl-col-art').value=i;
@@ -1413,7 +1413,7 @@ function _autoDetectSheet(data){
     for(var i=0;i<row.length;i++){
       // Заголовок колонки — короткая ячейка. Длинные тексты (приветствия, примечания) — не заголовки.
       var hl=String(row[i]||'').toLowerCase().trim();if(!hl||hl.length>35)continue;
-      if(d.name<0&&/наимен|номенклатур|товар|название|модель|издели|product|^name/.test(hl))d.name=i;
+      if(d.name<0&&/наимен|номенклатур|продукц|товар|название|модель|издели|product|^name/.test(hl))d.name=i;
       if(d.ret<0&&/розн|retail|продаж/.test(hl))d.ret=i;
       if(d.art<0&&/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант|размер/.test(hl))d.art=i;
       // ценовые кандидаты: приоритет «опт», затем «цена/стоимость» (розницу исключаем)
@@ -3075,4 +3075,3 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 </div>
 </body>
 </html>
-
