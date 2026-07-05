@@ -1382,6 +1382,7 @@ function _plColNumericCount(data,startRow,c){
   var n=0,seen=0;
   for(var r=startRow;r<data.length&&seen<60;r++){
     var v=(data[r]||[])[c];if(v===''||v==null)continue;seen++;
+    if(/\d\s*[*x×х\/]\s*\d/.test(String(v)))continue; // размеры 800*800, 1900/2000 — не цена
     var num=_plToNum(v);if(num>=50&&num<=100000000)n++; // цена, а не индекс/год
   }
   return n;
@@ -1409,17 +1410,21 @@ function _plLooksCascade(data,startRow,colName,colOpt){
 function _autoDetectSheet(data){
   for(var r=0;r<Math.min(15,data.length);r++){
     var row=data[r]||[];
-    var d={name:-1,ret:-1,art:-1};var priceCands=[];
+    var d={name:-1,ret:-1,art:-1};var priceCands=[];var nameCands=[];
     for(var i=0;i<row.length;i++){
       // Заголовок колонки — короткая ячейка. Длинные тексты (приветствия, примечания) — не заголовки.
       var hl=String(row[i]||'').toLowerCase().trim();if(!hl||hl.length>35)continue;
-      if(d.name<0&&/наимен|номенклатур|продукц|товар|название|модель|издели|product|^name/.test(hl))d.name=i;
+      // название: «наименование/номенклатура» приоритетнее «продукция/товар» (продукция бывает кодом или категорией)
+      if(/наимен|номенклатур|название|модель|издели|product|^name/.test(hl))nameCands.push({c:i,pri:3});
+      else if(/продукц|товар/.test(hl))nameCands.push({c:i,pri:1});
       if(d.ret<0&&/розн|retail|продаж/.test(hl))d.ret=i;
       if(d.art<0&&/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант|размер/.test(hl))d.art=i;
       // ценовые кандидаты: приоритет «опт», затем «цена/стоимость» (розницу исключаем)
       if(/опт|\bopt\b|закуп|себест|wholesale/.test(hl))priceCands.push({c:i,pri:2});
       else if(/цена|стоимость|price|руб/.test(hl)&&!/розн|retail|продаж/.test(hl))priceCands.push({c:i,pri:1});
     }
+    // из кандидатов-названий берём с наивысшим приоритетом (левый при равенстве)
+    var _npri=-1;nameCands.forEach(function(p){if(p.pri>_npri){_npri=p.pri;d.name=p.c;}});
     if(d.name<0)continue; // без колонки названия лист не разобрать
     // Из ценовых кандидатов берём колонку с реальными (ненулевыми) ценами, приоритет «опт».
     // Так «Общая стоимость = 0» не побеждает настоящую «Цена».
