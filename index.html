@@ -434,7 +434,7 @@ textarea{resize:vertical;min-height:60px}
     <!-- Список загруженных -->
     <div class="card">
       <div class="card-title">📋 Загруженные прайсы</div>
-      <div id="pl-summary" style="min-height:80px">
+      <div id="pl-summary" style="min-height:80px;max-height:420px;overflow-y:auto">
         <div style="color:var(--text2);font-size:13px;padding:20px;text-align:center">Загрузка...</div>
       </div>
     </div>
@@ -605,14 +605,13 @@ var deleteOrderId=null;
 </script>
 <script>
 
-function sb(method,table,data,params){
-  params=params||'';
+function _sbOnce(method,table,data,params){
   var url=SB_URL+'/rest/v1/'+table+(params?'?'+params:'');
   var opts={method:method,headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':method==='POST'?'return=representation':'return=minimal'}};
   if(data)opts.body=JSON.stringify(data);
-  // Таймаут 20 сек — защита от зависания при холодном старте Supabase
+  // Таймаут 30 сек — защита от зависания на слабом интернете
   var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
-  var timer=ctrl?setTimeout(function(){ctrl.abort();},20000):null;
+  var timer=ctrl?setTimeout(function(){ctrl.abort();},30000):null;
   if(ctrl)opts.signal=ctrl.signal;
   return fetch(url,opts).then(function(r){
     if(timer)clearTimeout(timer);
@@ -622,10 +621,47 @@ function sb(method,table,data,params){
     throw e;
   });
 }
+function sb(method,table,data,params){
+  params=params||'';
+  // GET/DELETE идемпотентны — при обрыве связи повторяем до 3 раз с паузой.
+  // POST/PATCH автоматически не повторяем (за это отвечает вызывающий код).
+  var attempts=(method==='GET'||method==='DELETE')?3:1;
+  function attempt(n){
+    return _sbOnce(method,table,data,params).catch(function(e){
+      if(n<attempts-1)return new Promise(function(res){setTimeout(res,700*(n+1));}).then(function(){return attempt(n+1);});
+      throw e;
+    });
+  }
+  return attempt(0);
+}
 function sbGet(t,p){return sb('GET',t,null,p);}
 function sbPost(t,d){return sb('POST',t,d);}
 function sbPatch(t,d,p){return sb('PATCH',t,d,p);}
 function sbDel(t,p){return sb('DELETE',t,null,p);}
+// Удаляет ВСЕ строки price_items по фильтру, даже если сервер режет одно удаление
+// лимитом или связь рвётся: повторяет, пока под фильтр не перестанет попадать хоть одна строка.
+async function _sbDelUntilEmpty(filter){
+  for(var i=0;i<40;i++){
+    await sbDel('price_items',filter);
+    var chk=await sbGet('price_items','select=supplier&limit=1&'+filter);
+    if(!chk||!chk.length)return;
+  }
+}
+// Надёжно сохраняет позиции заказа: пакетная вставка атомарна, поэтому при обрыве
+// связи можно проверить и при необходимости повторить, не задваивая позиции.
+function _saveItemsReliable(orderId,batchItems){
+  function attempt(n){
+    var check=n===0?Promise.resolve(null):sbGet('order_items','select=id&order_id=eq.'+orderId+'&limit=1');
+    return check.then(function(ex){
+      if(ex&&ex.length)return; // уже сохранены прошлой попыткой
+      return sbPost('order_items',batchItems).catch(function(e){
+        if(n<2)return new Promise(function(res){setTimeout(res,900*(n+1));}).then(function(){return attempt(n+1);});
+        throw e;
+      });
+    });
+  }
+  return attempt(0);
+}
 
 function checkAppPin(){
   var input=document.getElementById('app-pin-input').value;
@@ -1446,13 +1482,13 @@ async function _importBatches(supplier,factory,batches,replaceWhole){
   var delKey=supplier+'|'+(factory||'');
   if(replaceWhole||!_plHasSheetCol){
     if(replaceWhole||_plDeletedSupplier!==delKey){
-      await sbDel('price_items','supplier=eq.'+encodeURIComponent(supplier)+factScope);
+      await _sbDelUntilEmpty('supplier=eq.'+encodeURIComponent(supplier)+factScope);
       _plDeletedSupplier=delKey;
     }
   }else{
     // точечно обновляем только импортируемые листы этой фабрики
     for(var b=0;b<batches.length;b++){
-      await sbDel('price_items','supplier=eq.'+encodeURIComponent(supplier)+factScope+'&sheet_name=eq.'+encodeURIComponent(batches[b].sheetName||''));
+      await _sbDelUntilEmpty('supplier=eq.'+encodeURIComponent(supplier)+factScope+'&sheet_name=eq.'+encodeURIComponent(batches[b].sheetName||''));
     }
   }
   for(var j=0;j<all.length;j+=400)await sbPost('price_items',all.slice(j,j+400));
@@ -1597,6 +1633,31 @@ function resetPriceImport(){
   document.getElementById('pl-factory').value='';
 }
 
+function _renderPriceSummary(el,bySup,totalDisplay,tplNote,extraNote){
+  var html=tplNote+extraNote
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Всего товаров в базе: <strong>'+totalDisplay+'</strong></div>'
+    +'<table style="width:100%;border-collapse:collapse">'
+    +'<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Поставщик / фабрика</th>'
+    +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Товаров</th>'
+    +'<th style="border-bottom:2px solid var(--border)"></th></tr>';
+  _uniqSorted(bySup).forEach(function(sup){
+    var d=bySup[sup];var esup=String(sup).replace(/'/g,"\\'");
+    var facs=Object.keys(d.fac).filter(function(f){return f;}).sort(function(a,b){return a.localeCompare(b,'ru');});
+    html+='<tr>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600">'+sup+(facs.length?' <span style="font-weight:400;color:var(--text2)">('+facs.length+' фабр.)</span>':'')+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--text2);font-size:12px">'+d.total+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right"><button class="btn btn-outline" onclick="deletePriceList(\''+esup+'\')" style="padding:2px 8px;font-size:11px;color:#c62828;border-color:#c62828">🗑 всё</button></td></tr>';
+    facs.forEach(function(f){
+      var ef=String(f).replace(/'/g,"\\'");
+      html+='<tr>'
+        +'<td style="padding:3px 8px 3px 24px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">↳ '+f+'</td>'
+        +'<td style="padding:3px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--text2);font-size:12px">'+d.fac[f]+'</td>'
+        +'<td style="padding:3px 8px;border-bottom:1px solid var(--border);text-align:right"><button class="btn btn-outline" onclick="deleteFactory(\''+esup+'\',\''+ef+'\')" style="padding:2px 8px;font-size:11px;color:#c62828;border-color:#c62828">🗑</button></td></tr>';
+    });
+  });
+  el.innerHTML=html+'</table>'
+    +'<div style="font-size:11px;color:var(--text2);margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">💡 Обновление прайса — загрузите файл с тем же поставщиком и фабрикой: заменятся только её товары.</div>';
+}
 async function loadPriceSummary(){
   var el=document.getElementById('pl-summary');
   if(!el)return;
@@ -1605,45 +1666,29 @@ async function loadPriceSummary(){
     ?'<div style="font-size:11px;color:#1B5E20;background:#E8F5E9;padding:5px 8px;border-radius:5px;margin-bottom:8px">💾 Сохранено шаблонов: <strong>'+tplCount+'</strong> — при следующей загрузке настройки применятся автоматически</div>'
     :'';
   try{
+    // Точные счётчики через RPC price_summary() — не упирается в лимит 1000 строк
+    var grouped=null;
+    try{grouped=await sb('POST','rpc/price_summary',null);}catch(e){grouped=null;}
+    if(Array.isArray(grouped)){
+      if(!grouped.length){el.innerHTML=tplNote+'<div style="color:var(--text2);font-size:13px;padding:16px;text-align:center">Прайс-листы ещё не загружены</div>';return;}
+      var bySup={},supNames={},facNames={},total=0;
+      grouped.forEach(function(r){var s=r.supplier||'—',f=(r.factory||'').trim(),n=+r.n||0;total+=n;if(!bySup[s])bySup[s]={total:0,fac:{}};bySup[s].total+=n;if(f){bySup[s].fac[f]=(bySup[s].fac[f]||0)+n;facNames[f]=1;}supNames[s]=1;});
+      _fillSupplierDatalist(_uniqSorted(supNames));_fillFactoryDatalist(_uniqSorted(facNames));
+      _renderPriceSummary(el,bySup,total,tplNote,'');
+      return;
+    }
+    // Фолбэк без RPC: обычный запрос (может упираться в 1000 строк)
     var rows,hasFac=true;
     try{rows=await sbGet('price_items','select=supplier,factory&order=supplier.asc&limit=10000');}
     catch(e){if(/factory/i.test(e.message)){hasFac=false;rows=await sbGet('price_items','select=supplier&order=supplier.asc&limit=10000');}else throw e;}
-    if(!rows||!rows.length){
-      el.innerHTML=tplNote+'<div style="color:var(--text2);font-size:13px;padding:16px;text-align:center">Прайс-листы ещё не загружены</div>';
-      return;
-    }
-    var bySup={},supNames={},facNames={};
-    rows.forEach(function(r){
-      var s=r.supplier||'—',f=(r.factory||'').trim();
-      if(!bySup[s])bySup[s]={total:0,fac:{}};
-      bySup[s].total++;bySup[s].fac[f]=(bySup[s].fac[f]||0)+1;
-      supNames[s]=1;if(f)facNames[f]=1;
-    });
-    _fillSupplierDatalist(_uniqSorted(supNames));_fillFactoryDatalist(_uniqSorted(facNames));
-    var migNote=hasFac?'':'<div style="font-size:11px;color:#E65100;background:#FFF3E0;padding:5px 8px;border-radius:5px;margin-bottom:8px">⚠️ Чтобы разделять фабрики внутри поставщика, примените <strong>SQL_обновление_5.3.sql</strong> в Supabase (пока показывается только поставщик).</div>';
-    var html=tplNote+migNote
-      +'<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Всего товаров в базе: <strong>'+rows.length+'</strong></div>'
-      +'<table style="width:100%;border-collapse:collapse">'
-      +'<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Поставщик / фабрика</th>'
-      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Товаров</th>'
-      +'<th style="border-bottom:2px solid var(--border)"></th></tr>';
-    _uniqSorted(bySup).forEach(function(sup){
-      var d=bySup[sup];var esup=String(sup).replace(/'/g,"\\'");
-      var facs=Object.keys(d.fac).filter(function(f){return f;}).sort(function(a,b){return a.localeCompare(b,'ru');});
-      html+='<tr>'
-        +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600">'+sup+(facs.length?' <span style="font-weight:400;color:var(--text2)">('+facs.length+' фабр.)</span>':'')+'</td>'
-        +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--text2);font-size:12px">'+d.total+'</td>'
-        +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right"><button class="btn btn-outline" onclick="deletePriceList(\''+esup+'\')" style="padding:2px 8px;font-size:11px;color:#c62828;border-color:#c62828">🗑 всё</button></td></tr>';
-      facs.forEach(function(f){
-        var ef=String(f).replace(/'/g,"\\'");
-        html+='<tr>'
-          +'<td style="padding:3px 8px 3px 24px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">↳ '+f+'</td>'
-          +'<td style="padding:3px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--text2);font-size:12px">'+d.fac[f]+'</td>'
-          +'<td style="padding:3px 8px;border-bottom:1px solid var(--border);text-align:right"><button class="btn btn-outline" onclick="deleteFactory(\''+esup+'\',\''+ef+'\')" style="padding:2px 8px;font-size:11px;color:#c62828;border-color:#c62828">🗑</button></td></tr>';
-      });
-    });
-    el.innerHTML=html+'</table>'
-      +'<div style="font-size:11px;color:var(--text2);margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">💡 Обновление прайса — загрузите файл с тем же поставщиком и фабрикой: заменятся только её товары.</div>';
+    if(!rows||!rows.length){el.innerHTML=tplNote+'<div style="color:var(--text2);font-size:13px;padding:16px;text-align:center">Прайс-листы ещё не загружены</div>';return;}
+    var bySup2={},supN={},facN={};
+    rows.forEach(function(r){var s=r.supplier||'—',f=(r.factory||'').trim();if(!bySup2[s])bySup2[s]={total:0,fac:{}};bySup2[s].total++;bySup2[s].fac[f]=(bySup2[s].fac[f]||0)+1;supN[s]=1;if(f)facN[f]=1;});
+    _fillSupplierDatalist(_uniqSorted(supN));_fillFactoryDatalist(_uniqSorted(facN));
+    var extra=(rows.length>=1000)
+      ?'<div style="font-size:11px;color:#E65100;background:#FFF3E0;padding:5px 8px;border-radius:5px;margin-bottom:8px">⚠️ Показаны первые 1000 строк — для точного подсчёта примените <strong>SQL_обновление_5.4.sql</strong> в Supabase.</div>'
+      :(hasFac?'':'<div style="font-size:11px;color:#E65100;background:#FFF3E0;padding:5px 8px;border-radius:5px;margin-bottom:8px">⚠️ Чтобы разделять фабрики, примените <strong>SQL_обновление_5.3.sql</strong> в Supabase.</div>');
+    _renderPriceSummary(el,bySup2,(rows.length>=1000?'1000+':rows.length),tplNote,extra);
   }catch(e){el.innerHTML='<div style="color:#c62828;font-size:13px;padding:10px">Ошибка: '+e.message+'</div>';}
 }
 
@@ -1842,9 +1887,9 @@ function qrDataUrl(text,size){
 function _labelSpec(){
   var half=document.getElementById('pl-format').value==='half';
   return half
-    ?{half:true, pw:'148mm',ph:'105mm',w:140,h:97, pad:'6mm',logoH:'11mm',
-      nameBase:30,nameMin:12,nameComfy:14, infoBase:14,infoMin:9,infoComfy:30,
-      priceBase:38,priceMin:24,oldSize:'14pt', qrMm:'20mm',qrPx:110, discMm:'13mm',discFont:'10pt',gap:'2.5mm'}
+    ?{half:true, pw:'210mm',ph:'297mm',w:190,h:130, pad:'8mm',logoH:'14mm',
+      nameBase:34,nameMin:14,nameComfy:16, infoBase:16,infoMin:10,infoComfy:34,
+      priceBase:46,priceMin:26,oldSize:'16pt', qrMm:'26mm',qrPx:150, discMm:'16mm',discFont:'12pt',gap:'3mm'}
     :{half:false,pw:'60mm', ph:'80mm', w:52, h:72, pad:'3mm',logoH:'6mm',
       nameBase:15,nameMin:7,nameComfy:14, infoBase:8.5,infoMin:6,infoComfy:30,
       priceBase:20,priceMin:13,oldSize:'8pt', qrMm:'12mm',qrPx:64, discMm:'8mm',discFont:'6pt',gap:'1.5mm'};
@@ -1917,10 +1962,21 @@ function printPriceLabel(){
   var one=_labelHtml(s);
   var labelHtml='';
   for(var i=0;i<copies;i++)labelHtml+=one;
+  var pageRules,layoutCss;
+  if(s.half){
+    // 2 ценника (по пол-листа A4) на одном листе КНИЖНОЙ ориентации
+    pageRules='@page{size:A4 portrait;margin:8mm}';
+    layoutCss='.lbl{margin:0 auto 8mm;page-break-inside:avoid}'
+      +'.lbl:nth-of-type(2n){page-break-after:always}'
+      +'.lbl:last-child{page-break-after:auto}';
+  }else{
+    pageRules='@page{size:'+s.pw+' '+s.ph+';margin:4mm}';
+    layoutCss='.lbl{page-break-after:always}.lbl:last-child{page-break-after:auto}';
+  }
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'
-    +'@page{size:'+s.pw+' '+s.ph+';margin:4mm}'
+    +pageRules
     +'body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    +'.lbl{page-break-after:always}.lbl:last-child{page-break-after:auto}'
+    +layoutCss
     +_labelCss(s)
     +'</style></head><body>'+labelHtml+'</body></html>';
   var w=window.open('','_blank');
@@ -2072,6 +2128,7 @@ function cancelForm(){
   resetForm();showPage('orders');
 }
 function resetForm(){
+  _recoverOrderId=null;
   document.getElementById('edit-order-id').value='';
   document.getElementById('form-title').textContent='Новый заказ';
   ['f-client','f-phone','f-phone2','f-address','f-manager','f-notes'].forEach(function(id){document.getElementById(id).value='';});
@@ -2265,7 +2322,7 @@ function recalcTotals(){
   document.getElementById('f-remainder').value=discounted?Math.max(0,discounted-prepay):'';
 }
 
-var _saving=false;
+var _saving=false,_recoverOrderId=null;
 function saveOrder(){
   if(_saving)return;
   _saving=true;  // guard immediately
@@ -2347,6 +2404,8 @@ function saveOrder(){
   var goodsDisc=Math.round(goods*(1-disc2/100));
   var prepay=parseFloat(document.getElementById('f-prepay').value)||0;
   var editId=document.getElementById('edit-order-id').value;
+  // Если прошлая попытка создала заказ, но оборвалась на позициях — дописываем его, а не создаём заново
+  if(!editId&&_recoverOrderId)editId=_recoverOrderId;
   var found=editId?allOrders.find(function(o){return o.id==editId;}):null;
   var orderNum=found?found.order_number:Date.now().toString().slice(-6);
   var orderData={
@@ -2383,9 +2442,11 @@ function saveOrder(){
     savePromise=sbPost('orders',orderData).then(function(created){return created[0].id;});
   }
   savePromise.then(function(orderId){
+    _recoverOrderId=orderId; // заказ создан/найден — запоминаем на случай обрыва на позициях
     var batchItems=items.map(function(item){return Object.assign({},item,{order_id:orderId});});
-    return sbPost('order_items',batchItems).then(function(){return orderId;});
+    return _saveItemsReliable(orderId,batchItems).then(function(){return orderId;});
   }).then(function(orderId){
+    _recoverOrderId=null; // всё сохранено полностью
     // Мгновенное локальное обновление списка — без перезагрузки всех заказов
     var base=found?Object.assign({},found):{created_at:new Date().toISOString()};
     var local=Object.assign(base,orderData,{id:orderId,
@@ -2409,7 +2470,7 @@ function saveOrder(){
       }
     }).catch(function(){});
   })
-  .catch(function(e){toast('❌ Ошибка: '+e.message,'err',5000);console.error(e);})
+  .catch(function(e){var m=(e&&e.message)||'';var net=/abort|Failed to fetch|network|timeout|load failed|ERR_/i.test(m);toast(net?'❌ Похоже, оборвался интернет. Проверьте связь и нажмите «Сохранить» ещё раз — задвоения не будет.':'❌ Ошибка: '+m,'err',7000);console.error(e);})
   .finally(function(){btn.innerHTML='✅ Сохранить заказ';btn.disabled=false;_saving=false;});
 }
 
