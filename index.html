@@ -437,18 +437,40 @@ textarea{resize:vertical;min-height:60px}
 </div>
 
 <div class="page" id="page-stats">
-  <h2 style="font-size:18px;font-weight:700;margin-bottom:16px">📊 Аналитика продаж</h2>
-  <div class="stats-grid">
-    <div class="stat-card"><div class="stat-label">Всего заказов</div><div class="stat-val" id="s-orders">—</div></div>
-    <div class="stat-card"><div class="stat-label">Выручка (розн.)</div><div class="stat-val" id="s-revenue" style="font-size:18px">—</div></div>
-    <div class="stat-card"><div class="stat-label">Долг к получению</div><div class="stat-val" id="s-debt" style="font-size:18px;color:#C62828">—</div></div>
-    <div class="stat-card"><div class="stat-label">Средний чек</div><div class="stat-val" id="s-avg" style="font-size:18px">—</div></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <h2 style="font-size:18px;font-weight:700">📊 Аналитика продаж</h2>
+    <div id="stats-period" style="display:flex;gap:6px;flex-wrap:wrap">
+      <span data-p="month" onclick="setStatsPeriod('month')" style="cursor:pointer;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;background:var(--grey);color:var(--text2)">Месяц</span>
+      <span data-p="quarter" onclick="setStatsPeriod('quarter')" style="cursor:pointer;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;background:var(--grey);color:var(--text2)">Квартал</span>
+      <span data-p="year" onclick="setStatsPeriod('year')" style="cursor:pointer;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;background:var(--grey);color:var(--text2)">Год</span>
+      <span data-p="all" onclick="setStatsPeriod('all')" style="cursor:pointer;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;background:var(--dark);color:#fff">Всё время</span>
+    </div>
   </div>
+  <div id="stats-period-note" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
+  <div class="stats-grid" id="stats-kpis"></div>
+
+  <h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2)">💰 Деньги</h3>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-    <div class="card"><div class="card-title">По месяцам</div><div id="chart-months"></div></div>
-    <div class="card"><div class="card-title">По менеджерам</div><div id="chart-managers"></div></div>
+    <div class="card"><div class="card-title">Выручка и прибыль по месяцам</div><div id="chart-months"></div></div>
+    <div class="card"><div class="card-title">По поставщикам (выручка · прибыль)</div><div id="chart-suppliers"></div></div>
+  </div>
+
+  <h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2)">🧑‍💼 Менеджеры</h3>
+  <div class="card"><div class="card-title">Эффективность менеджеров</div><div id="chart-managers"></div></div>
+
+  <h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2)">🏆 Товары и клиенты</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card"><div class="card-title">Топ товаров</div><div id="chart-topgoods"></div></div>
+    <div class="card"><div class="card-title">Топ клиентов</div><div id="chart-topclients"></div></div>
+    <div class="card"><div class="card-title">Должники</div><div id="chart-debtors"></div></div>
     <div class="card"><div class="card-title">По статусам</div><div id="chart-statuses"></div></div>
-    <div class="card"><div class="card-title">По поставщикам</div><div id="chart-suppliers"></div></div>
+  </div>
+
+  <h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2)">💳 Финансы и операции</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card"><div class="card-title">Способы оплаты (получено)</div><div id="chart-payments"></div></div>
+    <div class="card"><div class="card-title">Доставка и операции</div><div id="chart-delivery"></div></div>
+    <div class="card"><div class="card-title">География заказов</div><div id="chart-geo"></div></div>
   </div>
 </div>
 
@@ -2477,57 +2499,165 @@ document.addEventListener('DOMContentLoaded',function(){
   el.addEventListener('click',function h(){ensureProducts();el.removeEventListener('click',h);});
 });
 
+var _statsPeriod='all';
+function _statsRange(p){
+  var now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  if(p==='month')return{from:new Date(y,m,1),to:new Date(y,m+1,1),len:'m'};
+  if(p==='quarter'){var q=Math.floor(m/3);return{from:new Date(y,q*3,1),to:new Date(y,q*3+3,1),len:'q'};}
+  if(p==='year')return{from:new Date(y,0,1),to:new Date(y+1,0,1),len:'y'};
+  return null;
+}
+function _statsPrev(r){
+  if(!r)return null;
+  if(r.len==='m')return{from:new Date(r.from.getFullYear(),r.from.getMonth()-1,1),to:r.from};
+  if(r.len==='q')return{from:new Date(r.from.getFullYear(),r.from.getMonth()-3,1),to:r.from};
+  if(r.len==='y')return{from:new Date(r.from.getFullYear()-1,0,1),to:r.from};
+  return null;
+}
+function _statsIn(o,r){if(!r)return true;if(!o.order_date)return false;var d=new Date(o.order_date+'T00:00:00');return d>=r.from&&d<r.to;}
+function _cityOf(a){
+  if(!a)return'—';var s=String(a).trim();
+  if(/самовыв/i.test(s))return'Самовывоз';
+  s=s.split(/\s*ул\.|\s*улица|\s*пер\.|,/i)[0].trim().replace(/\s+/g,' ');
+  return s||'—';
+}
+function setStatsPeriod(p){
+  _statsPeriod=p;
+  var box=document.getElementById('stats-period');
+  if(box)Array.prototype.forEach.call(box.children,function(c){
+    var on=c.getAttribute('data-p')===p;
+    c.style.background=on?'var(--dark)':'var(--grey)';c.style.color=on?'#fff':'var(--text2)';
+  });
+  renderStats();
+}
 function renderStats(){
-  var orders=allOrders;if(!orders.length)return;
-  var revenue=orders.reduce(function(s,o){return s+(o.goods_discounted||o.goods_total||0);},0);
-  var debt=orders.reduce(function(s,o){return s+(o.remainder||0);},0);
-  document.getElementById('s-orders').textContent=orders.length;
-  document.getElementById('s-revenue').textContent=fmtK(revenue)+' ₽';
-  document.getElementById('s-debt').textContent=fmtK(debt)+' ₽';
-  document.getElementById('s-avg').textContent=fmtK(orders.length?Math.round(revenue/orders.length):0)+' ₽';
-  function barChart(elId,data,maxVal,color){
+  var all=allOrders||[];
+  var range=_statsRange(_statsPeriod);
+  var orders=all.filter(function(o){return _statsIn(o,range);});
+  var prevR=_statsPrev(range);
+  var prevOrders=prevR?all.filter(function(o){return _statsIn(o,prevR);}):[];
+  var noteEl=document.getElementById('stats-period-note');
+  if(noteEl){var lbl={month:'текущий месяц',quarter:'текущий квартал',year:'текущий год',all:'всё время'}[_statsPeriod];
+    noteEl.textContent='Период: '+lbl+' · заказов: '+orders.length+(prevR?' · пред. период: '+prevOrders.length:'');}
+  function itSell(it){return (it.price_discounted||it.price_retail||0)*(it.qty||1);}
+  function itCost(it){return (it.price_opt||0)*(it.qty||1);}
+  function metrics(list){
+    var rev=0,cost=0,debt=0,ci=0,ti=0;
+    list.forEach(function(o){
+      rev+=(o.goods_discounted||o.goods_total||0);debt+=(o.remainder||0);
+      (o.order_items||[]).forEach(function(it){ti++;if((it.price_opt||0)>0){cost+=itCost(it);ci++;}});
+    });
+    return {n:list.length,rev:rev,cost:cost,profit:rev-cost,debt:debt,margin:rev?(rev-cost)/rev*100:0,avg:list.length?rev/list.length:0,cov:ti?ci/ti:0};
+  }
+  var M=metrics(orders),P=metrics(prevOrders);
+  function delta(cur,prev){if(!prevR||!prev)return'';var d=(cur-prev)/Math.abs(prev)*100;var col=d>=0?'#2E7D32':'#C62828';return'<div style="font-size:11px;color:'+col+';margin-top:2px">'+(d>=0?'▲':'▼')+' '+Math.abs(Math.round(d))+'% к пред.</div>';}
+  var kpis=[
+    {l:'Заказов',v:''+M.n,d:delta(M.n,P.n)},
+    {l:'Выручка',v:fmtK(M.rev)+' ₽',d:delta(M.rev,P.rev)},
+    {l:'Прибыль',v:fmtK(M.profit)+' ₽',s:'маржа '+Math.round(M.margin)+'%',d:delta(M.profit,P.profit)},
+    {l:'Средний чек',v:fmtK(Math.round(M.avg))+' ₽',d:delta(M.avg,P.avg)},
+    {l:'Закупка',v:fmtK(M.cost)+' ₽'},
+    {l:'Долг к получению',v:fmtK(M.debt)+' ₽',c:'#C62828'}
+  ];
+  document.getElementById('stats-kpis').innerHTML=kpis.map(function(k){
+    return '<div class="stat-card"><div class="stat-label">'+k.l+'</div><div class="stat-val" style="font-size:18px;'+(k.c?'color:'+k.c:'')+'">'+k.v+'</div>'+(k.s?'<div style="font-size:11px;color:var(--text2)">'+k.s+'</div>':'')+(k.d||'')+'</div>';
+  }).join('');
+  var emptyIds=['chart-months','chart-suppliers','chart-managers','chart-topgoods','chart-topclients','chart-debtors','chart-statuses','chart-payments','chart-delivery','chart-geo'];
+  if(!orders.length){emptyIds.forEach(function(id){var e=document.getElementById(id);if(e)e.innerHTML='<p style="color:var(--text2);font-size:13px">Нет данных за период</p>';});return;}
+  function bar(elId,data,maxVal,color){
+    var el=document.getElementById(elId);if(!el)return;
     var html='';
     data.forEach(function(d){
-      html+='<div class="bar-row"><span class="bar-name">'+d.label+'</span>'+
+      html+='<div class="bar-row"><span class="bar-name" title="'+String(d.label||'').replace(/"/g,'')+'">'+d.label+'</span>'+
         '<div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(d.val/(maxVal||1)*100)+'%;background:'+(color||'var(--dark)')+'"></div></div>'+
         '<span class="bar-val">'+d.display+'</span></div>';
     });
-    document.getElementById(elId).innerHTML=html||'<p style="color:var(--text2);font-size:13px">Нет данных</p>';
+    el.innerHTML=html||'<p style="color:var(--text2);font-size:13px">Нет данных</p>';
   }
+  // Деньги по месяцам: выручка + прибыль
   var byMonth={};
-  orders.forEach(function(o){if(!o.order_date)return;var m=o.order_date.slice(0,7);byMonth[m]=(byMonth[m]||0)+(o.goods_discounted||o.goods_total||0);});
-  var months=Object.keys(byMonth).sort().slice(-6).map(function(k){return{label:fmtMonth(k),val:byMonth[k],display:fmtK(byMonth[k])+' ₽'};});
-  barChart('chart-months',months,months.length?Math.max.apply(null,months.map(function(m){return m.val;})):1);
+  orders.forEach(function(o){if(!o.order_date)return;var m=o.order_date.slice(0,7);if(!byMonth[m])byMonth[m]={rev:0,cost:0};byMonth[m].rev+=(o.goods_discounted||o.goods_total||0);(o.order_items||[]).forEach(function(it){if((it.price_opt||0)>0)byMonth[m].cost+=itCost(it);});});
+  var mk=Object.keys(byMonth).sort().slice(-8),maxM=1;
+  mk.forEach(function(k){if(byMonth[k].rev>maxM)maxM=byMonth[k].rev;});
+  var mhtmlM='';
+  mk.forEach(function(k){
+    var rev=byMonth[k].rev,prof=rev-byMonth[k].cost;
+    mhtmlM+='<div class="bar-row" style="margin-bottom:2px"><span class="bar-name" style="font-weight:600">'+fmtMonth(k)+'</span>'+
+      '<div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(rev/maxM*100)+'%;background:var(--dark)"></div></div>'+
+      '<span class="bar-val">'+fmtK(rev)+' ₽</span></div>'+
+      '<div class="bar-row" style="margin-bottom:8px"><span class="bar-name" style="font-size:11px;color:var(--text2)">↳ прибыль</span>'+
+      '<div class="bar-wrap" style="height:12px"><div class="bar-fill" style="width:'+Math.round((prof>0?prof:0)/maxM*100)+'%;background:#2E7D32"></div></div>'+
+      '<span class="bar-val" style="font-size:11px">'+fmtK(prof)+' ₽</span></div>';
+  });
+  document.getElementById('chart-months').innerHTML=mhtmlM||'<p style="color:var(--text2);font-size:13px">Нет данных</p>';
+  // Менеджеры
   var byMgr={};
   orders.forEach(function(o){
-    var m=o.manager||'Не указан';
-    if(!byMgr[m])byMgr[m]={count:0,revenue:0,months:{}};
-    var rev=(o.goods_discounted||o.goods_total||0);
-    byMgr[m].count++;byMgr[m].revenue+=rev;
-    if(o.order_date){var ym=o.order_date.slice(0,7);byMgr[m].months[ym]=(byMgr[m].months[ym]||0)+rev;}
+    var m=o.manager||'Не указан';if(!byMgr[m])byMgr[m]={n:0,rev:0,cost:0,done:0,days:0,dayN:0};
+    var g=byMgr[m];g.n++;g.rev+=(o.goods_discounted||o.goods_total||0);
+    (o.order_items||[]).forEach(function(it){if((it.price_opt||0)>0)g.cost+=itCost(it);});
+    if((o.status||'')==='🏁 Выполнен')g.done++;
+    if(o.closed_at&&o.order_date){var dd=(new Date(o.closed_at)-new Date(o.order_date))/86400000;if(dd>=0&&dd<400){g.days+=dd;g.dayN++;}}
   });
-  var mgrList=Object.keys(byMgr).map(function(k){return{name:k,data:byMgr[k]};}).sort(function(a,b){return b.data.revenue-a.data.revenue;});
-  var maxMgrRev=mgrList.length?Math.max.apply(null,mgrList.map(function(m){return m.data.revenue;})):1;
-  var maxMonthRev=1;
-  mgrList.forEach(function(m){Object.keys(m.data.months).forEach(function(ym){if(m.data.months[ym]>maxMonthRev)maxMonthRev=m.data.months[ym];});});
-  var mhtml='';
-  mgrList.forEach(function(m){
-    mhtml+='<div class="bar-row" style="margin-bottom:4px"><span class="bar-name" style="font-weight:700;color:var(--text)">'+m.name.split(' ')[0]+'</span>'+
-      '<div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(m.data.revenue/(maxMgrRev||1)*100)+'%;background:var(--mid)"></div></div>'+
-      '<span class="bar-val">'+m.data.count+' / '+fmtK(m.data.revenue)+' ₽</span></div>';
-    Object.keys(m.data.months).sort().forEach(function(ym){
-      mhtml+='<div class="bar-row" style="margin-bottom:3px"><span class="bar-name" style="font-size:11px;color:var(--text2)">↳ '+fmtMonth(ym)+'</span>'+
-        '<div class="bar-wrap" style="height:12px"><div class="bar-fill" style="width:'+Math.round(m.data.months[ym]/(maxMonthRev||1)*100)+'%;background:#90CAF9"></div></div>'+
-        '<span class="bar-val" style="font-weight:500;font-size:11px">'+fmtK(m.data.months[ym])+' ₽</span></div>';
-    });
+  var mgrs=Object.keys(byMgr).map(function(k){return{name:k,d:byMgr[k]};}).sort(function(a,b){return b.d.rev-a.d.rev;});
+  var maxMgr=1;mgrs.forEach(function(m){if(m.d.rev>maxMgr)maxMgr=m.d.rev;});
+  var mgHtml='';
+  mgrs.forEach(function(m){
+    var d=m.d,prof=d.rev-d.cost,avg=d.n?d.rev/d.n:0,done=d.n?Math.round(d.done/d.n*100):0,days=d.dayN?Math.round(d.days/d.dayN):null;
+    mgHtml+='<div style="margin-bottom:10px">'+
+      '<div class="bar-row" style="margin-bottom:2px"><span class="bar-name" style="font-weight:700;color:var(--text)">'+m.name.split(' ')[0]+'</span>'+
+      '<div class="bar-wrap"><div class="bar-fill" style="width:'+Math.round(d.rev/maxMgr*100)+'%;background:var(--mid)"></div></div>'+
+      '<span class="bar-val">'+fmtK(d.rev)+' ₽</span></div>'+
+      '<div style="font-size:11px;color:var(--text2);padding-left:120px">заказов '+d.n+' · прибыль '+fmtK(prof)+' ₽ · ср.чек '+fmtK(Math.round(avg))+' ₽ · выполнено '+done+'%'+(days!=null?' · срок '+days+' дн':'')+'</div>'+
+      '</div>';
   });
-  document.getElementById('chart-managers').innerHTML=mhtml||'<p style="color:var(--text2);font-size:13px">Нет данных</p>';
+  document.getElementById('chart-managers').innerHTML=mgHtml||'<p style="color:var(--text2);font-size:13px">Нет данных</p>';
+  // Поставщики: выручка + прибыль + маржа
+  var bySup={};
+  orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var s=it.supplier||'Прочее';if(!bySup[s])bySup[s]={rev:0,cost:0};bySup[s].rev+=itSell(it);if((it.price_opt||0)>0)bySup[s].cost+=itCost(it);});});
+  var sups=Object.keys(bySup).map(function(k){var d=bySup[k],prof=d.rev-d.cost;return{label:k,val:d.rev,display:fmtK(d.rev)+' / '+fmtK(prof)+(d.rev?' ('+Math.round(prof/d.rev*100)+'%)':'')};}).sort(function(a,b){return b.val-a.val;});
+  bar('chart-suppliers',sups,sups.length?Math.max.apply(null,sups.map(function(s){return s.val;})):1,'#9C27B0');
+  // Топ товаров
+  var byGood={};
+  orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var nm=it.product_name||'—';if(!byGood[nm])byGood[nm]={qty:0,rev:0};byGood[nm].qty+=(it.qty||1);byGood[nm].rev+=itSell(it);});});
+  var goods=Object.keys(byGood).map(function(k){return{label:k,val:byGood[k].rev,display:byGood[k].qty+'шт · '+fmtK(byGood[k].rev)+' ₽'};}).sort(function(a,b){return b.val-a.val;}).slice(0,10);
+  bar('chart-topgoods',goods,goods.length?goods[0].val:1,'#3949AB');
+  // Топ клиентов
+  var byCl={};
+  orders.forEach(function(o){var c=o.client_name||'—';if(!byCl[c])byCl[c]={n:0,rev:0};byCl[c].n++;byCl[c].rev+=(o.goods_discounted||o.goods_total||0);});
+  var cls=Object.keys(byCl).map(function(k){return{label:k,val:byCl[k].rev,display:byCl[k].n+' зак · '+fmtK(byCl[k].rev)+' ₽'};}).sort(function(a,b){return b.val-a.val;}).slice(0,10);
+  bar('chart-topclients',cls,cls.length?cls[0].val:1,'#00897B');
+  // Должники
+  var byDebt={};
+  orders.forEach(function(o){if((o.remainder||0)>0){var c=o.client_name||'—';byDebt[c]=(byDebt[c]||0)+o.remainder;}});
+  var debts=Object.keys(byDebt).map(function(k){return{label:k,val:byDebt[k],display:fmtK(byDebt[k])+' ₽'};}).sort(function(a,b){return b.val-a.val;}).slice(0,12);
+  bar('chart-debtors',debts,debts.length?debts[0].val:1,'#C62828');
+  // Статусы
   var byStatus={};orders.forEach(function(o){byStatus[o.status||'—']=(byStatus[o.status||'—']||0)+1;});
   var statuses=Object.keys(byStatus).map(function(k){return{label:k,val:byStatus[k],display:''+byStatus[k]};}).sort(function(a,b){return b.val-a.val;});
-  barChart('chart-statuses',statuses,orders.length,'#4CAF50');
-  var bySup={};orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var s=it.supplier||'Прочее';if(!bySup[s])bySup[s]={c:0,rev:0};bySup[s].c++;bySup[s].rev+=(it.price_discounted||it.price_retail||0)*(it.qty||1);});});
-  var sups=Object.keys(bySup).map(function(k){return{label:k,val:bySup[k].rev,display:bySup[k].c+' / '+fmtK(bySup[k].rev)+' ₽'};}).sort(function(a,b){return b.val-a.val;});
-  barChart('chart-suppliers',sups,sups.length?Math.max.apply(null,sups.map(function(s){return s.val;})):1,'#9C27B0');
+  bar('chart-statuses',statuses,orders.length,'#4CAF50');
+  // Способы оплаты (получено)
+  var pay={cash:0,card:0,transfer:0};
+  orders.forEach(function(o){pay.cash+=(o.pay_cash||0);pay.card+=(o.pay_card||0);pay.transfer+=(o.pay_transfer||0);});
+  var payTot=pay.cash+pay.card+pay.transfer;
+  var pays=[{label:'Наличные',val:pay.cash},{label:'Карта',val:pay.card},{label:'Перевод',val:pay.transfer}].map(function(p){return{label:p.label,val:p.val,display:fmtK(p.val)+' ₽'+(payTot?' ('+Math.round(p.val/payTot*100)+'%)':'')};});
+  bar('chart-payments',pays,payTot||1,'#7B1FA2');
+  // Доставка и операции
+  var pickup=0,deliv=0,delivInc=0;
+  orders.forEach(function(o){if(/самовыв/i.test(o.client_address||''))pickup++;else deliv++;delivInc+=(o.delivery_cost||0)+(o.lifting_cost||0);});
+  var delEl=document.getElementById('chart-delivery');
+  if(delEl)delEl.innerHTML='<div style="font-size:13px;line-height:1.9">'+
+    '<div>🚚 Доставка: <strong>'+deliv+'</strong> · 🏬 Самовывоз: <strong>'+pickup+'</strong></div>'+
+    '<div>💵 Доход с доставки/заноса: <strong>'+fmt(delivInc)+' ₽</strong></div>'+
+    '<div>📦 Себестоимость закупки: <strong>'+fmtK(M.cost)+' ₽</strong></div>'+
+    '<div>⏳ Денег «в долгах»: <strong style="color:#C62828">'+fmt(M.debt)+' ₽</strong></div>'+
+    '<div style="font-size:11px;color:var(--text2);margin-top:4px">Прибыль/маржа — по позициям с закуп. ценой (покрытие '+Math.round(M.cov*100)+'%)</div>'+
+    '</div>';
+  // География
+  var byCity={};
+  orders.forEach(function(o){var c=_cityOf(o.client_address);if(!byCity[c])byCity[c]={n:0,rev:0};byCity[c].n++;byCity[c].rev+=(o.goods_discounted||o.goods_total||0);});
+  var cities=Object.keys(byCity).map(function(k){return{label:k,val:byCity[k].rev,display:byCity[k].n+' зак · '+fmtK(byCity[k].rev)+' ₽'};}).sort(function(a,b){return b.val-a.val;}).slice(0,12);
+  bar('chart-geo',cities,cities.length?cities[0].val:1,'#F9A825');
 }
 
 function exportBackup(){
