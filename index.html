@@ -110,7 +110,7 @@ textarea{resize:vertical;min-height:60px}
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v5.5</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v5.6</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1779,6 +1779,9 @@ function _gsRun(q,box){
 // ── КАЛЬКУЛЯТОР КОМПЛЕКТА ───────────────────────────────
 var _calcItems=[];
 try{_calcItems=JSON.parse(localStorage.getItem('vd_calc')||'[]')||[];}catch(e){_calcItems=[];}
+var _calcHideOpt=false;
+try{_calcHideOpt=localStorage.getItem('vd_calc_hideopt')==='1';}catch(e){}
+function calcToggleOpt(){_calcHideOpt=!_calcHideOpt;try{localStorage.setItem('vd_calc_hideopt',_calcHideOpt?'1':'0');}catch(e){}renderCalc();}
 function _calcSave(){try{localStorage.setItem('vd_calc',JSON.stringify(_calcItems));}catch(e){}}
 function calcAddFromSearch(idx){
   var p=_gsLastResults[idx];if(!p)return;
@@ -1816,7 +1819,7 @@ function renderCalc(){
     html+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+it.name.replace(/"/g,'&quot;')+'">'+it.name+'</div>'
-      +'<div style="font-size:11px;color:var(--text2)">'+[it.supplier,it.article].filter(Boolean).join(' · ')+(it.opt?' · опт '+fmt(it.opt)+' ₽':'')+'</div></div>'
+      +'<div style="font-size:11px;color:var(--text2)">'+[it.supplier,it.article].filter(Boolean).join(' · ')+(it.opt&&!_calcHideOpt?' · опт '+fmt(it.opt)+' ₽':'')+'</div></div>'
       +'<input type="number" value="'+it.qty+'" min="1" style="width:54px;padding:4px 6px;text-align:center;flex-shrink:0" onchange="calcQty('+i+',this.value)">'
       +'<div style="width:88px;text-align:right;font-size:13px;font-weight:700;color:#BF360C;flex-shrink:0">'+fmt(unitRet*it.qty)+' ₽</div>'
       +'<button onclick="calcRemove('+i+')" style="background:none;border:none;cursor:pointer;color:#999;font-size:15px;flex-shrink:0">✕</button>'
@@ -1825,9 +1828,10 @@ function renderCalc(){
   list.innerHTML=html;
   totals.style.display='block';
   totals.innerHTML=
-    '<div class="tot-row"><span style="color:var(--text2)">Итого опт'+(optMissing?' (не у всех позиций)':'')+':</span><span>'+fmt(totOpt)+' ₽</span></div>'
-    +'<div class="tot-row" style="font-size:15px;font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:8px"><span>Итого розница (+'+MARKUP_PCT+'%):</span><span style="color:#BF360C">'+fmt(totRet)+' ₽</span></div>'
-    +'<div class="tot-row" style="color:#1B5E20"><span>Наценка:</span><span>'+fmt(totRet-totOpt)+' ₽</span></div>';
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><span onclick="calcToggleOpt()" style="cursor:pointer;font-size:11px;color:var(--text2);user-select:none" title="Скрыть/показать оптовую цену и наценку — чтобы клиент видел только розницу">'+(_calcHideOpt?'👁 Показать опт':'🙈 Скрыть опт (для клиента)')+'</span></div>'
+    +(_calcHideOpt?'':'<div class="tot-row"><span style="color:var(--text2)">Итого опт'+(optMissing?' (не у всех позиций)':'')+':</span><span>'+fmt(totOpt)+' ₽</span></div>')
+    +'<div class="tot-row" style="font-size:15px;font-weight:700;'+(_calcHideOpt?'':'border-top:1px solid var(--border);margin-top:6px;padding-top:8px')+'"><span>Итого розница (+'+MARKUP_PCT+'%):</span><span style="color:#BF360C">'+fmt(totRet)+' ₽</span></div>'
+    +(_calcHideOpt?'':'<div class="tot-row" style="color:#1B5E20"><span>Наценка:</span><span>'+fmt(totRet-totOpt)+' ₽</span></div>');
   actions.style.display='flex';
 }
 function calcToOrder(){
@@ -3070,9 +3074,4 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 
 </script>
 <div id="app-pin-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:32px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)">
-    <div style="font-size:40px;margin-bottom:12px">🔒</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:4px">ВашДом CRM</div>
-    <div style="font-size:13px;color:#666;margin-bottom:20px">Введите PIN-код для входа</div>
-    <input type="password" id="app-pin-input" placeholder="PIN" style="width:100%;text-align:center;font-size:24px;letter-spacing:8px;border:2px solid #ddd;border-radius:8px;padding:10px;box-sizing:border-box;margin-bottom:12px" onkeydown="if(event.key==='Enter')checkAppPin()" autocomplete="off" inputmode="numeric">
-    <button class="btn btn-primary" onclick="checkAppPin()" style="width:100%;justify
+  <div style="background:#fff;border-radius:16px;pa
