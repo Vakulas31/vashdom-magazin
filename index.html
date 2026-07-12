@@ -539,6 +539,16 @@ textarea{resize:vertical;min-height:60px}
   <div class="modal" style="max-width:480px">
     <div class="modal-title" id="co-title">🏁 Закрытие заказа</div>
     <div id="co-summary" style="background:var(--alt);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;line-height:1.6"></div>
+    <div id="co-delivery-block" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:var(--radius-sm);background:var(--alt);border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">🚚 Доставка и занос</div>
+      <div style="display:flex;gap:8px">
+        <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px">
+          <input type="radio" name="co-deliv" value="our" onchange="coDeliveryToggle()" style="width:auto"> Наша доставка</label>
+        <label style="flex:1;display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px">
+          <input type="radio" name="co-deliv" value="ext" onchange="coDeliveryToggle()" style="width:auto"> Сторонняя</label>
+      </div>
+      <div id="co-deliv-note" style="margin-top:8px;font-size:12px;line-height:1.5"></div>
+    </div>
     <div class="fg" style="margin-bottom:12px">
       <label>Дата фактической выдачи / доставки *</label>
       <input type="date" id="co-date" class="inp-gold">
@@ -803,8 +813,9 @@ function orderCard(o){
 
   var goodsDebt=o.remainder||0;
   var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
+  var delivExternal=o.delivery_our===false; // сторонняя доставка — деньги мимо кассы
   var delivPaid=o.delivery_paid==='yes';
-  var delivDebt=delivPaid?0:delivCost;
+  var delivDebt=(delivPaid||delivExternal)?0:delivCost; // сторонняя не создаёт долг перед салоном
   var totalDebt=goodsDebt+delivDebt;
   var debtParts=[];
   if(goodsDebt>0)debtParts.push(fmt(goodsDebt)+' товар');
@@ -814,8 +825,9 @@ function orderCard(o){
   var ftrDebt=totalDebt>0?
     '<div class="ftr-col"><div class="ftr-lbl">Долг клиента</div><div class="ftr-val" style="color:#C62828">'+fmt(totalDebt)+' ₽</div>'+(debtBreakdown?'<div style="font-size:10px;color:#C62828;margin-top:2px">'+debtBreakdown+'</div>':'')+'</div>':
     '<div class="ftr-col"><div class="ftr-lbl">Долг</div><div class="ftr-val" style="color:#1B5E20">✅ 0 ₽</div></div>';
-  var ftrDeliv=delivCost>0?
-    '<div class="ftr-col"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'✅':'⏳')+'</span></div><div class="ftr-val">'+fmt(delivCost)+' ₽</div></div>':'';
+  var ftrDeliv=delivCost>0?(delivExternal?
+    '<div class="ftr-col" style="opacity:.55"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:#888">сторонняя</span></div><div class="ftr-val" style="color:#888">'+fmt(delivCost)+' ₽</div><div style="font-size:9px;color:#999;margin-top:1px">не наша · мимо кассы</div></div>':
+    '<div class="ftr-col"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'✅':'⏳')+'</span></div><div class="ftr-val">'+fmt(delivCost)+' ₽</div></div>'):'';
   var ftrPre=(o.prepayment||0)>0?
     '<div class="ftr-col"><div class="ftr-lbl">Предоплата</div><div class="ftr-val">'+fmt(o.prepayment)+' ₽</div></div>':'';
   var noteHtml=o.notes?'<div class="note-box">📝 '+o.notes+'</div>':'';
@@ -893,10 +905,10 @@ function filterOrders(){
   var weekEnd=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
   var f=allOrders.filter(function(o){
     var txt=[o.client_name,o.client_phone,o.client_phone2,o.client_address,o.notes,o.manager,o.order_number,o.status].join(' ').toLowerCase();
-    (o.order_items||[]).forEach(function(i){txt+=' '+(i.product_name||'')+' '+(i.color||'')+' '+(i.supplier||'');});
+    (o.order_items||[]).forEach(function(i){txt+=(' '+(i.product_name||'')+' '+(i.color||'')+' '+(i.supplier||'')+' '+(i.dims||'')).toLowerCase();});
     var statusMatch=!st||(st==='__active__'?(o.status||'')!=='🏁 Выполнен':o.status===st);
     var chipMatch=true;
-    if(_activeChip==='debt')chipMatch=(o.remainder||0)>0||(o.delivery_paid==='no'&&(o.delivery_cost||0)>0);
+    if(_activeChip==='debt')chipMatch=(o.remainder||0)>0||(o.delivery_paid==='no'&&(o.delivery_cost||0)>0&&o.delivery_our!==false);
     else if(_activeChip==='active')chipMatch=(o.status||'')!=='🏁 Выполнен';
     else if(_activeChip==='today')chipMatch=o.order_date===today;
     else if(_activeChip==='week')chipMatch=o.delivery_date&&o.delivery_date>=today&&o.delivery_date<=weekEnd;
@@ -916,6 +928,7 @@ function updateManagerFilter(){
 
 // ── ЗАКРЫТИЕ ЗАКАЗА ─────────────────────────────────────
 var _closeOrderId=null,_closeTarget=0,_closeEditMode=false;
+var _closeGoodsDebt=0,_closeDelivCost=0; // расшифровка остатка для переключателя доставки
 
 function markDone(id){openCloseModal(id,false);}
 function editClosure(id){requirePin('🔐 Изменение данных закрытия',function(){openCloseModal(id,true);});}
@@ -934,25 +947,64 @@ function openCloseModal(id,editMode){
     document.getElementById('co-comment').value=o.close_comment||'';
     summary='<strong>'+o.client_name+'</strong><br>Сумма, полученная при закрытии: <strong>'+fmt(_closeTarget)+' ₽</strong><br><span style="color:#E65100">Можно изменить дату и распределение по способам оплаты. Общая сумма должна остаться '+fmt(_closeTarget)+' ₽.</span>';
     document.getElementById('co-save-btn').innerHTML='✅ Сохранить изменения';
+    document.getElementById('co-delivery-block').style.display='none';
   }else{
-    var goodsDebt=o.remainder||0;
-    var delivDebt=(o.delivery_paid==='yes')?0:((o.delivery_cost||0)+(o.lifting_cost||0));
-    _closeTarget=Math.round(goodsDebt+delivDebt);
+    _closeGoodsDebt=Math.round(o.remainder||0);
+    _closeDelivCost=(o.delivery_paid==='yes')?0:Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
     document.getElementById('co-title').textContent='🏁 Закрытие заказа №'+o.order_number;
     document.getElementById('co-date').value=new Date().toISOString().split('T')[0];
-    document.getElementById('co-cash').value=_closeTarget;
     document.getElementById('co-card').value=0;
     document.getElementById('co-transfer').value=0;
     document.getElementById('co-comment').value='';
-    summary='<strong>'+o.client_name+'</strong><br>Остаток за товары: <strong>'+fmt(goodsDebt)+' ₽</strong>';
-    if(delivDebt>0)summary+='<br>Доставка/занос (не оплачены): <strong>'+fmt(delivDebt)+' ₽</strong>';
-    summary+='<br>Итого к получению: <strong style="color:#C62828;font-size:15px">'+fmt(_closeTarget)+' ₽</strong>';
-    if(_closeTarget===0)summary+='<br><span style="color:#1B5E20">Заказ полностью оплачен — просто укажите дату выдачи.</span>';
+    // Переключатель доставки: показываем только если есть неоплаченная доставка/занос
+    var db=document.getElementById('co-delivery-block');
+    if(_closeDelivCost>0){
+      db.style.display='block';
+      var isOur=o.delivery_our!==false; // по умолчанию наша
+      document.querySelector('input[name="co-deliv"][value="'+(isOur?'our':'ext')+'"]').checked=true;
+    }else{
+      db.style.display='none';
+    }
     document.getElementById('co-save-btn').innerHTML='✅ Закрыть заказ';
+    coDeliveryToggle(); // проставит _closeTarget, co-cash, summary и заметку
   }
-  document.getElementById('co-summary').innerHTML=summary;
+  if(_closeEditMode){document.getElementById('co-summary').innerHTML=summary;}
   updateCloseSum();
   document.getElementById('modal-close').classList.add('open');
+}
+
+// Возвращает выбранный режим доставки в модалке закрытия (true = наша)
+function _coDeliveryOur(){
+  var el=document.querySelector('input[name="co-deliv"]:checked');
+  return !el||el.value==='our';
+}
+// Пересчёт при переключении наша/сторонняя доставка
+function coDeliveryToggle(){
+  if(_closeEditMode)return;
+  var hasDeliv=_closeDelivCost>0;
+  var isOur=hasDeliv?_coDeliveryOur():true;
+  var delivInTarget=hasDeliv&&isOur?_closeDelivCost:0; // сторонняя не входит в кассу
+  _closeTarget=Math.round(_closeGoodsDebt+delivInTarget);
+  document.getElementById('co-cash').value=_closeTarget;
+  document.getElementById('co-card').value=0;
+  document.getElementById('co-transfer').value=0;
+  // Сводка
+  var o=allOrders.find(function(x){return x.id===_closeOrderId;})||{};
+  var summary='<strong>'+(o.client_name||'')+'</strong><br>Остаток за товары: <strong>'+fmt(_closeGoodsDebt)+' ₽</strong>';
+  if(hasDeliv&&isOur)summary+='<br>Доставка/занос (наша, в кассу): <strong>'+fmt(_closeDelivCost)+' ₽</strong>';
+  summary+='<br>Итого в кассу: <strong style="color:#C62828;font-size:15px">'+fmt(_closeTarget)+' ₽</strong>';
+  if(_closeTarget===0)summary+='<br><span style="color:#1B5E20">К получению в кассу 0 ₽ — просто укажите дату выдачи.</span>';
+  document.getElementById('co-summary').innerHTML=summary;
+  // Заметка под переключателем
+  var note=document.getElementById('co-deliv-note');
+  if(hasDeliv&&!isOur){
+    note.innerHTML='<span style="display:inline-block;background:#F0F0F0;color:#888;padding:3px 8px;border-radius:6px">Сторонняя доставка (не наша): '+fmt(_closeDelivCost)+' ₽ — клиент платит курьеру напрямую, в кассу не идёт.</span>';
+  }else if(hasDeliv){
+    note.innerHTML='<span style="color:var(--text2)">Доставка и занос '+fmt(_closeDelivCost)+' ₽ входят в остаток к оплате и в кассу.</span>';
+  }else{
+    note.innerHTML='';
+  }
+  updateCloseSum();
 }
 
 function _coVals(){
@@ -996,7 +1048,14 @@ function saveClose(){
   var patch={status:'🏁 Выполнен',remainder:0,closed_at:date,
     pay_cash:v.cash,pay_card:v.card,pay_transfer:v.transfer,
     close_comment:document.getElementById('co-comment').value.trim()};
-  if(!_closeEditMode&&o.delivery_paid!=='yes'&&((o.delivery_cost||0)+(o.lifting_cost||0))>0)patch.delivery_paid='yes';
+  if(!_closeEditMode){
+    var isOur=_coDeliveryOur();
+    var hasDeliv=((o.delivery_cost||0)+(o.lifting_cost||0))>0;
+    if(hasDeliv)patch.delivery_our=isOur;
+    // «Оплачено» помечаем только для нашей доставки (её деньги реально прошли через кассу).
+    // Для сторонней доставки клиент платит курьеру напрямую — салон её не собирал.
+    if(hasDeliv&&isOur&&o.delivery_paid!=='yes')patch.delivery_paid='yes';
+  }
   var btn=document.getElementById('co-save-btn');
   btn.innerHTML='<span class="spinner"></span> Сохраняем...';btn.disabled=true;_closing=true;
   sbPatch('orders',patch,'id=eq.'+_closeOrderId).then(function(){
@@ -2036,14 +2095,15 @@ function printActiveOrders(){
     var prepay=o.prepayment||0;
     var goodsDebt=o.remainder||0;
     var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
+    var delivExternal=o.delivery_our===false;
     var delivPaid=o.delivery_paid==='yes';
-    var totalDebt=goodsDebt+(delivPaid?0:delivCost);
+    var totalDebt=goodsDebt+((delivPaid||delivExternal)?0:delivCost);
 
     // Строка доставки/заноса
     var delivParts=[];
     if(o.delivery_cost>0)delivParts.push('Дост.: '+fmt(o.delivery_cost)+' ₽');
     if(o.lifting_cost>0)delivParts.push('Занос: '+fmt(o.lifting_cost)+' ₽');
-    var delivStr=delivParts.length?delivParts.join('<br>')+(delivPaid?' <span style="color:#1B5E20">✅</span>':' <span style="color:#E65100">⏳</span>'):'—';
+    var delivStr=delivParts.length?delivParts.join('<br>')+(delivExternal?' <span style="color:#999">(сторонняя)</span>':(delivPaid?' <span style="color:#1B5E20">✅</span>':' <span style="color:#E65100">⏳</span>')):'—';
 
     rows+='<tr class="order-row'+(idx%2===1?' alt':'')+'">'
       +'<td class="date">'+fmtDate(o.order_date)+'</td>'
@@ -2775,7 +2835,7 @@ function renderStats(){
   bar('chart-payments',pays,payTot||1,'#7B1FA2');
   // Доставка и операции
   var pickup=0,deliv=0,delivInc=0;
-  orders.forEach(function(o){if(/самовыв/i.test(o.client_address||''))pickup++;else deliv++;delivInc+=(o.delivery_cost||0)+(o.lifting_cost||0);});
+  orders.forEach(function(o){if(/самовыв/i.test(o.client_address||''))pickup++;else deliv++;if(o.delivery_our!==false)delivInc+=(o.delivery_cost||0)+(o.lifting_cost||0);});
   var delEl=document.getElementById('chart-delivery');
   if(delEl)delEl.innerHTML='<div style="font-size:13px;line-height:1.9">'+
     '<div>🚚 Доставка: <strong>'+deliv+'</strong> · 🏬 Самовывоз: <strong>'+pickup+'</strong></div>'+
@@ -3074,4 +3134,14 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 
 </script>
 <div id="app-pin-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;pa
+  <div style="background:#fff;border-radius:16px;padding:32px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+    <div style="font-size:40px;margin-bottom:12px">🔒</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">ВашДом CRM</div>
+    <div style="font-size:13px;color:#666;margin-bottom:20px">Введите PIN-код для входа</div>
+    <input type="password" id="app-pin-input" placeholder="PIN" style="width:100%;text-align:center;font-size:24px;letter-spacing:8px;border:2px solid #ddd;border-radius:8px;padding:10px;box-sizing:border-box;margin-bottom:12px" onkeydown="if(event.key==='Enter')checkAppPin()" autocomplete="off" inputmode="numeric">
+    <button class="btn btn-primary" onclick="checkAppPin()" style="width:100%;justify-content:center;font-size:16px">Войти →</button>
+    <div id="app-pin-err" style="color:#c62828;font-size:12px;margin-top:10px;display:none">Неверный PIN-код</div>
+  </div>
+</div>
+</body>
+</html>
