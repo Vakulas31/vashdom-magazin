@@ -369,10 +369,17 @@ textarea{resize:vertical;min-height:60px}
       <div class="card-title" style="margin:0">🧠 Умный поиск по параметрам</div>
       <button class="btn btn-outline" onclick="backfillAttrs()" id="ss-backfill-btn" style="padding:5px 10px;font-size:12px">🔧 Разобрать атрибуты</button>
     </div>
-    <p style="font-size:12px;color:var(--text2);margin:4px 0 8px">Пишите как клиент: «шкаф высотой до 2100 бежевый», «диван 2500×1600», «кровать 1600 орех». Понимает тип, цвет, размеры (высота/ширина/глубина, до/от).</p>
+    <p style="font-size:12px;color:var(--text2);margin:4px 0 8px">Тип и цвет — текстом («шкаф бежевый», «диван орех»). Размеры точнее задавать полями ниже (Высота/Ширина/Глубина, от–до) — так поиск не перепутает высоту с шириной. Можно и текстом: «шкаф высотой до 2100».</p>
     <div class="search-wrap" style="margin-bottom:6px">
       <span class="search-icon">🧠</span>
-      <input type="text" id="ss-input" placeholder="Тип, размеры, цвет — свободным текстом..." oninput="smartSearchLive()" style="font-size:15px;padding:12px 12px 12px 38px">
+      <input type="text" id="ss-input" placeholder="Тип, цвет — свободным текстом (напр. шкаф бежевый)..." oninput="smartSearchLive()" style="font-size:15px;padding:12px 12px 12px 38px">
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:6px;font-size:12px">
+      <span style="color:var(--text2)">Размеры, мм:</span>
+      <span>Высота <input type="number" id="ss-hmin" placeholder="от" oninput="smartSearchLive()" style="width:60px;padding:4px 6px"> – <input type="number" id="ss-hmax" placeholder="до" oninput="smartSearchLive()" style="width:60px;padding:4px 6px"></span>
+      <span>Ширина <input type="number" id="ss-wmin" placeholder="от" oninput="smartSearchLive()" style="width:60px;padding:4px 6px"> – <input type="number" id="ss-wmax" placeholder="до" oninput="smartSearchLive()" style="width:60px;padding:4px 6px"></span>
+      <span>Глубина <input type="number" id="ss-dmin" placeholder="от" oninput="smartSearchLive()" style="width:60px;padding:4px 6px"> – <input type="number" id="ss-dmax" placeholder="до" oninput="smartSearchLive()" style="width:60px;padding:4px 6px"></span>
+      <button class="btn btn-outline" onclick="ssClearDims()" style="padding:3px 8px;font-size:11px">✕ сбросить размеры</button>
     </div>
     <div id="ss-parsed" style="font-size:11px;color:var(--text2);min-height:16px;margin-bottom:6px"></div>
     <div id="ss-results"><div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос. Для работы нужно применить SQL_обновление_5.6 и нажать «Разобрать атрибуты».</div></div>
@@ -1997,7 +2004,20 @@ function _gsRun(q,box){
 
 // ── УМНЫЙ (ПАРАМЕТРИЧЕСКИЙ) ПОИСК ────────────────────────
 var _ssTimer=null,_ssLast=[];
-function smartSearchLive(){clearTimeout(_ssTimer);var q=document.getElementById('ss-input').value.trim();var box=document.getElementById('ss-results');var pb=document.getElementById('ss-parsed');if(q.length<2){pb.textContent='';box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос: тип, размеры, цвет.</div>';return;}_ssTimer=setTimeout(function(){_ssRun(q);},280);}
+function _ssNum(id){var v=parseInt((document.getElementById(id)||{}).value);return isNaN(v)?null:v;}
+// Явные фильтры размеров из полей от/до (мм). Возвращает массив {col,op,val}.
+function _ssDimFilters(){
+  var f=[];[['ss-hmin','dim_h','gte'],['ss-hmax','dim_h','lte'],['ss-wmin','dim_w','gte'],['ss-wmax','dim_w','lte'],['ss-dmin','dim_d','gte'],['ss-dmax','dim_d','lte']].forEach(function(x){var v=_ssNum(x[0]);if(v!=null)f.push({col:x[1],op:x[2],val:v});});
+  return f;
+}
+function ssClearDims(){['ss-hmin','ss-hmax','ss-wmin','ss-wmax','ss-dmin','ss-dmax'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});smartSearchLive();}
+function smartSearchLive(){
+  clearTimeout(_ssTimer);
+  var q=document.getElementById('ss-input').value.trim();
+  var box=document.getElementById('ss-results'),pb=document.getElementById('ss-parsed');
+  if(q.length<2&&!_ssDimFilters().length){pb.textContent='';box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос (тип, цвет) или задайте размеры полями выше.</div>';return;}
+  _ssTimer=setTimeout(function(){_ssRun(q);},280);
+}
 // Разбор свободного запроса на тип/цвет/габариты/слова
 function _parseSmartQuery(q){
   var low=' '+q.toLowerCase()+' ';
@@ -2023,29 +2043,31 @@ function _parseSmartQuery(q){
 function _ssRun(q){
   var box=document.getElementById('ss-results'),pb=document.getElementById('ss-parsed');
   var P=_parseSmartQuery(q);
+  var DF=_ssDimFilters(); // явные поля Высота/Ширина/Глубина (строгие — размер должен быть указан)
+  var nmMap={dim_w:'ширина',dim_h:'высота',dim_d:'глубина',any:'размер'},opMap={lte:'≤',gte:'≥',eq:'=',near:'≈'};
   var chips=[];
   if(P.ptype)chips.push('тип: '+P.ptype);
   if(P.color)chips.push('цвет: '+P.color);
-  P.cons.forEach(function(c){var nm={dim_w:'ширина',dim_h:'высота',dim_d:'глубина',any:'размер'}[c.col];var opn={lte:'≤',gte:'≥',eq:'=',near:'≈'}[c.op];chips.push(nm+' '+opn+' '+c.val);});
+  P.cons.forEach(function(c){chips.push(nmMap[c.col]+' '+opMap[c.op]+' '+c.val);});
+  DF.forEach(function(c){chips.push(nmMap[c.col]+' '+opMap[c.op]+' '+c.val+' (точно)');});
   if(P.free.length)chips.push('текст: '+P.free.join(' '));
   pb.innerHTML=chips.length?'Понял: <strong>'+chips.join('</strong> · <strong>')+'</strong>':'Не распознаны параметры — ищу по названию.';
   // Собираем условия в единый and(...). Тип/цвет ищем и в атрибуте, и в названии.
-  // Фильтры по размеру — «мягкие»: размер подходит ИЛИ неизвестен (много прайсов без размеров).
   var conds=[];
   if(P.ptype)conds.push('or(ptype.ilike.'+_ilikePat(P.ptype)+',product_name.ilike.'+_ilikePat(P.ptype)+')');
   if(P.color)conds.push('or(color.ilike.'+_ilikePat(P.color)+',product_name.ilike.'+_ilikePat(P.color)+')');
   P.free.forEach(function(w){conds.push('product_name.ilike.'+_ilikePat(w));});
+  // Текстовые размеры «до/от» — мягкие (размер подходит ИЛИ неизвестен)
   P.cons.forEach(function(c){
     if(c.col==='any'){
       if(c.op==='near'){var lo=c.val-100,hi=c.val+100;conds.push('or(and(dim_w.gte.'+lo+',dim_w.lte.'+hi+'),and(dim_h.gte.'+lo+',dim_h.lte.'+hi+'),and(dim_d.gte.'+lo+',dim_d.lte.'+hi+'))');}
       else conds.push('or(dim_w.'+c.op+'.'+c.val+',dim_h.'+c.op+'.'+c.val+',dim_d.'+c.op+'.'+c.val+')');
-    }else if(c.op==='eq'){
-      conds.push(c.col+'.eq.'+c.val); // точный размер (Ш×В) — строго
-    }else{
-      conds.push('or('+c.col+'.'+c.op+'.'+c.val+','+c.col+'.is.null)'); // до/от — мягко (или размер неизвестен)
-    }
+    }else if(c.op==='eq'){conds.push(c.col+'.eq.'+c.val);}
+    else{conds.push('or('+c.col+'.'+c.op+'.'+c.val+','+c.col+'.is.null)');}
   });
-  if(!conds.length){box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:6px 2px">Уточните запрос: тип, размер или цвет.</div>';return;}
+  // Явные поля размеров — строгие (размер должен быть указан и попадать в диапазон)
+  DF.forEach(function(c){conds.push(c.col+'.'+c.op+'.'+c.val);});
+  if(!conds.length){box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:6px 2px">Уточните запрос: тип, цвет или задайте размеры полями.</div>';return;}
   box.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 2px">Ищу...</div>';
   var sel='supplier,product_name,price_opt,price_retail,article,ptype,color,dim_w,dim_h,dim_d'+(_gsFactoryCol?',factory':'');
   sbGet('price_items','select='+sel+'&and=('+conds.join(',')+')&limit=40&order=product_name.asc')
@@ -2056,7 +2078,8 @@ function _ssRun(q){
     var html='<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">';
     rows.forEach(function(p,i){
       var opt=p.price_opt||0;var ret=opt?retailFromOpt(opt):(p.price_retail||0);
-      var dstr=[p.dim_w,p.dim_h,p.dim_d].filter(function(x){return x;}).join('×');
+      var dparts=[];if(p.dim_w)dparts.push('Ш'+p.dim_w);if(p.dim_h)dparts.push('В'+p.dim_h);if(p.dim_d)dparts.push('Г'+p.dim_d);
+      var dstr=dparts.join('×');
       var sub=[(p.factory||''),p.supplier,(p.ptype||''),(dstr?dstr+' мм':''),(p.color||'')].filter(Boolean).join(' · ');
       html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
         +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+p.product_name+'</div>'
