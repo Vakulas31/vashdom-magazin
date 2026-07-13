@@ -381,6 +381,18 @@ textarea{resize:vertical;min-height:60px}
       <span>Глубина <input type="number" id="ss-dmin" placeholder="от" oninput="smartSearchLive()" style="width:60px;padding:4px 6px"> – <input type="number" id="ss-dmax" placeholder="до" oninput="smartSearchLive()" style="width:60px;padding:4px 6px"></span>
       <button class="btn btn-outline" onclick="ssClearDims()" style="padding:3px 8px;font-size:11px">✕ сбросить размеры</button>
     </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:6px;font-size:12px">
+      <span>Цена ₽ <input type="number" id="ss-pmin" placeholder="от" oninput="smartSearchLive()" style="width:70px;padding:4px 6px"> – <input type="number" id="ss-pmax" placeholder="до" oninput="smartSearchLive()" style="width:70px;padding:4px 6px"></span>
+      <span>Двери <input type="number" id="ss-doors" placeholder="напр. 3" min="1" max="6" oninput="smartSearchLive()" style="width:56px;padding:4px 6px"></span>
+      <span>Сортировка
+        <select id="ss-sort" onchange="smartSearchLive()" style="width:auto;padding:4px 6px">
+          <option value="name">по названию</option>
+          <option value="price_asc">дешевле → дороже</option>
+          <option value="price_desc">дороже → дешевле</option>
+        </select></span>
+      <span>Фабрика
+        <select id="ss-factory" onchange="smartSearchLive()" style="width:auto;padding:4px 6px"><option value="">любая</option></select></span>
+    </div>
     <div id="ss-parsed" style="font-size:11px;color:var(--text2);min-height:16px;margin-bottom:6px"></div>
     <div id="ss-results"><div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос. Для работы нужно применить SQL_обновление_5.6 и нажать «Разобрать атрибуты».</div></div>
   </div>
@@ -640,6 +652,26 @@ textarea{resize:vertical;min-height:60px}
   </div>
 </div>
 
+<div class="modal-bg" id="modal-attr">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title">✏️ Атрибуты товара</div>
+    <div id="ma-name" style="font-size:13px;font-weight:600;margin-bottom:10px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="fg"><label>Тип</label><input type="text" id="ma-ptype" class="inp-gold" placeholder="шкаф, диван..."></div>
+      <div class="fg"><label>Цвет / оттенок</label><input type="text" id="ma-color" class="inp-gold" placeholder="орех, белый..."></div>
+      <div class="fg"><label>Материал / ткань</label><input type="text" id="ma-material" class="inp-gold" placeholder="ЛДСП, велюр..."></div>
+      <div class="fg"><label>Дверей / створок</label><input type="number" id="ma-doors" class="inp-gold" min="0" max="6"></div>
+      <div class="fg"><label>Ширина, мм</label><input type="number" id="ma-w" class="inp-gold"></div>
+      <div class="fg"><label>Высота, мм</label><input type="number" id="ma-h" class="inp-gold"></div>
+      <div class="fg"><label>Глубина, мм</label><input type="number" id="ma-d" class="inp-gold"></div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" id="ma-save-btn" onclick="saveAttr()" style="flex:1;justify-content:center">💾 Сохранить</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-attr')">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <div class="pin-overlay" id="pin-overlay">
   <div class="pin-box">
     <div style="font-size:24px;margin-bottom:8px">🔐</div>
@@ -794,7 +826,7 @@ function showPage(name){
   if(idx>=0)document.querySelectorAll('.nav-btn')[idx].classList.add('active');
   if(name==='stats')renderStats();
   if(name==='clients')renderClients();
-  if(name==='prices'){loadPriceSummary();renderCalc();}
+  if(name==='prices'){loadPriceSummary();renderCalc();_ssLoadFactories();}
   if(name==='cash')renderCash();
   if(name==='pricelabels'){renderPriceLabel();renderLabelQueue();renderRecentLabels();}
 }
@@ -1530,8 +1562,18 @@ function _plExtractSize(s){
   return m?(m[1]+'х'+m[2]):'';
 }
 // ── УМНЫЙ ПОИСК: извлечение атрибутов из названия/размера ──
-var _PTYPES=[['шкаф[\\s-]*купе','шкаф-купе'],['шкаф','шкаф'],['диван','диван'],['кроват','кровать'],['гостин','гостиная'],['спальн','спальня'],['прихож','прихожая'],['комод','комод'],['кресл','кресло'],['тумб','тумба'],['стеллаж','стеллаж'],['витрин','витрина'],['пенал','пенал'],['зеркал','зеркало'],['банкетк','банкетка'],['трюмо','трюмо'],['антресол','антресоль'],['полк','полка'],['пуф','пуф'],['стул','стул'],['кухн','кухня'],['стол','стол'],['матрас','матрас'],['наматрасник','наматрасник'],['основани','основание'],['траверс','траверса'],['ламел','ламели'],['ящик','ящик'],['опора','опора'],['ножк','ножки']];
-var _COLORS=['дуб сонома','дуб молочный','дуб','орех тёмный','орех темный','орех шоколадный','орех','белый античный','белый жемчуг','белый снег','персидский жемчуг','белый','чёрн','черн','серый шифер','серый','антрацит','ясень','сосна','вишн','ольх','бук','клён','клен','графит','капучино','шоколад','молочн','слоновая кость','кремов','льнян','лён','жемчуг','сапфир','бежев','дым'];
+var _PTYPES=[['шкаф[\\s-]*купе','шкаф-купе'],['шифоньер','шкаф'],['шкаф','шкаф'],['софа','диван'],['диван','диван'],['тахта','диван'],['кроват','кровать'],['стенк','гостиная'],['гостин','гостиная'],['спальн','спальня'],['прихож','прихожая'],['комод','комод'],['кресл','кресло'],['тумбочк','тумба'],['тумб','тумба'],['стеллаж','стеллаж'],['сервант','витрина'],['витрин','витрина'],['пенал','пенал'],['зеркал','зеркало'],['банкетк','банкетка'],['трюмо','трюмо'],['антресол','антресоль'],['полк','полка'],['пуф','пуф'],['табурет','стул'],['стул','стул'],['кухн','кухня'],['стол','стол'],['матрас','матрас'],['наматрасник','наматрасник'],['основани','основание'],['траверс','траверса'],['ламел','ламели'],['ящик','ящик'],['опора','опора'],['ножк','ножки']];
+var _COLORS=['дуб сонома','дуб молочный','дуб крафт','дуб','орех тёмный','орех темный','орех шоколадный','орех','белый античный','белый жемчуг','белый снег','персидский жемчуг','белый','чёрн','черн','венге','серый шифер','серый','антрацит','ясень','сосна','вишн','ольх','бук','клён','клен','графит','капучино','крафт','бетон','мокко','шоколад','молочн','слоновая кость','кремов','льнян','лён','жемчуг','сапфир','бежев','дым'];
+var _MATERIALS=['лдсп','мдф','массив сосны','массив дуба','массив берёзы','массив березы','массив','экокожа','велюр','рогожка','шенилл','флок','микровельвет','жаккард','шпон','эмаль','ротанг','кожзам','кожа','металл','стекло'];
+function _extractDoors(low){
+  var dm=low.match(/(\d)\s*-?\s*(?:х\s*)?(?:створ|ств|двер|дв)/);
+  if(dm){var n=parseInt(dm[1]);return(n>=1&&n<=6)?n:null;}
+  if(/однодвер|1[\s-]?двер/.test(low))return 1;
+  if(/двухдвер|двухствор|двух[\s-]?двер/.test(low))return 2;
+  if(/тр[её]хдвер|тр[её]хствор/.test(low))return 3;
+  if(/четыр[её]хдвер|четыр[её]хствор/.test(low))return 4;
+  return null;
+}
 function _extractAttrs(name,article,dims){
   var txt=[dims,article,name].filter(Boolean).join(' ');
   var low=txt.toLowerCase();
@@ -1546,13 +1588,18 @@ function _extractAttrs(name,article,dims){
   // Тип
   var ptype=null;
   for(var i=0;i<_PTYPES.length;i++){if(new RegExp(_PTYPES[i][0]).test(low)){ptype=_PTYPES[i][1];break;}}
-  // Цвет — с границами слова, чтобы «АЛЁНКА» не дала «лён»
+  // Цвет / материал — с границами слова
   var color=null;
   for(var j=0;j<_COLORS.length;j++){
     var cw=_COLORS[j].replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
     if(new RegExp('(^|[^а-яё])'+cw+'([^а-яё]|$)').test(low)){color=_COLORS[j];break;}
   }
-  return{dim_w:w,dim_h:h,dim_d:d,ptype:ptype,color:color};
+  var material=null;
+  for(var k=0;k<_MATERIALS.length;k++){
+    var mw=_MATERIALS[k].replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    if(new RegExp('(^|[^а-яё])'+mw+'([^а-яё]|$)').test(low)){material=_MATERIALS[k];break;}
+  }
+  return{dim_w:w,dim_h:h,dim_d:d,ptype:ptype,color:color,doors:_extractDoors(low),material:material};
 }
 // Собирает товары из данных листа по настройкам колонок
 function _collectRows(data,cfg){
@@ -1591,7 +1638,7 @@ function _collectRows(data,cfg){
     if(retVal<0||retVal>99999999)retVal=0;
     optNum=Math.round(optNum*100)/100;retVal=Math.round(retVal*100)/100;
     var _at=_extractAttrs(nameVal,artVal,'');
-    rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory,sheet_name:cfg.sheetName||'',dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color});
+    rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory,sheet_name:cfg.sheetName||'',dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
   }
   return rows;
 }
@@ -1690,7 +1737,7 @@ function _collectMatrix(data,m,supplier,sheetName){
       if(p>=50&&p<=99999999){
         var art=('ш'+s.label)+(desc?', '+desc:'');
         var _am=_extractAttrs(baseName,art,'');
-        rows.push({supplier:supplier,product_name:baseName,price_opt:Math.round(p*100)/100,price_retail:0,article:art,category:'',sheet_name:sheetName,dim_w:_am.dim_w,dim_h:_am.dim_h,dim_d:_am.dim_d,ptype:_am.ptype,color:_am.color});
+        rows.push({supplier:supplier,product_name:baseName,price_opt:Math.round(p*100)/100,price_retail:0,article:art,category:'',sheet_name:sheetName,dim_w:_am.dim_w,dim_h:_am.dim_h,dim_d:_am.dim_d,ptype:_am.ptype,color:_am.color,doors:_am.doors,material:_am.material});
       }
     });
   }
@@ -1707,6 +1754,8 @@ async function _plPreflight(rows){
   // Атрибуты умного поиска (5.6). Если колонок нет — убираем, чтобы импорт не падал.
   try{await sbGet('price_items','select=dim_w,dim_h,dim_d,ptype,color&limit=1');}
   catch(e){if(/dim_w|dim_h|dim_d|ptype|color/i.test(e.message))rows.forEach(function(r){delete r.dim_w;delete r.dim_h;delete r.dim_d;delete r.ptype;delete r.color;});}
+  try{await sbGet('price_items','select=doors,material&limit=1');}
+  catch(e){if(/doors|material/i.test(e.message))rows.forEach(function(r){delete r.doors;delete r.material;});}
 }
 // batches: [{sheetName, rows}]; replaceWhole=true — заменить все данные фабрики
 // (или всего поставщика, если фабрика пустая = самостоятельная фабрика)
@@ -2011,20 +2060,33 @@ function _ssDimFilters(){
   return f;
 }
 function ssClearDims(){['ss-hmin','ss-hmax','ss-wmin','ss-wmax','ss-dmin','ss-dmax'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});smartSearchLive();}
+function _ssHasFilter(){return document.getElementById('ss-input').value.trim().length>=2||_ssDimFilters().length>0||_ssNum('ss-pmin')!=null||_ssNum('ss-pmax')!=null||_ssNum('ss-doors')!=null||((document.getElementById('ss-factory')||{}).value||'')!=='';}
 function smartSearchLive(){
   clearTimeout(_ssTimer);
   var q=document.getElementById('ss-input').value.trim();
   var box=document.getElementById('ss-results'),pb=document.getElementById('ss-parsed');
-  if(q.length<2&&!_ssDimFilters().length){pb.textContent='';box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос (тип, цвет) или задайте размеры полями выше.</div>';return;}
+  if(!_ssHasFilter()){pb.textContent='';box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос (тип, цвет) или задайте размеры/цену/фабрику полями выше.</div>';return;}
   _ssTimer=setTimeout(function(){_ssRun(q);},280);
 }
-// Разбор свободного запроса на тип/цвет/габариты/слова
+// Загрузка списка фабрик в фильтр
+function _ssLoadFactories(){
+  var sel=document.getElementById('ss-factory');if(!sel||sel.dataset.loaded)return;
+  sbGet('price_items','select=factory&limit=10000').then(function(rows){
+    var f={};(rows||[]).forEach(function(r){if(r.factory)f[r.factory]=1;});
+    var names=Object.keys(f).sort(function(a,b){return String(a).localeCompare(String(b),'ru');});
+    sel.innerHTML='<option value="">любая</option>'+names.map(function(n){return'<option value="'+String(n).replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('');
+    sel.dataset.loaded='1';
+  }).catch(function(){});
+}
+// Разбор свободного запроса на тип/цвет/материал/двери/габариты/слова
 function _parseSmartQuery(q){
   var low=' '+q.toLowerCase()+' ';
-  var res={ptype:null,color:null,free:[],cons:[]};
+  var res={ptype:null,color:null,material:null,doors:null,free:[],cons:[]};
   var i,m;
   for(i=0;i<_PTYPES.length;i++){m=low.match(new RegExp('(^|[^а-яё])('+_PTYPES[i][0]+'[а-яё]*)'));if(m){res.ptype=_PTYPES[i][1];low=low.replace(m[2],' ');break;}}
   for(i=0;i<_COLORS.length;i++){var cw=_COLORS[i].replace(/[.*+?^${}()|[\]\\]/g,'\\$&');m=low.match(new RegExp('(^|[^а-яё])('+cw+'[а-яё]*)'));if(m){res.color=_COLORS[i];low=low.replace(m[2],' ');break;}}
+  for(i=0;i<_MATERIALS.length;i++){var mw=_MATERIALS[i].replace(/[.*+?^${}()|[\]\\]/g,'\\$&');m=low.match(new RegExp('(^|[^а-яё])('+mw+'[а-яё]*)'));if(m){res.material=_MATERIALS[i];low=low.replace(m[2],' ');break;}}
+  res.doors=_extractDoors(low);
   var dimMap={'высот':'dim_h','ширин':'dim_w','глубин':'dim_d','длин':'dim_h'};
   var re2=/(высот|ширин|глубин|длин)\w*\s*(до|от|менее|более|макс|мин|<=|>=|<|>)?\s*(\d{3,4})/g,m2;
   while((m2=re2.exec(low))){var col=dimMap[m2[1]];var op=m2[2]||'';var o=/до|менее|макс|<|<=/.test(op)?'lte':(/от|более|мин|>|>=/.test(op)?'gte':'eq');res.cons.push({col:col,op:o,val:parseInt(m2[3])});}
@@ -2045,17 +2107,28 @@ function _ssRun(q){
   var P=_parseSmartQuery(q);
   var DF=_ssDimFilters(); // явные поля Высота/Ширина/Глубина (строгие — размер должен быть указан)
   var nmMap={dim_w:'ширина',dim_h:'высота',dim_d:'глубина',any:'размер'},opMap={lte:'≤',gte:'≥',eq:'=',near:'≈'};
+  var doorsVal=_ssNum('ss-doors')||P.doors; // поле имеет приоритет над текстом
+  var pmin=_ssNum('ss-pmin'),pmax=_ssNum('ss-pmax');
+  var factory=(document.getElementById('ss-factory')||{}).value||'';
+  var mk=1+(MARKUP_PCT/100); // розница ≈ опт × mk, фильтруем по опту
   var chips=[];
   if(P.ptype)chips.push('тип: '+P.ptype);
   if(P.color)chips.push('цвет: '+P.color);
+  if(P.material)chips.push('материал: '+P.material);
+  if(doorsVal)chips.push('дверей: '+doorsVal);
   P.cons.forEach(function(c){chips.push(nmMap[c.col]+' '+opMap[c.op]+' '+c.val);});
   DF.forEach(function(c){chips.push(nmMap[c.col]+' '+opMap[c.op]+' '+c.val+' (точно)');});
+  if(pmin!=null)chips.push('цена ≥ '+fmt(pmin));
+  if(pmax!=null)chips.push('цена ≤ '+fmt(pmax));
+  if(factory)chips.push('фабрика: '+factory);
   if(P.free.length)chips.push('текст: '+P.free.join(' '));
   pb.innerHTML=chips.length?'Понял: <strong>'+chips.join('</strong> · <strong>')+'</strong>':'Не распознаны параметры — ищу по названию.';
-  // Собираем условия в единый and(...). Тип/цвет ищем и в атрибуте, и в названии.
+  // Собираем условия в единый and(...). Тип/цвет/материал ищем и в атрибуте, и в названии.
   var conds=[];
   if(P.ptype)conds.push('or(ptype.ilike.'+_ilikePat(P.ptype)+',product_name.ilike.'+_ilikePat(P.ptype)+')');
   if(P.color)conds.push('or(color.ilike.'+_ilikePat(P.color)+',product_name.ilike.'+_ilikePat(P.color)+')');
+  if(P.material)conds.push('or(material.ilike.'+_ilikePat(P.material)+',product_name.ilike.'+_ilikePat(P.material)+')');
+  if(doorsVal)conds.push('doors.eq.'+doorsVal);
   P.free.forEach(function(w){conds.push('product_name.ilike.'+_ilikePat(w));});
   // Текстовые размеры «до/от» — мягкие (размер подходит ИЛИ неизвестен)
   P.cons.forEach(function(c){
@@ -2065,12 +2138,18 @@ function _ssRun(q){
     }else if(c.op==='eq'){conds.push(c.col+'.eq.'+c.val);}
     else{conds.push('or('+c.col+'.'+c.op+'.'+c.val+','+c.col+'.is.null)');}
   });
-  // Явные поля размеров — строгие (размер должен быть указан и попадать в диапазон)
+  // Явные поля размеров — строгие
   DF.forEach(function(c){conds.push(c.col+'.'+c.op+'.'+c.val);});
-  if(!conds.length){box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:6px 2px">Уточните запрос: тип, цвет или задайте размеры полями.</div>';return;}
+  // Цена (розница) → фильтр по опту
+  if(pmin!=null)conds.push('price_opt.gte.'+Math.floor(pmin/mk));
+  if(pmax!=null)conds.push('price_opt.lte.'+Math.ceil(pmax/mk));
+  if(factory)conds.push('factory.eq.'+encodeURIComponent('"'+factory.replace(/(["\\])/g,'\\$1')+'"'));
+  if(!conds.length){box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:6px 2px">Уточните запрос: тип, цвет, размеры, цену или фабрику.</div>';return;}
   box.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 2px">Ищу...</div>';
-  var sel='supplier,product_name,price_opt,price_retail,article,ptype,color,dim_w,dim_h,dim_d'+(_gsFactoryCol?',factory':'');
-  sbGet('price_items','select='+sel+'&and=('+conds.join(',')+')&limit=40&order=product_name.asc')
+  var sortV=(document.getElementById('ss-sort')||{}).value||'name';
+  var order=sortV==='price_asc'?'price_opt.asc.nullslast':(sortV==='price_desc'?'price_opt.desc.nullslast':'product_name.asc');
+  var sel='id,supplier,product_name,price_opt,price_retail,article,ptype,color,dim_w,dim_h,dim_d,doors,material'+(_gsFactoryCol?',factory':'');
+  sbGet('price_items','select='+sel+'&and=('+conds.join(',')+')&limit=40&order='+order)
   .then(function(rows){
     if(document.getElementById('ss-input').value.trim()!==q)return;
     rows=rows||[];_ssLast=rows;
@@ -2080,23 +2159,54 @@ function _ssRun(q){
       var opt=p.price_opt||0;var ret=opt?retailFromOpt(opt):(p.price_retail||0);
       var dparts=[];if(p.dim_w)dparts.push('Ш'+p.dim_w);if(p.dim_h)dparts.push('В'+p.dim_h);if(p.dim_d)dparts.push('Г'+p.dim_d);
       var dstr=dparts.join('×');
-      var sub=[(p.factory||''),p.supplier,(p.ptype||''),(dstr?dstr+' мм':''),(p.color||'')].filter(Boolean).join(' · ');
-      html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
+      var sub=[(p.factory||''),p.supplier,(p.ptype||''),(p.doors?p.doors+'-дв.':''),(dstr?dstr+' мм':''),(p.color||''),(p.material||'')].filter(Boolean).join(' · ');
+      html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
         +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+p.product_name+'</div>'
         +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')+'</div>'
         +'<div style="text-align:right;flex-shrink:0">'+(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
         +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')+'</div>'
-        +'<button class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSmart('+i+')">➕ В расчёт</button>'
+        +'<button title="Править атрибуты" onclick="openAttrEdit('+i+')" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:5px 8px;font-size:12px;flex-shrink:0">✏️</button>'
+        +'<button class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSmart('+i+')">➕</button>'
         +'</div>';
     });
     box.innerHTML=html+'</div>'+(rows.length>=40?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 40 — уточните запрос</div>':'');
   }).catch(function(e){
     var msg=e.message||'';
+    if(/doors|material/i.test(msg)){box.innerHTML='<div style="color:#c62828;font-size:12px;padding:6px 2px">Нужно применить <strong>SQL_обновление_5.8</strong> (двери/материал), затем «Разобрать атрибуты».</div>';return;}
     if(/dim_w|dim_h|dim_d|ptype|color/i.test(msg)){box.innerHTML='<div style="color:#c62828;font-size:12px;padding:6px 2px">Нужно применить <strong>SQL_обновление_5.6</strong> в Supabase, затем нажать «Разобрать атрибуты».</div>';return;}
     box.innerHTML='<div style="color:#c62828;font-size:13px;padding:6px 2px">Ошибка: '+msg.slice(0,200)+'</div>';
   });
 }
 function calcAddFromSmart(i){var p=_ssLast[i];if(!p)return;calcAdd({name:p.product_name,supplier:p.supplier||'',article:p.article||'',opt:p.price_opt||0,retail:p.price_retail||0});}
+var _attrEditId=null,_attrEditIdx=-1;
+function openAttrEdit(i){
+  var p=_ssLast[i];if(!p)return;_attrEditId=p.id;_attrEditIdx=i;
+  document.getElementById('ma-name').textContent=p.product_name||'';
+  document.getElementById('ma-ptype').value=p.ptype||'';
+  document.getElementById('ma-color').value=p.color||'';
+  document.getElementById('ma-material').value=p.material||'';
+  document.getElementById('ma-doors').value=p.doors||'';
+  document.getElementById('ma-w').value=p.dim_w||'';
+  document.getElementById('ma-h').value=p.dim_h||'';
+  document.getElementById('ma-d').value=p.dim_d||'';
+  document.getElementById('modal-attr').classList.add('open');
+}
+function _maTxt(id){var v=(document.getElementById(id).value||'').trim();return v||null;}
+function _maNum(id){var v=parseInt(document.getElementById(id).value);return isNaN(v)?null:v;}
+function saveAttr(){
+  if(_attrEditId==null)return;
+  var patch={ptype:_maTxt('ma-ptype'),color:_maTxt('ma-color'),material:_maTxt('ma-material'),doors:_maNum('ma-doors'),dim_w:_maNum('ma-w'),dim_h:_maNum('ma-h'),dim_d:_maNum('ma-d')};
+  var btn=document.getElementById('ma-save-btn');btn.disabled=true;btn.textContent='Сохраняем...';
+  sbPatch('price_items',patch,'id=eq.'+_attrEditId).then(function(){
+    if(_ssLast[_attrEditIdx])Object.assign(_ssLast[_attrEditIdx],patch);
+    closeModal('modal-attr');toast('✅ Атрибуты сохранены');
+    smartSearchLive();
+  }).catch(function(e){
+    var msg=e.message||'';
+    if(/doors|material/i.test(msg))toast('❌ Примените SQL_обновление_5.8 (колонки doors/material)','err',7000);
+    else toast('❌ '+msg,'err',6000);
+  }).finally(function(){btn.disabled=false;btn.textContent='💾 Сохранить';});
+}
 // Заполнение атрибутов у уже загруженных товаров через серверную функцию apply_attrs (батчами)
 async function backfillAttrs(){
   var btn=document.getElementById('ss-backfill-btn');if(btn.disabled)return;
@@ -2106,7 +2216,7 @@ async function backfillAttrs(){
     while(true){
       var rows=await sbGet('price_items','select=id,product_name,article&order=id.asc&limit=1000&offset='+offset);
       if(!rows||!rows.length)break;
-      var items=rows.map(function(r){var a=_extractAttrs(r.product_name,r.article,'');return{id:r.id,dim_w:a.dim_w,dim_h:a.dim_h,dim_d:a.dim_d,ptype:a.ptype,color:a.color};});
+      var items=rows.map(function(r){var a=_extractAttrs(r.product_name,r.article,'');return{id:r.id,dim_w:a.dim_w,dim_h:a.dim_h,dim_d:a.dim_d,ptype:a.ptype,color:a.color,doors:a.doors,material:a.material};});
       var resp=await fetch(SB_URL+'/rest/v1/rpc/apply_attrs',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({items:items})});
       var txt=await resp.text();
       if(!resp.ok){
