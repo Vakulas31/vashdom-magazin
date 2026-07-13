@@ -134,7 +134,7 @@ textarea{resize:vertical;min-height:60px}
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Поиск по клиенту, товару, статусу..." id="orders-search" oninput="filterOrders()">
+    <input type="text" placeholder="Поиск по клиенту, товару, статусу..." id="orders-search" oninput="_ordersSearchLive()">
   </div>
   <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
     <select id="filter-status" onchange="filterOrders()" style="width:auto;padding:7px 10px">
@@ -294,6 +294,12 @@ textarea{resize:vertical;min-height:60px}
       <div class="fg" style="margin-bottom:14px"><label>Поставщик (не печатается, для памяти)</label>
         <input type="text" id="pl-supplier" class="inp-gold" placeholder="ДСВ, Пинскдрев..."></div>
       <div style="display:flex;gap:10px;margin-bottom:10px">
+        <div class="fg" style="flex:1"><label>Стиль</label>
+          <select id="pl-style" class="inp-gold" onchange="renderPriceLabel()">
+            <option value="A">A — акцент на цене</option>
+            <option value="B">B — премиум-карточка</option>
+          </select>
+        </div>
         <div class="fg" style="flex:1"><label>Формат</label>
           <select id="pl-format" class="inp-gold" onchange="renderPriceLabel()">
             <option value="half">Половина А4 (148×105 мм)</option>
@@ -303,9 +309,16 @@ textarea{resize:vertical;min-height:60px}
         <div class="fg" style="flex:1"><label>Кол-во копий</label>
           <input type="number" id="pl-copies" class="inp-gold" value="1" min="1" max="20" oninput="renderPriceLabel()"></div>
       </div>
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-primary" onclick="printPriceLabel()" style="flex:1;justify-content:center">🖨 Распечатать</button>
-        <button class="btn btn-outline" onclick="clearPriceLabel()" style="justify-content:center">✕ Очистить</button>
+      <div class="fg" style="margin-bottom:10px"><label>Плашка стиля B (гарантия / рассрочка, необязательно)</label>
+        <input type="text" id="pl-promo" class="inp-gold" placeholder="Гарантия 18 мес · Рассрочка 0%" oninput="renderPriceLabel()"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="printPriceLabel()" style="flex:1;justify-content:center;min-width:150px">🖨 Печать (одиночно)</button>
+        <button class="btn btn-success" onclick="addLabelToQueue()" style="flex:1;justify-content:center;min-width:150px">➕ В лист печати</button>
+        <button class="btn btn-outline" onclick="clearPriceLabel()" style="justify-content:center">✕</button>
+      </div>
+      <div id="pl-recent-wrap" style="margin-top:12px;display:none">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">🕘 Последние ценники (клик — загрузить):</div>
+        <div id="pl-recent" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
     </div>
 
@@ -314,6 +327,23 @@ textarea{resize:vertical;min-height:60px}
       <div class="card-title" style="align-self:flex-start">Предпросмотр</div>
       <div id="pl-preview" style="margin:auto"></div>
     </div>
+  </div>
+
+  <!-- Лист печати: несколько разных ценников на одном листе -->
+  <div class="card" id="pl-queue-card" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+      <div class="card-title" style="margin:0">🗂 Лист печати <span id="pl-queue-count" style="color:var(--text2);font-weight:400"></span></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px;color:var(--text2)">На листе A4:</label>
+        <select id="pl-persheet" class="inp-gold" style="width:auto;padding:6px 10px">
+          <option value="2">2 крупных</option>
+          <option value="4">4 средних</option>
+        </select>
+        <button class="btn btn-primary" onclick="printLabelSheet()" style="padding:8px 14px">🖨 Печать листа</button>
+        <button class="btn btn-outline" onclick="clearLabelQueue()" style="padding:8px 12px">Очистить лист</button>
+      </div>
+    </div>
+    <div id="pl-queue-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
   </div>
 </div>
 
@@ -416,6 +446,15 @@ textarea{resize:vertical;min-height:60px}
           <div>
             <strong>Заголовки групп в отдельных строках</strong><br>
             <span style="color:var(--text2)">Включите если прайс устроен так: строка с названием модели без цены, затем строки с вариантами/размерами и ценами ниже. Например: «МИА кровать» → (пусто) → несколько строк с размерами и ценами.</span>
+          </div>
+        </label>
+
+        <!-- Модульный режим (для модульных прайсов типа Браво: траверсы, комплектующие) -->
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;margin-bottom:10px;padding:8px 10px;background:var(--alt);border-radius:6px">
+          <input type="checkbox" id="pl-modular" style="margin-top:2px;flex-shrink:0">
+          <div>
+            <strong>Модульный прайс (заголовок + размеры)</strong><br>
+            <span style="color:var(--text2)">Для прайсов с модулями (напр. Браво: «Комплект Центральная траверса» → строки с размерами 1200/1400/1600/1800). Каждый размер станет отдельным товаром «Название · размер», а строки-примечания («Для кроватей: …») не будут ломать имя группы. Работает вместе с каскадным режимом.</span>
           </div>
         </label>
 
@@ -733,6 +772,7 @@ function showPage(name){
   if(name==='clients')renderClients();
   if(name==='prices'){loadPriceSummary();renderCalc();}
   if(name==='cash')renderCash();
+  if(name==='pricelabels'){renderPriceLabel();renderLabelQueue();renderRecentLabels();}
 }
 
 // ── PIN-СЕССИЯ (5 минут, затем нужно вводить заново) ────
@@ -829,7 +869,7 @@ function orderCard(o){
     '<div class="ftr-col" style="opacity:.55"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:#888">сторонняя</span></div><div class="ftr-val" style="color:#888">'+fmt(delivCost)+' ₽</div><div style="font-size:9px;color:#999;margin-top:1px">не наша · мимо кассы</div></div>':
     '<div class="ftr-col"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'✅':'⏳')+'</span></div><div class="ftr-val">'+fmt(delivCost)+' ₽</div></div>'):'';
   var ftrPre=(o.prepayment||0)>0?
-    '<div class="ftr-col"><div class="ftr-lbl">Предоплата</div><div class="ftr-val">'+fmt(o.prepayment)+' ₽</div></div>':'';
+    '<div class="ftr-col"><div class="ftr-lbl">Предоплата'+(o.payment_method?' <span style="font-size:9px;color:var(--text2)">'+o.payment_method+'</span>':'')+'</div><div class="ftr-val">'+fmt(o.prepayment)+' ₽</div></div>':'';
   var noteHtml=o.notes?'<div class="note-box">📝 '+o.notes+'</div>':'';
   if(isDone&&o.close_comment)noteHtml+='<div class="note-box" style="border-left-color:#2e7d32">🏁 '+o.close_comment+'</div>';
   var doneBtn=!isDone?'<button class="btn btn-success" onclick="markDone('+o.id+')" style="padding:5px 10px;font-size:12px">✅ Выполнен</button>':'';
@@ -876,13 +916,29 @@ function toggleOrderBody(id){
   else{body.style.display='none';if(btn)btn.textContent='развернуть ↓';}
 }
 
+// Универсальный debounce (для живых полей поиска)
+function _debounce(fn,ms){var t;return function(){var a=arguments,c=this;clearTimeout(t);t=setTimeout(function(){fn.apply(c,a);},ms||200);};}
+var _lastFiltered=[],_ordersShown=0,_ORDERS_PAGE=60;
 function renderOrders(orders){
+  _lastFiltered=orders||[];
+  _ordersShown=Math.min(_ORDERS_PAGE,_lastFiltered.length);
+  _paintOrders();
+}
+function _paintOrders(){
+  var orders=_lastFiltered;
   document.getElementById('orders-count').textContent=orders.length+' заказ(ов)';
   var list=document.getElementById('orders-list');
   if(!orders.length){list.innerHTML='<div class="empty"><p>Заказов не найдено</p></div>';return;}
-  var html='';for(var i=0;i<orders.length;i++)html+=orderCard(orders[i]);
+  // Рендерим только первые _ordersShown карточек — крупные списки не тормозят ввод
+  var html='';for(var i=0;i<_ordersShown&&i<orders.length;i++)html+=orderCard(orders[i]);
+  if(_ordersShown<orders.length){
+    var left=orders.length-_ordersShown;
+    html+='<div style="text-align:center;padding:12px"><button class="btn btn-outline" onclick="showMoreOrders()">Показать ещё '+Math.min(_ORDERS_PAGE,left)+' из '+left+'</button></div>';
+  }
   list.innerHTML=html;
 }
+function showMoreOrders(){_ordersShown=Math.min(_ordersShown+_ORDERS_PAGE,_lastFiltered.length);_paintOrders();}
+var _ordersSearchLive=_debounce(function(){filterOrders();},180);
 
 var _activeChip='all';
 function setChip(chip){
@@ -1088,7 +1144,7 @@ function renderCash(){
   var el=document.getElementById('cash-content');
   el.innerHTML='<div class="empty"><p>Загрузка данных...</p></div>';
   Promise.all([
-    sbGet('orders','select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,pay_cash,pay_card,pay_transfer&or=(prepayment.gt.0,closed_at.not.is.null)&order=order_date.desc,id.desc&limit=2000'),
+    sbGet('orders','select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,pay_cash,pay_card,pay_transfer,delivery_cost,lifting_cost,delivery_our&or=(prepayment.gt.0,closed_at.not.is.null)&order=order_date.desc,id.desc&limit=2000'),
     sbGet('cash_withdrawals','select=*&order=created_at.desc&limit=300')
   ]).then(function(res){
     _renderCashUI(res[0]||[],res[1]||[]);
@@ -1114,10 +1170,19 @@ function _renderCashUI(orders,withdrawals){
     var preKind=_payKind(o.payment_method);
     var r={order_number:o.order_number,client_name:o.client_name,order_date:o.order_date,closed_at:o.closed_at,
       cash:Math.round(o.pay_cash||0),card:Math.round(o.pay_card||0),transfer:Math.round(o.pay_transfer||0),other:0,
-      preNote:''};
+      preNote:'',delivNote:''};
     if(pre>0){
       if(preKind==='other'){r.other+=pre;r.preNote='предоплата '+fmt(pre)+' ₽ — способ не указан';}
       else{r[preKind]+=pre;r.preNote='в т.ч. предоплата '+fmt(pre)+' ₽';}
+    }
+    // Расшифровка доставки: наша (в кассе) / сторонняя (мимо кассы, справочно)
+    var delivSum=Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
+    if(delivSum>0){
+      if(o.delivery_our===false){
+        r.delivNote='<span style="color:#999">🚚 сторонняя доставка '+fmt(delivSum)+' ₽ — мимо кассы (справочно)</span>';
+      }else{
+        r.delivNote='<span style="color:var(--text2)">в т.ч. доставка (наша) '+fmt(delivSum)+' ₽</span>';
+      }
     }
     var sum=r.cash+r.card+r.transfer+r.other;
     if(sum<=0)return;
@@ -1167,7 +1232,8 @@ function _renderCashUI(orders,withdrawals){
     pRows+='<tr>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">№'+(r.order_number||'—')+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:13px">'+(r.client_name||'—')
-      +(r.preNote?'<div style="font-size:10px;color:var(--text2)">'+r.preNote+'</div>':'')+'</td>'
+      +(r.preNote?'<div style="font-size:10px;color:var(--text2)">'+r.preNote+'</div>':'')
+      +(r.delivNote?'<div style="font-size:10px">'+r.delivNote+'</div>':'')+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">'+fmtDate(r.order_date)+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">'+(r.closed_at?fmtDate(r.closed_at):'<span style="color:#1565C0">в работе</span>')+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px">'+(r.cash>0?fmt(r.cash)+' ₽':'—')+'</td>'
@@ -1410,6 +1476,13 @@ function _plToNum(v){
   t=t.replace(',','.');
   return parseFloat(t)||0;
 }
+// Включён ли модульный режим импорта (галочка в маппере)
+function _plModularOn(){var el=document.getElementById('pl-modular');return!!(el&&el.checked);}
+// Извлекает размер вида «1200х2000» / «(800x1870)» / «1600*2000» из строки. Возвращает 'ШхВ' или ''.
+function _plExtractSize(s){
+  var m=String(s==null?'':s).match(/(\d{3,4})\s*[xх×*]\s*(\d{3,4})/);
+  return m?(m[1]+'х'+m[2]):'';
+}
 // Собирает товары из данных листа по настройкам колонок
 function _collectRows(data,cfg){
   var rows=[];
@@ -1422,9 +1495,23 @@ function _collectRows(data,cfg){
     var retVal=(cfg.colRet!==''&&cfg.colRet!=null)?_plToNum(row[parseInt(cfg.colRet)]):0;
     var rowCategory='';
     if(cfg.cascade){
-      if(nameVal&&!optNum){currentGroupName=nameVal;continue;} // заголовок группы
-      if(!nameVal&&optNum){nameVal=currentGroupName;rowCategory=currentGroupName;} // вариант группы
-      if(nameVal&&optNum&&!rowCategory)currentGroupName=nameVal;
+      if(nameVal&&!optNum){currentGroupName=nameVal;continue;} // заголовок группы (без цены)
+      // Размер строки: из характеристики (colArt) или из любой другой ячейки
+      var _sz=_plExtractSize(artVal);
+      if(!_sz){for(var _c=0;_c<row.length;_c++){if(_c===cfg.colName||_c===parseInt(cfg.colOpt))continue;var _s2=_plExtractSize(String(row[_c]||''));if(_s2){_sz=_s2;break;}}}
+      if(cfg.modular&&optNum&&_sz){
+        // Модульный вариант: имя = «Группа · размер». Текст в колонке названия — примечание (в артикул), группу НЕ перезаписываем.
+        var _note=nameVal;
+        nameVal=(currentGroupName||_note||'Модуль')+' · '+_sz;
+        rowCategory=currentGroupName;
+        artVal=(_note&&_note!==currentGroupName)?(_sz+' · '+_note):_sz;
+      }else{
+        if(!nameVal&&optNum){ // обычный каскадный вариант (пустое имя)
+          nameVal=currentGroupName;rowCategory=currentGroupName;
+          if(_sz)nameVal=currentGroupName+' · '+_sz; // размер в имя для различимости
+        }
+        if(nameVal&&optNum&&!rowCategory)currentGroupName=nameVal;
+      }
     }
     if(!nameVal||!optNum)continue;
     // Защита от переполнения numeric(12,2): цена мебели не бывает > 100 млн.
@@ -1588,7 +1675,8 @@ async function importPriceList(){
       colName:parseInt(colName),colOpt:parseInt(colOpt),
       colRet:document.getElementById('pl-col-ret').value,
       colArt:document.getElementById('pl-col-art').value,
-      cascade:document.getElementById('pl-cascade').checked};
+      cascade:document.getElementById('pl-cascade').checked,
+      modular:document.getElementById('pl-modular').checked};
     rows=_collectRows(_plData,cfg);
   }
   // Фолбэк: колонки не выбраны или ничего не собралось → пробуем матрицу (цены по размерам)
@@ -1640,12 +1728,12 @@ async function importAllSheets(){
     var cands=[];
     var tpl=store[sn];
     if(tpl&&tpl.col_name!==''&&tpl.col_opt!==''&&!tpl.matrix){
-      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,supplier:supplier,sheetName:sn};
+      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:_plModularOn(),supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgT),src:'по шаблону',cfg:cfgT,kind:'flat'});
     }
     var det=_autoDetectSheet(data);
     if(det){
-      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,supplier:supplier,sheetName:sn};
+      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,modular:_plModularOn(),supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgA),src:'автоопределение'+(det.cascade?' (каскад)':''),cfg:cfgA,kind:'flat'});
     }
     var m=_autoDetectMatrix(data);
@@ -1791,16 +1879,19 @@ function globalSearch(){
   if(q.length<2){box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите минимум 2 символа — ищет сразу по всем поставщикам</div>';return;}
   _gsTimer=setTimeout(function(){_gsRun(q,box);},250);
 }
+// Шаблон ilike для PostgREST с экранированием: значение с запятой/точкой/скобкой
+// (напр. «K-1,2») ломает дерево or(), поэтому оборачиваем в двойные кавычки.
+function _ilikePat(v){return encodeURIComponent('"*'+String(v).replace(/(["\\])/g,'\\$1')+'*"');}
 function _gsRun(q,box){
   box.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 2px">Ищу «'+q+'»...</div>';
   var words=q.split(/\s+/).filter(Boolean);
   var params;
   if(words.length>1){
-    var ands=words.map(function(w){return 'product_name.ilike.*'+encodeURIComponent(w)+'*';}).join(',');
-    params='or=(and('+ands+'),article.ilike.*'+encodeURIComponent(q)+'*)';
+    var ands=words.map(function(w){return 'product_name.ilike.'+_ilikePat(w);}).join(',');
+    params='or=(and('+ands+'),article.ilike.'+_ilikePat(q)+')';
   }else{
-    var w=encodeURIComponent(words[0]);
-    params='or=(product_name.ilike.*'+w+'*,article.ilike.*'+w+'*,supplier.ilike.*'+w+'*)';
+    var p=_ilikePat(words[0]);
+    params='or=(product_name.ilike.'+p+',article.ilike.'+p+',supplier.ilike.'+p+')';
   }
   var sel='supplier,product_name,price_opt,price_retail,article'+(_hasCategoryCol?',category':'')+(_gsFactoryCol?',factory':'');
   sbGet('price_items','select='+sel+'&'+params+'&limit=30&order=product_name.asc')
@@ -1926,7 +2017,7 @@ function searchPriceItems(id,q){
   clearTimeout(_priceSearchTimer);
   _priceSearchTimer=setTimeout(function(){
     sbGet('price_items','select=product_name,supplier,price_opt,price_retail,article'
-      +'&or=(product_name.ilike.*'+encodeURIComponent(q)+'*,article.ilike.*'+encodeURIComponent(q)+'*)&limit=10&order=product_name.asc')
+      +'&or=(product_name.ilike.'+_ilikePat(q)+',article.ilike.'+_ilikePat(q)+')&limit=10&order=product_name.asc')
     .then(function(rows){
       if(!rows||!rows.length)return;
       var list=document.getElementById('ac-model-'+id);
@@ -1964,10 +2055,10 @@ function _labelSpec(){
   var half=document.getElementById('pl-format').value==='half';
   return half
     ?{half:true, pw:'210mm',ph:'297mm',w:190,h:130, pad:'8mm',logoH:'14mm',
-      nameBase:34,nameMin:14,nameComfy:16, infoBase:16,infoMin:10,infoComfy:34,
+      nameBase:34,nameMin:14,nameComfy:16, infoBase:22,infoMin:13,infoComfy:30,
       priceBase:46,priceMin:26,oldSize:'16pt', qrMm:'26mm',qrPx:150, discMm:'16mm',discFont:'12pt',gap:'3mm'}
     :{half:false,pw:'60mm', ph:'80mm', w:52, h:72, pad:'3mm',logoH:'6mm',
-      nameBase:15,nameMin:7,nameComfy:14, infoBase:8.5,infoMin:6,infoComfy:30,
+      nameBase:15,nameMin:7,nameComfy:14, infoBase:11,infoMin:7.5,infoComfy:26,
       priceBase:20,priceMin:13,oldSize:'8pt', qrMm:'12mm',qrPx:64, discMm:'8mm',discFont:'6pt',gap:'1.5mm'};
 }
 function _fitPt(base,min,len,comfy){
@@ -1980,28 +2071,78 @@ function _labelCss(s){
     +'.lbl .logo{height:'+s.logoH+';object-fit:contain}'
     +'.lbl .disc-tag{background:#c62828;color:#fff;border-radius:50%;width:'+s.discMm+';height:'+s.discMm+';display:flex;align-items:center;justify-content:center;font-size:'+s.discFont+';font-weight:700;flex-shrink:0}'
     +'.lbl .pname{font-weight:700;color:#111;line-height:1.15;flex:1;display:flex;align-items:center;margin:'+s.gap+' 0;word-break:break-word}'
-    +'.lbl .pinfo{color:#444;margin-bottom:'+s.gap+';flex-shrink:0}'
+    +'.lbl .pinfo{color:#444;margin-bottom:'+s.gap+';flex-shrink:0;line-height:1.3}'
+    +'.lbl .pdim{font-weight:700;color:#111}'
+    +'.lbl .pcol{color:#555}'
     +'.lbl .bottom-row{display:flex;align-items:flex-end;justify-content:space-between;gap:2mm;flex-shrink:0}'
     +'.lbl .oldprice{font-size:'+s.oldSize+';color:#888;text-decoration:line-through}'
     +'.lbl .newprice{font-weight:800;color:#1B5E20;line-height:1;white-space:nowrap}'
     +'.lbl .newprice.nodata{color:#ccc}'
-    +'.lbl .qrimg{width:'+s.qrMm+';height:'+s.qrMm+';flex-shrink:0}';
+    +'.lbl .qrimg{width:'+s.qrMm+';height:'+s.qrMm+';flex-shrink:0}'
+    // ── Стиль B «Премиум-карточка» ──
+    +'.lbl.bstyle{justify-content:flex-start}'
+    +'.lbl.bstyle .bhdr{display:flex;justify-content:space-between;align-items:flex-start;gap:'+s.gap+';border-bottom:2px solid #1B5E20;padding-bottom:'+s.gap+';flex-shrink:0}'
+    +'.lbl.bstyle .bname{font-weight:800;color:#111;line-height:1.12;word-break:break-word}'
+    +'.lbl.bstyle .bgrid{display:grid;grid-template-columns:1fr 1fr;gap:'+s.gap+' 4mm;margin:'+s.gap+' 0;flex:1;align-content:center}'
+    +'.lbl.bstyle .bcell{color:#333;line-height:1.2}'
+    +'.lbl.bstyle .bcell b{color:#111}'
+    +'.lbl.bstyle .bplash{display:flex;align-items:baseline;justify-content:space-between;gap:2mm;background:#EAF4EC;border-radius:4px;padding:'+s.gap+' '+s.pad+';flex-shrink:0}'
+    +'.lbl.bstyle .bpromo{font-size:'+s.oldSize+';color:#1B5E20;margin-top:'+s.gap+';text-align:center;flex-shrink:0}';
 }
-function _labelHtml(s){
-  var name=document.getElementById('pl-name').value.trim();
-  var color=document.getElementById('pl-color').value.trim();
-  var dims=document.getElementById('pl-dims').value.trim();
-  var price=document.getElementById('pl-price').value;
-  var oldprice=document.getElementById('pl-oldprice').value;
-  var qr=document.getElementById('pl-qr').value.trim();
+// Данные текущего ценника из формы
+function _labelData(){
+  return{
+    name:document.getElementById('pl-name').value.trim(),
+    color:document.getElementById('pl-color').value.trim(),
+    dims:document.getElementById('pl-dims').value.trim(),
+    price:document.getElementById('pl-price').value,
+    oldprice:document.getElementById('pl-oldprice').value,
+    qr:document.getElementById('pl-qr').value.trim(),
+    supplier:(document.getElementById('pl-supplier').value||'').trim(),
+    promo:(document.getElementById('pl-promo')?document.getElementById('pl-promo').value:'').trim(),
+    style:(document.getElementById('pl-style')?document.getElementById('pl-style').value:'A')
+  };
+}
+function _labelHtml(s,d){
+  d=d||_labelData();
+  var name=d.name||'';
+  var color=d.color||'';
+  var dims=d.dims||'';
+  var price=d.price;
+  var oldprice=d.oldprice;
+  var qr=(d.qr||'').trim();
   var discount=oldprice&&price?Math.round((1-parseFloat(price)/parseFloat(oldprice))*100):0;
-  var info=(color||'')+(color&&dims?' · ':'')+(dims||'');
+  // Характеристики крупнее и раздельно: размер и цвет заметными строками
+  var infoParts=[];
+  if(dims)infoParts.push('<span class="pdim">'+dims+'</span>');
+  if(color)infoParts.push('<span class="pcol">'+color+'</span>');
+  var info=infoParts.join('<br>');
   var shown=name||'Название товара';
   // авторазмер: название заполняет ценник, длинный текст пропорционально мельче
   var nameSize=_fitPt(s.nameBase,s.nameMin,shown.length,s.nameComfy);
-  var infoSize=_fitPt(s.infoBase,s.infoMin,info.length,s.infoComfy);
+  var _infoLen=(dims+' '+color).trim().length; // длина без HTML-тегов
+  var infoSize=_fitPt(s.infoBase,s.infoMin,_infoLen,s.infoComfy);
   var priceStr=price?fmt(parseFloat(price))+' ₽':'— ₽';
   var priceSize=_fitPt(s.priceBase,s.priceMin,priceStr.length,qr?9:12);
+  var oldHtml=oldprice?'<div class="oldprice">'+fmt(parseFloat(oldprice))+' ₽</div>':'';
+  var qrHtml=qr?'<img src="'+qrDataUrl(qr,s.qrPx)+'" class="qrimg" alt="QR">':'';
+  if((d.style||'A')==='B'){
+    // Стиль B «Премиум-карточка»
+    var bNameSize=_fitPt(s.nameBase*0.72,s.nameMin,shown.length,s.nameComfy*1.3);
+    var cells='';
+    if(dims)cells+='<div class="bcell" style="font-size:'+infoSize+'pt"><b>'+dims+'</b><br><span style="color:#777">размер</span></div>';
+    if(color)cells+='<div class="bcell" style="font-size:'+infoSize+'pt"><b>'+color+'</b><br><span style="color:#777">цвет / ткань</span></div>';
+    return '<div class="lbl bstyle">'
+      +'<div class="bhdr"><div class="bname" style="font-size:'+bNameSize+'pt">'+shown+'</div>'
+      +(qrHtml||'<img src="'+LOGO+'" class="logo" alt="">')+'</div>'
+      +(cells?'<div class="bgrid">'+cells+'</div>':'<div style="flex:1"></div>')
+      +'<div class="bplash">'+oldHtml
+      +'<div class="newprice'+(price?'':' nodata')+'" style="font-size:'+(priceSize*0.85)+'pt">'+priceStr+'</div>'
+      +(discount>0?'<div class="disc-tag">-'+discount+'%</div>':'')+'</div>'
+      +(d.promo?'<div class="bpromo">'+d.promo+'</div>':'')
+      +'</div>';
+  }
+  // Стиль A «Акцент на цене» (по умолчанию)
   return '<div class="lbl">'
     +'<div class="top-row"><img src="'+LOGO+'" class="logo" alt="">'
     +(discount>0?'<div class="disc-tag">-'+discount+'%</div>':'')
@@ -2009,11 +2150,10 @@ function _labelHtml(s){
     +'<div class="pname" style="font-size:'+nameSize+'pt">'+shown+'</div>'
     +(info?'<div class="pinfo" style="font-size:'+infoSize+'pt">'+info+'</div>':'')
     +'<div class="bottom-row">'
-    +'<div class="prices">'
-    +(oldprice?'<div class="oldprice">'+fmt(parseFloat(oldprice))+' ₽</div>':'')
+    +'<div class="prices">'+oldHtml
     +'<div class="newprice'+(price?'':' nodata')+'" style="font-size:'+priceSize+'pt">'+priceStr+'</div>'
     +'</div>'
-    +(qr?'<img src="'+qrDataUrl(qr,s.qrPx)+'" class="qrimg" alt="QR">':'')
+    +qrHtml
     +'</div>'
     +'</div>';
 }
@@ -2067,8 +2207,110 @@ function printPriceLabel(){
   waitLoad.then(function(){setTimeout(function(){w.print();},300);});
 }
 function clearPriceLabel(){
-  ['pl-name','pl-color','pl-dims','pl-price','pl-oldprice','pl-qr','pl-supplier'].forEach(function(id){document.getElementById(id).value='';});
-  document.getElementById('pl-preview').innerHTML='';
+  ['pl-name','pl-color','pl-dims','pl-price','pl-oldprice','pl-qr','pl-supplier','pl-promo'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  renderPriceLabel();
+}
+
+// ── ЦЕННИКИ: ЛИСТ ПЕЧАТИ (несколько разных) + ПОСЛЕДНИЕ ─────
+var _labelQ=[],_labelRecent=[];
+try{_labelQ=JSON.parse(localStorage.getItem('vd_label_queue')||'[]')||[];}catch(e){_labelQ=[];}
+try{_labelRecent=JSON.parse(localStorage.getItem('vd_label_recent')||'[]')||[];}catch(e){_labelRecent=[];}
+function _saveLabelQ(){try{localStorage.setItem('vd_label_queue',JSON.stringify(_labelQ));}catch(e){}}
+function _saveLabelRecent(){try{localStorage.setItem('vd_label_recent',JSON.stringify(_labelRecent.slice(0,10)));}catch(e){}}
+function _labelTitle(d){return(d.name||'Без названия')+(d.price?' — '+fmt(parseFloat(d.price))+' ₽':'');}
+function _pushRecent(d){
+  if(!d.name&&!d.price)return;
+  _labelRecent=_labelRecent.filter(function(x){return!(x.name===d.name&&x.dims===d.dims&&x.price===d.price);});
+  _labelRecent.unshift(d);_labelRecent=_labelRecent.slice(0,10);_saveLabelRecent();renderRecentLabels();
+}
+function addLabelToQueue(){
+  var d=_labelData();
+  if(!d.name&&!d.price){toast('⚠️ Заполните ценник перед добавлением','err');return;}
+  _labelQ.push(d);_saveLabelQ();renderLabelQueue();_pushRecent(d);
+  toast('➕ В лист печати: '+(d.name||'ценник')+' ('+_labelQ.length+')');
+}
+function removeLabelQ(i){_labelQ.splice(i,1);_saveLabelQ();renderLabelQueue();}
+function clearLabelQueue(){if(!_labelQ.length)return;if(!confirm('Очистить лист печати ('+_labelQ.length+' шт.)?'))return;_labelQ=[];_saveLabelQ();renderLabelQueue();}
+function _fillLabelForm(d){
+  document.getElementById('pl-name').value=d.name||'';
+  document.getElementById('pl-color').value=d.color||'';
+  document.getElementById('pl-dims').value=d.dims||'';
+  document.getElementById('pl-price').value=d.price||'';
+  document.getElementById('pl-oldprice').value=d.oldprice||'';
+  document.getElementById('pl-qr').value=d.qr||'';
+  document.getElementById('pl-supplier').value=d.supplier||'';
+  if(document.getElementById('pl-promo'))document.getElementById('pl-promo').value=d.promo||'';
+  if(document.getElementById('pl-style')&&d.style)document.getElementById('pl-style').value=d.style;
+  renderPriceLabel();
+}
+function loadLabelQ(i){var d=_labelQ[i];if(d)_fillLabelForm(d);}
+function renderLabelQueue(){
+  var card=document.getElementById('pl-queue-card');
+  var list=document.getElementById('pl-queue-list');
+  var cnt=document.getElementById('pl-queue-count');
+  if(!_labelQ.length){card.style.display='none';return;}
+  card.style.display='block';
+  cnt.textContent='· '+_labelQ.length+' шт.';
+  list.innerHTML=_labelQ.map(function(d,i){
+    return '<div style="display:flex;align-items:center;gap:6px;background:var(--alt);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">'
+      +'<span style="cursor:pointer" onclick="loadLabelQ('+i+')" title="Загрузить в форму">'+(i+1)+'. '+_labelTitle(d).replace(/</g,'&lt;')+'</span>'
+      +'<button onclick="removeLabelQ('+i+')" style="background:none;border:none;cursor:pointer;color:#c62828;font-size:14px;line-height:1">✕</button></div>';
+  }).join('');
+}
+function renderRecentLabels(){
+  var wrap=document.getElementById('pl-recent-wrap');
+  var box=document.getElementById('pl-recent');
+  if(!wrap||!box)return;
+  if(!_labelRecent.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  box.innerHTML=_labelRecent.map(function(d,i){
+    return '<span onclick="loadRecentLabel('+i+')" style="cursor:pointer;background:var(--alt);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px">'+_labelTitle(d).replace(/</g,'&lt;')+'</span>';
+  }).join('');
+}
+function loadRecentLabel(i){var d=_labelRecent[i];if(d)_fillLabelForm(d);}
+// Спека ячейки для 4 ценников на A4 (2×2)
+function _labelSpec4(){
+  return{half:true,pw:'210mm',ph:'297mm',w:92,h:128,pad:'5mm',logoH:'9mm',
+    nameBase:24,nameMin:12,nameComfy:16, infoBase:15,infoMin:9,infoComfy:26,
+    priceBase:30,priceMin:18,oldSize:'11pt', qrMm:'18mm',qrPx:110, discMm:'12mm',discFont:'9pt',gap:'2mm'};
+}
+// Спека для 2 крупных ценников на A4 (копия «половины A4»)
+function _labelSpec2(){
+  return{half:true,pw:'210mm',ph:'297mm',w:190,h:130,pad:'8mm',logoH:'14mm',
+    nameBase:34,nameMin:14,nameComfy:16, infoBase:22,infoMin:13,infoComfy:30,
+    priceBase:46,priceMin:26,oldSize:'16pt', qrMm:'26mm',qrPx:150, discMm:'16mm',discFont:'12pt',gap:'3mm'};
+}
+function _openPrintWindow(html){
+  var w=window.open('','_blank');
+  if(!w){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4000);return;}
+  w.document.write(html);w.document.close();
+  var imgs=Array.from(w.document.querySelectorAll('img'));
+  var waitLoad=imgs.length>0?Promise.all(imgs.map(function(img){return new Promise(function(r){if(img.complete)r();else{img.onload=r;img.onerror=r;}});})):Promise.resolve();
+  waitLoad.then(function(){setTimeout(function(){w.print();},300);});
+}
+function printLabelSheet(){
+  var arr=_labelQ.slice();
+  if(!arr.length){var d=_labelData();if(d.name||d.price)arr=[d];}
+  if(!arr.length){toast('⚠️ Лист пуст — добавьте ценники кнопкой «В лист печати»','err',4000);return;}
+  var per=parseInt(document.getElementById('pl-persheet').value)||2;
+  var s=per>=4?_labelSpec4():_labelSpec2();
+  var labelHtml=arr.map(function(d){return _labelHtml(s,d);}).join('');
+  var pageRules='@page{size:A4 portrait;margin:8mm}';
+  var layoutCss;
+  if(per>=4){
+    // 2×2 сетка на листе
+    labelHtml='<div class="grid">'+labelHtml+'</div>';
+    layoutCss='.grid{display:grid;grid-template-columns:1fr 1fr;gap:6mm;align-content:start}.lbl{page-break-inside:avoid}';
+  }else{
+    // 2 крупных, друг под другом, по 2 на лист
+    layoutCss='.lbl{margin:0 auto 8mm;page-break-inside:avoid}.lbl:nth-of-type(2n){page-break-after:always}.lbl:last-child{page-break-after:auto}';
+  }
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'
+    +pageRules
+    +'body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +layoutCss+_labelCss(s)
+    +'</style></head><body>'+labelHtml+'</body></html>';
+  _openPrintWindow(html);
 }
 
 // ── ПЕЧАТЬ АКТИВНЫХ ЗАКАЗОВ ──────────────────────────────
@@ -2625,7 +2867,7 @@ function renderClients(){
   });
   document.getElementById('clients-list').innerHTML=html||'<div class="empty"><p>Клиентов не найдено</p></div>';
 }
-function filterClients(){renderClients();}
+var filterClients=_debounce(function(){renderClients();},180);
 function openAddClient(){document.getElementById('modal-client').classList.add('open');}
 function saveNewClient(){
   var name=document.getElementById('nc-name').value.trim();
@@ -2661,7 +2903,7 @@ function searchClient(){
   // Параллельно ищем в Supabase — ловит новых клиентов, добавленных после загрузки страницы
   clearTimeout(searchClient._t);
   searchClient._t=setTimeout(function(){
-    sbGet('clients','select=*&or=(name.ilike.*'+encodeURIComponent(q)+'*,phone.ilike.*'+encodeURIComponent(q)+'*)&limit=10&order=name.asc')
+    sbGet('clients','select=*&or=(name.ilike.'+_ilikePat(q)+',phone.ilike.'+_ilikePat(q)+')&limit=10&order=name.asc')
     .then(function(rows){
       if(!rows||!rows.length)return;
       rows.forEach(function(r){if(!allClients.find(function(c){return c.id===r.id;}))allClients.push(r);});
