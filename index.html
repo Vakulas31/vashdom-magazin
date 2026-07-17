@@ -114,7 +114,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v5.9</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.1</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -497,6 +497,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <span style="color:var(--text2)">Для прайсов с модулями (напр. Браво: «Комплект Центральная траверса» → строки с размерами 1200/1400/1600/1800). Каждый размер станет отдельным товаром «Название · размер», а строки-примечания («Для кроватей: …») не будут ломать имя группы. Работает вместе с каскадным режимом.</span>
           </div>
         </label>
+
+        <!-- Матричный режим: цены вариантов в нескольких колонках -->
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;margin-bottom:10px;padding:8px 10px;background:var(--alt);border-radius:6px">
+          <input type="checkbox" id="pl-matrix-on" style="margin-top:2px;flex-shrink:0" onchange="_plMatrixToggle()">
+          <div>
+            <strong>Цены в нескольких колонках (матрица)</strong><br>
+            <span style="color:var(--text2)">Для прайсов, где у одного товара несколько цен в строке: категории тканей (1–6 кат., «до 300р»), размеры, варианты фасадов, жёсткости матрасов. Каждая отмеченная колонка станет отдельным вариантом товара, колонка «Оптовая цена» при этом не используется.</span>
+          </div>
+        </label>
+        <div id="pl-matrix-cols" style="display:none;background:var(--alt);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px">
+          <div style="font-weight:600;font-size:11px;color:var(--text2);margin-bottom:6px">Отметьте колонки, в которых лежат цены вариантов (служебные — вес, объём — оставьте пустыми):</div>
+          <div id="pl-matrix-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
 
         <!-- Превью первых строк -->
         <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Предпросмотр (первые 5 строк данных):</div>
@@ -1455,7 +1468,10 @@ function savePriceTemplate(){
     col_opt:document.getElementById('pl-col-opt').value,
     col_ret:document.getElementById('pl-col-ret').value,
     col_art:document.getElementById('pl-col-art').value,
-    cascade:document.getElementById('pl-cascade').checked
+    cascade:document.getElementById('pl-cascade').checked,
+    modular:document.getElementById('pl-modular').checked,
+    matrix_multi:document.getElementById('pl-matrix-on')?document.getElementById('pl-matrix-on').checked:false,
+    var_cols:(document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked)?_plMatrixCols():[]
   };
   var supKey=(document.getElementById('pl-sup').value||'').trim().toLowerCase();
   if(supKey)store['sup:'+supKey]=store[sn];
@@ -1473,12 +1489,16 @@ function applyPriceTemplate(sheetName){
   if(tpl.supplier)document.getElementById('pl-sup').value=tpl.supplier;
   document.getElementById('pl-startrow').value=tpl.start_row||2;
   document.getElementById('pl-cascade').checked=!!tpl.cascade;
+  var _md=document.getElementById('pl-modular');if(_md)_md.checked=!!tpl.modular;
+  var _mx=document.getElementById('pl-matrix-on');
+  if(_mx){_mx.checked=!!tpl.matrix_multi;document.getElementById('pl-matrix-cols').style.display=tpl.matrix_multi?'block':'none';}
   // Колонки применяем с задержкой (селекты ещё заполняются)
   setTimeout(function(){
     if(tpl.col_name!==undefined)document.getElementById('pl-col-name').value=tpl.col_name;
     if(tpl.col_opt!==undefined)document.getElementById('pl-col-opt').value=tpl.col_opt;
     if(tpl.col_ret!==undefined)document.getElementById('pl-col-ret').value=tpl.col_ret;
     if(tpl.col_art!==undefined)document.getElementById('pl-col-art').value=tpl.col_art;
+    if(tpl.matrix_multi)_plBuildMatrixCols(tpl.var_cols||[]);
     _renderPricePreview();
   },50);
   // Показываем зелёный статус
@@ -1497,8 +1517,11 @@ function deletePriceTpl(sheetName){
 function onPriceSheetChange(){
   if(!_plWB)return;
   var sn=document.getElementById('pl-sheet').value;
-  var ws=_plWB.Sheets[sn];
-  _plData=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+  var ws=_plExpandMerges(_plWB.Sheets[sn]);
+  _plData=_plTrimData(XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false}));
+  // Матричный режим сбрасываем при смене листа (шаблон листа включит его обратно)
+  var _mxOn=document.getElementById('pl-matrix-on');
+  if(_mxOn){_mxOn.checked=false;document.getElementById('pl-matrix-cols').style.display='none';}
   var store=_getTplStore();
   var tpl=store[sn]||store['sup:'+((document.getElementById('pl-sup').value||'').trim().toLowerCase())];
   var det=_autoDetectSheet(_plData);
@@ -1507,10 +1530,10 @@ function onPriceSheetChange(){
   // Так устаревший/битый шаблон («Столбец 1 / Столбец 1») не мешает.
   var tplValid=-1;
   if(tpl&&!tpl.matrix&&tpl.col_name!==''&&tpl.col_name!=null&&tpl.col_opt!==''&&tpl.col_opt!=null){
-    tplValid=_plValidCount(_collectRows(_plData,{start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,supplier:'x',sheetName:sn}));
+    tplValid=_plValidCount(_collectRows(_plData,{start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:!!tpl.modular,supplier:'x',sheetName:sn}));
   }
   var detValid=det?_plValidCount(_collectRows(_plData,{start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:det.cascade,supplier:'x',sheetName:sn})):0;
-  if(tpl&&(tpl.matrix||(tplValid>0&&tplValid>=detValid))){
+  if(tpl&&(tpl.matrix||tpl.matrix_multi||(tplValid>0&&tplValid>=detValid))){
     _buildPriceColSelects();
     var applied=applyPriceTemplate(sn);
     if(!applied)_renderPricePreview();
@@ -1524,7 +1547,26 @@ function onPriceSheetChange(){
     document.getElementById('pl-col-opt').value=det.colOpt;
     document.getElementById('pl-col-ret').value=(det.colRet===''||det.colRet==null)?'':det.colRet;
     document.getElementById('pl-col-art').value=(det.colArt===''||det.colArt==null)?'':det.colArt;
-    if(se){se.style.cssText='display:block;background:#E3F2FD;color:#0D47A1;border:1px solid #90CAF9;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';se.innerHTML='🔍 Колонки определены автоматически (строка данных '+(det.headerRow+2)+') — проверьте и жмите «Импортировать этот лист».';}
+    if(se){
+      se.style.cssText='display:block;background:#E3F2FD;color:#0D47A1;border:1px solid #90CAF9;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';
+      se.innerHTML='🔍 Колонки определены автоматически (строка данных '+(det.headerRow+2)+') — проверьте и жмите «Импортировать этот лист».';
+      // Подсказка: если рядом ещё ≥2 ценовых колонки — вероятно, это варианты (ткани/размеры/фасады)
+      var _mu=_autoDetectMulti(_plData);
+      if(_mu&&_mu.varCols.length>=2)se.innerHTML+='<br>💡 Вижу ещё '+_mu.varCols.length+' колонок с ценами — если это варианты (категории тканей, размеры, фасады), включите «Цены в нескольких колонках».';
+    }
+    _renderPricePreview();
+    return;
+  }
+  // Плоская раскладка не определилась — пробуем матрицу общего вида (этап B)
+  var mu=_autoDetectMulti(_plData);
+  if(mu){
+    document.getElementById('pl-startrow').value=mu.headerRow+2;
+    _buildPriceColSelects();
+    document.getElementById('pl-col-name').value=mu.colName;
+    if(mu.colArt!==''&&mu.colArt!=null)document.getElementById('pl-col-art').value=mu.colArt;
+    var _mx2=document.getElementById('pl-matrix-on');
+    if(_mx2){_mx2.checked=true;document.getElementById('pl-matrix-cols').style.display='block';_plBuildMatrixCols(mu.varCols);}
+    if(se){se.style.cssText='display:block;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';se.innerHTML='📊 Похоже на матрицу вариантов ('+mu.varCols.length+' ценовых колонок) — режим и колонки размечены автоматически. Проверьте отмеченные колонки и жмите «Импортировать этот лист».';}
     _renderPricePreview();
     return;
   }
@@ -1579,7 +1621,16 @@ function _renderPricePreview(){
 // ── ИМПОРТ: ОБЩИЕ ХЕЛПЕРЫ (мультилистовый режим) ────────
 var _plHasSheetCol=true,_plHasFactoryCol=true,_plDeletedSupplier=null,_plImportedSheets={};
 function _plToNum(v){
-  var t=String(v||'').replace(/\s+/g,'').replace(/[^\d,\.\-]/g,'');
+  var s=String(v==null?'':v).trim();
+  if(!s)return 0;
+  // Текст вперемешку с числом («5300 (опоры золото + 600 р)», «8250/15050», «Акция 15500 до 15.07»):
+  // берём ПЕРВОЕ число, а не склейку всех цифр подряд (иначе 5300+600 превращалось в 5300600).
+  if(/[а-яёa-z()+]/i.test(s)||s.indexOf('/')>=0){
+    var fm=s.replace(/ /g,' ').match(/\d{1,3}(?:[ ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?/);
+    if(!fm)return 0;
+    s=fm[0];
+  }
+  var t=s.replace(/\s+/g,'').replace(/[^\d,\.\-]/g,'');
   if(!t)return 0;
   // «27,600» / «1,234,500» — запятая-разделитель тысяч; «1234,50» — десятичная запятая
   if(/,\d{3}(?=(,\d{3})*$)/.test(t.replace(/\.\d+$/,'')))t=t.replace(/,(?=\d{3}(\D|$))/g,'');
@@ -1588,6 +1639,46 @@ function _plToNum(v){
   t=t.replace(',','.');
   return parseFloat(t)||0;
 }
+// Обрезает «фантомные» пустые строки в конце листа (в файлах поставщиков max_row
+// бывает завышен в 30 раз: заявлено 17149 строк, реальных 521 — иначе импорт тормозит).
+function _plTrimData(data){
+  var last=data.length-1;
+  while(last>=0){
+    var row=data[last]||[],has=false;
+    for(var c=0;c<row.length;c++){if(String(row[c]==null?'':row[c]).trim()!==''){has=true;break;}}
+    if(has)break;last--;
+  }
+  return data.slice(0,last+1);
+}
+// Разворачивает ВЕРТИКАЛЬНЫЕ объединённые ячейки (merged) в значения:
+// у МК Стиль/Асконы/Квартета цена или название варианта «спрятаны» в merged-ячейке
+// родителя — без разворота такие варианты теряли цену. Горизонтальные merge
+// (баннеры-заголовки на всю ширину) НЕ трогаем — иначе текст попадёт в колонку цены.
+function _plExpandMerges(ws){
+  var merges=(ws&&ws['!merges'])||[];
+  for(var i=0;i<merges.length;i++){
+    var rg=merges[i];
+    if(rg.s.c!==rg.e.c)continue; // только вертикальные (одна колонка)
+    var tl=XLSX.utils.encode_cell({r:rg.s.r,c:rg.s.c});
+    var v=ws[tl];if(!v||v.v==null||v.v==='')continue;
+    for(var R=rg.s.r+1;R<=rg.e.r;R++){
+      var addr=XLSX.utils.encode_cell({r:R,c:rg.s.c});
+      if(!ws[addr]||ws[addr].v==null||ws[addr].v==='')ws[addr]={t:v.t,v:v.v,w:v.w};
+    }
+  }
+  return ws;
+}
+// Строка-примечание, а не заголовок группы: «* кровати СОНЯ…», «Для кроватей: …»,
+// «(ТОЛЬКО для…», «!!!» — такие строки не должны перезаписывать имя текущей модели.
+function _plIsNoteRow(s){
+  return /^[\*\(!•©]|^для\s|^только\s|!!!|^внимание|^важно|^примечани|^цены указаны|^скидка/i.test(s);
+}
+// Снятые с производства позиции — не тащим в каталог
+function _plIsDead(s){
+  return /снят[оаы]?\s+с\s+пр|\(снято\)|вывод из ассортимента|не производится/i.test(s);
+}
+// Нормализация текста из ячейки: переносы строк и множественные пробелы → один пробел
+function _plClean(s){return String(s==null?'':s).replace(/\s+/g,' ').trim();}
 // Включён ли модульный режим импорта (галочка в маппере)
 function _plModularOn(){var el=document.getElementById('pl-modular');return!!(el&&el.checked);}
 // Извлекает размер вида «1200х2000» / «(800x1870)» / «1600*2000» из строки. Возвращает 'ШхВ' или ''.
@@ -1641,13 +1732,18 @@ function _collectRows(data,cfg){
   var currentGroupName='';
   for(var i=cfg.start-1;i<data.length;i++){
     var row=data[i]||[];
-    var nameVal=String(row[cfg.colName]||'').trim();
+    var nameVal=_plClean(row[cfg.colName]);
     var optNum=_plToNum(row[cfg.colOpt]);
-    var artVal=(cfg.colArt!==''&&cfg.colArt!=null)?String(row[parseInt(cfg.colArt)]||'').trim():'';
+    var artVal=(cfg.colArt!==''&&cfg.colArt!=null)?_plClean(row[parseInt(cfg.colArt)]):'';
     var retVal=(cfg.colRet!==''&&cfg.colRet!=null)?_plToNum(row[parseInt(cfg.colRet)]):0;
     var rowCategory='';
     if(cfg.cascade){
-      if(nameVal&&!optNum){currentGroupName=nameVal;continue;} // заголовок группы (без цены)
+      if(nameVal&&!optNum){
+        // Заголовок группы (без цены). Но строки-примечания («* …», «Для кроватей: …»)
+        // группу НЕ перезаписывают — иначе варианты ниже получали имя примечания.
+        if(!_plIsNoteRow(nameVal))currentGroupName=nameVal;
+        continue;
+      }
       // Размер строки: из характеристики (colArt) или из любой другой ячейки
       var _sz=_plExtractSize(artVal);
       if(!_sz){for(var _c=0;_c<row.length;_c++){if(_c===cfg.colName||_c===parseInt(cfg.colOpt))continue;var _s2=_plExtractSize(String(row[_c]||''));if(_s2){_sz=_s2;break;}}}
@@ -1656,7 +1752,12 @@ function _collectRows(data,cfg){
         var _note=nameVal;
         nameVal=(currentGroupName||_note||'Модуль')+' · '+_sz;
         rowCategory=currentGroupName;
-        artVal=(_note&&_note!==currentGroupName)?(_sz+' · '+_note):_sz;
+        // Характеристику («900х2000, цвет Орех, кровать одинарная») СОХРАНЯЕМ —
+        // из неё умный поиск берёт цвет/тип; примечание дописываем следом.
+        var _parts=[];
+        if(artVal)_parts.push(artVal);else _parts.push(_sz);
+        if(_note&&_note!==currentGroupName)_parts.push(_note);
+        artVal=_parts.join(' · ');
       }else{
         if(!nameVal&&optNum){ // обычный каскадный вариант (пустое имя)
           nameVal=currentGroupName;rowCategory=currentGroupName;
@@ -1666,6 +1767,8 @@ function _collectRows(data,cfg){
       }
     }
     if(!nameVal||!optNum)continue;
+    // Снятые с производства позиции не тащим в каталог
+    if(_plIsDead(nameVal)||_plIsDead(artVal))continue;
     // Защита от переполнения numeric(12,2): цена мебели не бывает > 100 млн.
     // Больше — это не цена (артикул/штрихкод/склеенное число), строку пропускаем.
     if(optNum<0||optNum>99999999)continue;
@@ -1778,6 +1881,194 @@ function _collectMatrix(data,m,supplier,sheetName){
   return rows;
 }
 function _plValidCount(rows){var n=0;for(var i=0;i<rows.length;i++)if((rows[i].price_opt||0)>=50)n++;return n;}
+
+// ── МАТРИЦА ОБЩЕГО ВИДА (этап B): цены вариантов в нескольких колонках ──
+// Категории тканей («1кат», «до 300р»), варианты фасадов («двери Д+Д»), жёсткости
+// матрасов («Мягкий/Оптима/Жесткий»), группы цветов — каждая отмеченная колонка
+// разворачивается в отдельный вариант товара.
+// Служебные колонки (вес/объём и т.п.) — их НЕ авто-отмечаем как ценовые
+function _plIsServiceHdr(s){
+  return /вес|\bкг\b|объем|объём|\bм3\b|мест|кол-во|колич|шт\.|наценк|скидк|экономия|№|артикул|^код|высота|глубина|габарит|размер|остат|наличи/i.test(String(s||''));
+}
+// «Ценоподобная» колонка: большинство чисел ≥300 ₽ (отсекает вес 8–200 кг,
+// объёмы и колонки размеров 80–200 см, которые тоже плотно заполнены числами)
+function _plColPriceLike(data,startRow,c){
+  var tot=0,big=0;
+  for(var r=startRow;r<data.length&&tot<60;r++){
+    var v=(data[r]||[])[c];if(v===''||v==null)continue;
+    if(/\d\s*[*x×х\/]\s*\d/.test(String(v)))continue;
+    var num=_plToNum(v);if(num<=0)continue;
+    tot++;if(num>=300)big++;
+  }
+  return tot>=3&&(big/tot)>=0.6;
+}
+// Ищет строку с МЕТКАМИ вариантов. У многострочных шапок (ФСМ: 6 строк описаний)
+// поднимаемся вверх до строки, где все метки короткие и РАЗНЫЕ («Пионер Мягкий/Оптима/
+// Жесткий»); у Боринского метки «1|2|3» лежат СТРОКОЙ НИЖЕ шапки-«стоимость».
+function _plFindLabelRow(data,start,varCols){
+  // Подшапка СТРОКОЙ НИЖЕ шапки («1|2|3», «1 категория|2 категория|3 категория»):
+  // все ячейки коротки, уникальны и НЕ являются ценами (<50) — это метки, не данные
+  var sub=data[start-1]||[],subOk=varCols.length>0,seenS={};
+  for(var k0=0;k0<varCols.length;k0++){
+    var s0=_plClean(sub[varCols[k0]]);
+    if(!s0||s0.length>32||_plToNum(s0)>=50){subOk=false;break;}
+    if(seenS[s0]){subOk=false;break;}
+    seenS[s0]=1;
+  }
+  if(subOk)return start-1;
+  // вверх от шапки: первая строка, где все метки заполнены, коротки и без дублей
+  var from=Math.max(0,start-9);
+  for(var r=from;r<=start-2;r++){
+    var row=data[r]||[],ok=true,seen={};
+    for(var k=0;k<varCols.length;k++){
+      var s=_plClean(row[varCols[k]]);
+      if(!s||s.length>32){ok=false;break;}
+      if(seen[s]){ok=false;break;} // дубли — вероятно merged-«стоимость» или повтор описаний
+      seen[s]=1;
+    }
+    if(ok)return r;
+  }
+  return start-2;
+}
+function _plMatrixToggle(){
+  var on=document.getElementById('pl-matrix-on').checked;
+  document.getElementById('pl-matrix-cols').style.display=on?'block':'none';
+  if(on)_plBuildMatrixCols();
+}
+// Строит чекбоксы колонок; авто-отмечает ценоплотные несервисные (или preset из шаблона)
+function _plBuildMatrixCols(preset){
+  var start=Math.max(1,parseInt(document.getElementById('pl-startrow').value)||2);
+  var hdr=_plData[start-2]||[];
+  var nameC=parseInt(document.getElementById('pl-col-name').value);
+  var artC=document.getElementById('pl-col-art').value;
+  var maxc=hdr.length;
+  _plData.slice(start-1,start+40).forEach(function(r){if(r&&r.length>maxc)maxc=r.length;});
+  var html='';
+  for(var c=0;c<maxc&&c<40;c++){
+    if(c===nameC||String(c)===String(artC))continue;
+    var dense=_plColNumericCount(_plData,start-1,c);
+    if(dense<1)continue; // колонки совсем без чисел не предлагаем
+    var lbl=String(hdr[c]||'').trim()||('Столбец '+(c+1));
+    var on=preset?preset.indexOf(c)>=0:(dense>=3&&!_plIsServiceHdr(lbl)&&_plColPriceLike(_plData,start-1,c));
+    html+='<label style="display:flex;align-items:center;gap:4px;background:var(--card,#fff);border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer">'
+      +'<input type="checkbox" class="pl-mx-col" value="'+c+'"'+(on?' checked':'')+'> '+lbl.slice(0,26).replace(/</g,'&lt;')+'</label>';
+  }
+  document.getElementById('pl-matrix-list').innerHTML=html||'<span style="color:var(--text2)">Числовых колонок не найдено — проверьте строку начала данных</span>';
+}
+function _plMatrixCols(){
+  return Array.from(document.querySelectorAll('.pl-mx-col:checked')).map(function(x){return parseInt(x.value);});
+}
+// Сбор товаров: строка × отмеченные колонки. Каскад (заголовки групп) работает всегда.
+function _collectMulti(data,cfg){
+  var rows=[],currentGroupName='';
+  var lr=_plFindLabelRow(data,cfg.start,cfg.varCols||[]);
+  var lrow=data[lr]||[];
+  var labels={};
+  (cfg.varCols||[]).forEach(function(c){
+    var L=_plClean(lrow[c])||_plClean((data[cfg.start-2]||[])[c])||('вариант '+(c+1));
+    if(/^\d{1,2}$/.test(L))L='кат.'+L; // «1|2|3» — категории тканей (Боринское)
+    labels[c]=L;
+  });
+  // повторные строки-шапки внутри листа: имя совпадает с заголовком колонки названия
+  var hdrNames={};
+  hdrNames[_plClean((data[cfg.start-2]||[])[cfg.colName])]=1;
+  hdrNames[_plClean(lrow[cfg.colName])]=1;
+  for(var i=cfg.start-1;i<data.length;i++){
+    var row=data[i]||[];
+    var nameVal=_plClean(row[cfg.colName]);
+    if(nameVal&&hdrNames[nameVal])continue; // повтор шапки («Ширина», «Наименование»)
+    var artVal=(cfg.colArt!==''&&cfg.colArt!=null)?_plClean(row[parseInt(cfg.colArt)]):'';
+    var any=false;
+    (cfg.varCols||[]).forEach(function(c){if(!any&&_plToNum(row[c])>0)any=true;});
+    if(nameVal&&!any){ if(!_plIsNoteRow(nameVal))currentGroupName=nameVal; continue; } // заголовок группы
+    var base=nameVal||currentGroupName;
+    if(!base)continue;
+    if(_plIsDead(base)||_plIsDead(artVal))continue;
+    var cat=nameVal?'':currentGroupName;
+    (cfg.varCols||[]).forEach(function(c){
+      var p=_plToNum(row[c]);
+      // цена варианта от 50 ₽ — отсекает строки-подшапки («1|2|3») и служебные числа
+      if(p<50||p>99999999)return;
+      p=Math.round(p*100)/100;
+      var lbl=labels[c],nm=base,art=[];
+      // Случай матрасов ФСМ: в «названии» строки — просто число (ширина),
+      // настоящие названия — в заголовках колонок. Меняем местами.
+      if(/^\d{2,4}$/.test(base)&&!/^\d+$/.test(lbl)){nm=lbl;art.push('ш'+base);}
+      else art.push(lbl);
+      if(artVal)art.push(artVal);
+      var artStr=art.filter(Boolean).join(' · ');
+      var _at=_extractAttrs(nm,artStr,'');
+      // ширина из числового заголовка колонки или числовой «строки-размера» (мм)
+      if(_at.dim_w==null&&/^\d{3,4}$/.test(lbl)){var wn=parseInt(lbl);if(wn>=300&&wn<=2500)_at.dim_w=wn;}
+      if(_at.dim_w==null&&/^\d{3,4}$/.test(base)){var wb=parseInt(base);if(wb>=300&&wb<=2500)_at.dim_w=wb;}
+      rows.push({supplier:cfg.supplier,product_name:nm,price_opt:p,price_retail:0,article:artStr,category:cat||'',sheet_name:cfg.sheetName||'',dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
+    });
+  }
+  return rows;
+}
+// Автоопределение матрицы общего вида (≥2 ценоплотных несервисных колонок).
+// Работает и там, где нет слова «наименование» в шапке (напр. «диваны про»:
+// «1цех | Размеры | 1кат (200-249р) | 2кат …») — ищем строку с метками вариантов.
+function _autoDetectMulti(data){
+  var det=_autoDetectSheet(data);
+  var headerRow=-1,colName=-1,colArt='';
+  if(det){headerRow=det.headerRow;colName=det.colName;colArt=det.colArt;}
+  else{
+    // Самостоятельный поиск строки-шапки с метками вариантов
+    for(var r=0;r<Math.min(20,data.length);r++){
+      var row=data[r]||[],hits=0;
+      for(var c=1;c<row.length;c++){
+        var s=String(row[c]||'').trim();
+        if(!s||s.length>30)continue;
+        if(/\bкат\b|\d\s?кат|до\s?\d{3}|жестк|мягк|оптима|двер|фасад|ппу|нпб|bonnel|боннел/i.test(s)||/^\d{3,4}$/.test(s)||/^[\wа-яё\d]{1,6}\+[\wа-яё\d\+]{1,12}$/i.test(s))hits++;
+      }
+      if(hits>=2){headerRow=r;break;}
+    }
+    if(headerRow<0)return null;
+  }
+  var start=headerRow+2,hdr=data[headerRow]||[];
+  var maxc=hdr.length;
+  data.slice(start-1,start+30).forEach(function(rr){if(rr&&rr.length>maxc)maxc=rr.length;});
+  var cols=[];
+  for(var c2=0;c2<Math.min(40,maxc);c2++){
+    if(c2===colName||String(colArt)===String(c2))continue;
+    if(_plIsServiceHdr(String(hdr[c2]||'')))continue;
+    // Текстовые колонки (модели «Smart 1222») — не ценовые, даже если в тексте есть
+    // числа. Текст считаем ПОСЛЕ первой цены в колонке: строки-описания многострочной
+    // шапки (ФСМ: «Блок Bonnel», состав) выше первой цены — не в счёт.
+    var firstNum=-1;
+    for(var rf=start-1;rf<data.length&&rf<start+60;rf++){
+      var vv=(data[rf]||[])[c2];
+      if(vv!==''&&vv!=null&&!/[а-яёa-z]{2,}/i.test(String(vv))&&_plToNum(vv)>=50){firstNum=rf;break;}
+    }
+    if(firstNum<0)continue;
+    var txtCnt=0;
+    for(var rt=firstNum;rt<data.length&&rt<firstNum+40;rt++){
+      if(/[а-яёa-z]{2,}/i.test(String((data[rt]||[])[c2]||'')))txtCnt++;
+    }
+    if(txtCnt>=2)continue;
+    if(_plColNumericCount(data,start-1,c2)>=3&&_plColPriceLike(data,start-1,c2))cols.push(c2);
+  }
+  if(cols.length<2)return null;
+  if(colName<0){
+    // Колонка названия: самая заполненная НЕценовая колонка левее первой ценовой
+    var minVar=cols[0],bestC=-1,bestN=-1;
+    for(var cn=0;cn<minVar;cn++){
+      if(cols.indexOf(cn)>=0)continue;
+      var n=0;for(var rn=start-1;rn<data.length&&rn<start+80;rn++){if(_plClean((data[rn]||[])[cn]))n++;}
+      if(n>bestN){bestN=n;bestC=cn;}
+    }
+    if(bestC<0||bestN<3)return null;
+    colName=bestC;
+    // Характеристика — другая заполненная колонка левее вариантов
+    for(var ca=0;ca<minVar;ca++){
+      if(ca===colName||cols.indexOf(ca)>=0)continue;
+      var na=0;for(var ra=start-1;ra<data.length&&ra<start+80;ra++){if(_plClean((data[ra]||[])[ca]))na++;}
+      if(na>=3){colArt=String(ca);break;}
+    }
+  }
+  return{headerRow:headerRow,colName:colName,colArt:colArt,varCols:cols,cascade:false};
+}
 async function _plPreflight(rows){
   try{await sbGet('price_items','select=category&limit=1');}
   catch(e){if(/category/i.test(e.message))rows.forEach(function(r){delete r.category;});}
@@ -1828,7 +2119,16 @@ async function importPriceList(){
   if(!supplier){toast('⚠️ Укажите название поставщика','err');return;}
   var sheetName=document.getElementById('pl-sheet').value;
   var rows=[],isMatrix=false;
-  if(colName!==''&&colOpt!==''){
+  var isMulti=document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked;
+  if(isMulti){
+    // Матрица общего вида: цены вариантов в отмеченных колонках
+    if(colName===''){toast('⚠️ Выберите колонку с названием товара','err');return;}
+    var vcols=_plMatrixCols();
+    if(!vcols.length){toast('⚠️ Отметьте хотя бы одну колонку с ценами вариантов','err');return;}
+    rows=_collectMulti(_plData,{supplier:supplier,sheetName:sheetName,
+      start:Math.max(1,parseInt(document.getElementById('pl-startrow').value)||2),
+      colName:parseInt(colName),colArt:document.getElementById('pl-col-art').value,varCols:vcols});
+  }else if(colName!==''&&colOpt!==''){
     var cfg={supplier:supplier,sheetName:sheetName,
       start:Math.max(1,parseInt(document.getElementById('pl-startrow').value)||2),
       colName:parseInt(colName),colOpt:parseInt(colOpt),
@@ -1881,13 +2181,18 @@ async function importAllSheets(){
   var store=_getTplStore();
   var plan=[],report=[];
   _plWB.SheetNames.forEach(function(sn){
-    var data=XLSX.utils.sheet_to_json(_plWB.Sheets[sn],{header:1,defval:'',raw:false});
+    var data=_plTrimData(XLSX.utils.sheet_to_json(_plExpandMerges(_plWB.Sheets[sn]),{header:1,defval:'',raw:false}));
     // Собираем все варианты разбора и берём тот, что даёт больше валидных цен.
     // Так плохой сохранённый шаблон не мешает — автоопределение его перекроет.
     var cands=[];
     var tpl=store[sn];
-    if(tpl&&tpl.col_name!==''&&tpl.col_opt!==''&&!tpl.matrix){
-      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:_plModularOn(),supplier:supplier,sheetName:sn};
+    // Сохранённый шаблон «матрица общего вида» (этап B) — используем его разметку колонок
+    if(tpl&&tpl.matrix_multi&&tpl.var_cols&&tpl.var_cols.length&&tpl.col_name!==''&&tpl.col_name!=null){
+      var cfgM={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colArt:tpl.col_art,varCols:tpl.var_cols,supplier:supplier,sheetName:sn};
+      cands.push({rows:_collectMulti(data,cfgM),src:'матрица вариантов (по шаблону)',cfg:null,kind:'multi'});
+    }
+    if(tpl&&!tpl.matrix_multi&&tpl.col_name!==''&&tpl.col_opt!==''&&!tpl.matrix){
+      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgT),src:'по шаблону',cfg:cfgT,kind:'flat'});
     }
     var det=_autoDetectSheet(data);
@@ -1918,6 +2223,7 @@ async function importAllSheets(){
     // сохраняем шаблоны всех успешно определённых листов
     var st=_getTplStore();
     plan.forEach(function(p){
+      if(p.kind==='multi')return; // шаблон матрицы вариантов уже сохранён — не затираем
       if(p.kind==='matrix'||!p.cfg){
         // матричный лист колонками не описать — помечаем, чтобы старый шаблон не мешал
         st[p.sheetName]={supplier:supplier,factory:factory,matrix:true};
@@ -1926,7 +2232,7 @@ async function importAllSheets(){
           col_name:String(p.cfg.colName),col_opt:String(p.cfg.colOpt),
           col_ret:(p.cfg.colRet===''||p.cfg.colRet==null)?'':String(p.cfg.colRet),
           col_art:(p.cfg.colArt===''||p.cfg.colArt==null)?'':String(p.cfg.colArt),
-          cascade:!!p.cfg.cascade};
+          cascade:!!p.cfg.cascade,modular:!!p.cfg.modular};
       }
     });
     var firstFlat=plan.filter(function(p){return p.kind!=='matrix'&&p.cfg;})[0];
@@ -1947,6 +2253,8 @@ function resetPriceImport(){
   var allBtn=document.getElementById('pl-import-all-btn');if(allBtn)allBtn.style.display='none';
   var mn=document.getElementById('pl-multi-note');if(mn){mn.style.display='none';mn.innerHTML='';}
   document.getElementById('pl-mapper').style.display='none';
+  var _mx=document.getElementById('pl-matrix-on');
+  if(_mx){_mx.checked=false;document.getElementById('pl-matrix-cols').style.display='none';}
   document.getElementById('pl-file').value='';
   document.getElementById('pl-sup').value='';
   document.getElementById('pl-factory').value='';
