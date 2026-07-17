@@ -149,7 +149,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.3</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.4</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -545,6 +545,15 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div style="font-weight:600;font-size:11px;color:var(--text2);margin-bottom:6px">Отметьте колонки, в которых лежат цены вариантов (служебные — вес, объём — оставьте пустыми):</div>
           <div id="pl-matrix-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
         </div>
+
+        <!-- Части конструктора (этап C): корпус/фасад отдельными листами -->
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;margin-bottom:10px;padding:8px 10px;background:var(--alt);border-radius:6px">
+          <input type="checkbox" id="pl-kitpart" style="margin-top:2px;flex-shrink:0">
+          <div>
+            <strong>⚠ Части конструктора (цена — не полное изделие)</strong><br>
+            <span style="color:var(--text2)">Для листов, где строка — только ЧАСТЬ изделия: корпуса и фасады кухонь отдельными листами (РАУС, МИКОН, БТС), каркасы и двери шкафов-купе. Товары получат пометку «часть комплекта», чтобы случайно не назвать клиенту цену половины изделия.</span>
+          </div>
+        </label>
 
         <!-- Превью первых строк -->
         <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Предпросмотр (первые 5 строк данных):</div>
@@ -1510,7 +1519,8 @@ function savePriceTemplate(){
     cascade:document.getElementById('pl-cascade').checked,
     modular:document.getElementById('pl-modular').checked,
     matrix_multi:document.getElementById('pl-matrix-on')?document.getElementById('pl-matrix-on').checked:false,
-    var_cols:(document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked)?_plMatrixCols():[]
+    var_cols:(document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked)?_plMatrixCols():[],
+    kit_part:document.getElementById('pl-kitpart')?document.getElementById('pl-kitpart').checked:false
   };
   var supKey=(document.getElementById('pl-sup').value||'').trim().toLowerCase();
   if(supKey)store['sup:'+supKey]=store[sn];
@@ -1531,6 +1541,7 @@ function applyPriceTemplate(sheetName){
   var _md=document.getElementById('pl-modular');if(_md)_md.checked=!!tpl.modular;
   var _mx=document.getElementById('pl-matrix-on');
   if(_mx){_mx.checked=!!tpl.matrix_multi;document.getElementById('pl-matrix-cols').style.display=tpl.matrix_multi?'block':'none';}
+  var _kp=document.getElementById('pl-kitpart');if(_kp)_kp.checked=!!tpl.kit_part;
   // Колонки применяем с задержкой (селекты ещё заполняются)
   setTimeout(function(){
     if(tpl.col_name!==undefined)document.getElementById('pl-col-name').value=tpl.col_name;
@@ -1561,6 +1572,7 @@ function onPriceSheetChange(){
   // Матричный режим сбрасываем при смене листа (шаблон листа включит его обратно)
   var _mxOn=document.getElementById('pl-matrix-on');
   if(_mxOn){_mxOn.checked=false;document.getElementById('pl-matrix-cols').style.display='none';}
+  var _kp0=document.getElementById('pl-kitpart');if(_kp0)_kp0.checked=false;
   var store=_getTplStore();
   var tpl=store[sn]||store['sup:'+((document.getElementById('pl-sup').value||'').trim().toLowerCase())];
   var det=_autoDetectSheet(_plData);
@@ -1769,18 +1781,27 @@ function _extractAttrs(name,article,dims){
 function _collectRows(data,cfg){
   var rows=[];
   var currentGroupName='';
+  var noteBuf='',groupStart=0; // примечание-совместимость текущей группы (этап C)
   for(var i=cfg.start-1;i<data.length;i++){
     var row=data[i]||[];
     var nameVal=_plClean(row[cfg.colName]);
     var optNum=_plToNum(row[cfg.colOpt]);
     var artVal=(cfg.colArt!==''&&cfg.colArt!=null)?_plClean(row[parseInt(cfg.colArt)]):'';
     var retVal=(cfg.colRet!==''&&cfg.colRet!=null)?_plToNum(row[parseInt(cfg.colRet)]):0;
-    var rowCategory='';
+    var rowCategory='',rowCompat='';
     if(cfg.cascade){
       if(nameVal&&!optNum){
-        // Заголовок группы (без цены). Но строки-примечания («* …», «Для кроватей: …»)
-        // группу НЕ перезаписывают — иначе варианты ниже получали имя примечания.
-        if(!_plIsNoteRow(nameVal))currentGroupName=nameVal;
+        if(!_plIsNoteRow(nameVal)){
+          // Заголовок группы (без цены) — новая группа, примечание сбрасываем
+          currentGroupName=nameVal;
+          noteBuf='';groupStart=rows.length;
+        }else{
+          // Примечание-совместимость («* кровати СОНЯ…», «Для кроватей: …»):
+          // копим и вешаем на товары текущей группы — и на УЖЕ добавленные
+          // (примечание часто идёт после строк с ценами), и на следующие.
+          noteBuf=(noteBuf?noteBuf+' ':'')+nameVal;
+          for(var bj=groupStart;bj<rows.length;bj++)rows[bj].compatibility=noteBuf.slice(0,900);
+        }
         continue;
       }
       // Размер строки: из характеристики (colArt) или из любой другой ячейки
@@ -1791,6 +1812,8 @@ function _collectRows(data,cfg){
         var _note=nameVal;
         nameVal=(currentGroupName||_note||'Модуль')+' · '+_sz;
         rowCategory=currentGroupName;
+        // Текст совместимости в строке с ценой («Для кроватей: …») → в поле совместимости
+        if(_note&&_note!==currentGroupName&&/для\s|только|кроват|подходит/i.test(_note))rowCompat=_note;
         // Характеристику («900х2000, цвет Орех, кровать одинарная») СОХРАНЯЕМ —
         // из неё умный поиск берёт цвет/тип; примечание дописываем следом.
         var _parts=[];
@@ -1814,7 +1837,8 @@ function _collectRows(data,cfg){
     if(retVal<0||retVal>99999999)retVal=0;
     optNum=Math.round(optNum*100)/100;retVal=Math.round(retVal*100)/100;
     var _at=_extractAttrs(nameVal,artVal,'');
-    rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory,sheet_name:cfg.sheetName||'',dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
+    var _cmp=[noteBuf,rowCompat].filter(Boolean).join(' · ').slice(0,900)||null;
+    rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory,sheet_name:cfg.sheetName||'',compatibility:_cmp,dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
   }
   return rows;
 }
@@ -2120,6 +2144,9 @@ async function _plPreflight(rows){
   catch(e){if(/dim_w|dim_h|dim_d|ptype|color/i.test(e.message))rows.forEach(function(r){delete r.dim_w;delete r.dim_h;delete r.dim_d;delete r.ptype;delete r.color;});}
   try{await sbGet('price_items','select=doors,material&limit=1');}
   catch(e){if(/doors|material/i.test(e.message))rows.forEach(function(r){delete r.doors;delete r.material;});}
+  // Этап C: совместимость и «часть комплекта» (SQL_обновление_6.4)
+  try{await sbGet('price_items','select=compatibility,kit_part&limit=1');}
+  catch(e){if(/compatibility|kit_part/i.test(e.message))rows.forEach(function(r){delete r.compatibility;delete r.kit_part;});}
 }
 // batches: [{sheetName, rows}]; replaceWhole=true — заменить все данные фабрики
 // (или всего поставщика, если фабрика пустая = самостоятельная фабрика)
@@ -2186,7 +2213,8 @@ async function importPriceList(){
     if(colName===''||colOpt===''){toast('⚠️ Выберите колонку с названием и оптовой ценой','err');return;}
     toast('⚠️ Нет данных — проверьте номер строки и колонки','err');return;
   }
-  rows.forEach(function(r){r.factory=factory;});
+  var kitOn=document.getElementById('pl-kitpart')&&document.getElementById('pl-kitpart').checked;
+  rows.forEach(function(r){r.factory=factory;if(kitOn)r.kit_part=true;});
   var btn=document.getElementById('pl-import-btn');
   btn.innerHTML='<span class="spinner"></span> Импорт '+rows.length+' товаров...';
   btn.disabled=true;
@@ -2244,7 +2272,7 @@ async function importAllSheets(){
     var best=null;
     cands.forEach(function(c){if(!best||_plValidCount(c.rows)>_plValidCount(best.rows))best=c;});
     if(!best||!best.rows.length){report.push({sheet:sn,count:0,note:'не удалось определить колонки — импортируйте вручную'});return;}
-    plan.push({sheetName:sn,rows:best.rows,cfg:best.cfg,kind:best.kind});
+    plan.push({sheetName:sn,rows:best.rows,cfg:best.cfg,kind:best.kind,kit:!!(tpl&&tpl.kit_part)});
     report.push({sheet:sn,count:best.rows.length,note:best.src});
   });
   var total=plan.reduce(function(s,p){return s+p.rows.length;},0);
@@ -2254,7 +2282,7 @@ async function importAllSheets(){
     +report.map(function(r){return '• '+r.sheet+': '+(r.count?r.count+' товаров ('+r.note+')':r.note);}).join('\n')
     +'\n\nИтого: '+total+' товаров. Прежние товары '+scopeLbl+' будут заменены. Продолжить?';
   if(!confirm(msg))return;
-  plan.forEach(function(p){p.rows.forEach(function(r){r.factory=factory;});});
+  plan.forEach(function(p){p.rows.forEach(function(r){r.factory=factory;if(p.kit)r.kit_part=true;});});
   var btn=document.getElementById('pl-import-all-btn');
   btn.innerHTML='<span class="spinner"></span> Импорт '+total+' товаров...';btn.disabled=true;
   try{
@@ -2376,7 +2404,7 @@ async function deleteFactory(supplier,factory){
 }
 
 // ── ГЛОБАЛЬНЫЙ ПОИСК ПО ВСЕМ ПРАЙСАМ ────────────────────
-var _gsTimer=null,_gsLastResults=[],_hasCategoryCol=true,_gsFactoryCol=true;
+var _gsTimer=null,_gsLastResults=[],_hasCategoryCol=true,_gsFactoryCol=true,_gsCompatCol=true;
 function retailFromOpt(opt){return Math.ceil(opt*(1+MARKUP_PCT/100)/100)*100;}
 function globalSearch(){
   clearTimeout(_gsTimer);
@@ -2393,13 +2421,18 @@ function _gsRun(q,box){
   var words=q.split(/\s+/).filter(Boolean);
   var params;
   if(words.length>1){
-    var ands=words.map(function(w){return 'product_name.ilike.'+_ilikePat(w);}).join(',');
+    // Каждое слово ищем в названии ИЛИ в совместимости — так «основание карина»
+    // находит комплектующую, у которой «Карина» упомянута только в примечании.
+    var ands=words.map(function(w){
+      var wp=_ilikePat(w);
+      return _gsCompatCol?'or(product_name.ilike.'+wp+',compatibility.ilike.'+wp+')':'product_name.ilike.'+wp;
+    }).join(',');
     params='or=(and('+ands+'),article.ilike.'+_ilikePat(q)+')';
   }else{
     var p=_ilikePat(words[0]);
-    params='or=(product_name.ilike.'+p+',article.ilike.'+p+',supplier.ilike.'+p+')';
+    params='or=(product_name.ilike.'+p+',article.ilike.'+p+',supplier.ilike.'+p+(_gsCompatCol?',compatibility.ilike.'+p:'')+')';
   }
-  var sel='supplier,product_name,price_opt,price_retail,article'+(_hasCategoryCol?',category':'')+(_gsFactoryCol?',factory':'');
+  var sel='supplier,product_name,price_opt,price_retail,article'+(_hasCategoryCol?',category':'')+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'');
   sbGet('price_items','select='+sel+'&'+params+'&limit=30&order=product_name.asc')
   .then(function(rows){
     // если пользователь уже изменил запрос — не перерисовываем устаревший результат
@@ -2413,8 +2446,10 @@ function _gsRun(q,box){
       var sub=[(p.factory||''),p.supplier,(p.category||''),(p.article||'')].filter(Boolean).join(' · ');
       html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
         +'<div style="flex:1;min-width:0">'
-        +'<div style="font-size:13px;font-weight:600">'+p.product_name+'</div>'
+        +'<div style="font-size:13px;font-weight:600">'+p.product_name
+        +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+'</div>'
         +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
+        +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
         +(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
@@ -2426,6 +2461,7 @@ function _gsRun(q,box){
     box.innerHTML=html+'</div>'+(rows.length>=30?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 30 результатов — уточните запрос</div>':'');
   }).catch(function(e){
     var msg=e.message||'';
+    if(_gsCompatCol&&/compatibility|kit_part/i.test(msg)){_gsCompatCol=false;_gsRun(q,box);return;}
     if(_gsFactoryCol&&/factory/i.test(msg)){_gsFactoryCol=false;_gsRun(q,box);return;}
     if(_hasCategoryCol&&/category/i.test(msg)){_hasCategoryCol=false;_gsRun(q,box);return;}
     box.innerHTML='<div style="color:#c62828;font-size:13px;padding:6px 2px">Ошибка поиска: '+msg.slice(0,200)+'</div>';
@@ -2510,7 +2546,10 @@ function _ssRun(q){
   if(P.color)conds.push('or(color.ilike.'+_ilikePat(P.color)+',product_name.ilike.'+_ilikePat(P.color)+')');
   if(P.material)conds.push('or(material.ilike.'+_ilikePat(P.material)+',product_name.ilike.'+_ilikePat(P.material)+')');
   if(doorsVal)conds.push('doors.eq.'+doorsVal);
-  P.free.forEach(function(w){conds.push('product_name.ilike.'+_ilikePat(w));});
+  P.free.forEach(function(w){
+    var wp=_ilikePat(w);
+    conds.push(_gsCompatCol?'or(product_name.ilike.'+wp+',compatibility.ilike.'+wp+')':'product_name.ilike.'+wp);
+  });
   // Текстовые размеры «до/от» — мягкие (размер подходит ИЛИ неизвестен)
   P.cons.forEach(function(c){
     if(c.col==='any'){
@@ -2529,7 +2568,7 @@ function _ssRun(q){
   box.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 2px">Ищу...</div>';
   var sortV=(document.getElementById('ss-sort')||{}).value||'name';
   var order=sortV==='price_asc'?'price_opt.asc.nullslast':(sortV==='price_desc'?'price_opt.desc.nullslast':'product_name.asc');
-  var sel='id,supplier,product_name,price_opt,price_retail,article,ptype,color,dim_w,dim_h,dim_d,doors,material'+(_gsFactoryCol?',factory':'');
+  var sel='id,supplier,product_name,price_opt,price_retail,article,ptype,color,dim_w,dim_h,dim_d,doors,material'+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'');
   sbGet('price_items','select='+sel+'&and=('+conds.join(',')+')&limit=40&order='+order)
   .then(function(rows){
     if(document.getElementById('ss-input').value.trim()!==q)return;
@@ -2542,8 +2581,10 @@ function _ssRun(q){
       var dstr=dparts.join('×');
       var sub=[(p.factory||''),p.supplier,(p.ptype||''),(p.doors?p.doors+'-дв.':''),(dstr?dstr+' мм':''),(p.color||''),(p.material||'')].filter(Boolean).join(' · ');
       html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
-        +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+p.product_name+'</div>'
-        +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')+'</div>'
+        +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+p.product_name
+        +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+'</div>'
+        +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
+        +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')+'</div>'
         +'<div style="text-align:right;flex-shrink:0">'+(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
         +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')+'</div>'
         +'<button title="Править атрибуты" onclick="openAttrEdit('+i+')" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:5px 8px;font-size:12px;flex-shrink:0">✏️</button>'
@@ -2553,12 +2594,17 @@ function _ssRun(q){
     box.innerHTML=html+'</div>'+(rows.length>=40?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 40 — уточните запрос</div>':'');
   }).catch(function(e){
     var msg=e.message||'';
+    if(_gsCompatCol&&/compatibility|kit_part/i.test(msg)){_gsCompatCol=false;_ssRun(q);return;}
     if(/doors|material/i.test(msg)){box.innerHTML='<div style="color:#c62828;font-size:12px;padding:6px 2px">Нужно применить <strong>SQL_обновление_5.8</strong> (двери/материал), затем «Разобрать атрибуты».</div>';return;}
     if(/dim_w|dim_h|dim_d|ptype|color/i.test(msg)){box.innerHTML='<div style="color:#c62828;font-size:12px;padding:6px 2px">Нужно применить <strong>SQL_обновление_5.6</strong> в Supabase, затем нажать «Разобрать атрибуты».</div>';return;}
     box.innerHTML='<div style="color:#c62828;font-size:13px;padding:6px 2px">Ошибка: '+msg.slice(0,200)+'</div>';
   });
 }
-function calcAddFromSmart(i){var p=_ssLast[i];if(!p)return;calcAdd({name:p.product_name,supplier:p.supplier||'',article:p.article||'',opt:p.price_opt||0,retail:p.price_retail||0});}
+function calcAddFromSmart(i){
+  var p=_ssLast[i];if(!p)return;
+  if(p.kit_part)toast('⚠ Это ЧАСТЬ комплекта (корпус или фасад) — цена не полного изделия!','err',5000);
+  calcAdd({name:(p.kit_part?'⚠ ':'')+p.product_name,supplier:p.supplier||'',article:p.article||'',opt:p.price_opt||0,retail:p.price_retail||0});
+}
 var _attrEditId=null,_attrEditIdx=-1;
 function openAttrEdit(i){
   var p=_ssLast[i];if(!p)return;_attrEditId=p.id;_attrEditIdx=i;
@@ -2627,7 +2673,8 @@ function calcToggleOpt(){_calcHideOpt=!_calcHideOpt;try{localStorage.setItem('vd
 function _calcSave(){try{localStorage.setItem('vd_calc',JSON.stringify(_calcItems));}catch(e){}}
 function calcAddFromSearch(idx){
   var p=_gsLastResults[idx];if(!p)return;
-  calcAdd({name:p.product_name,supplier:p.supplier||'',article:p.article||'',opt:p.price_opt||0,retail:p.price_retail||0});
+  if(p.kit_part)toast('⚠ Это ЧАСТЬ комплекта (корпус или фасад) — цена не полного изделия!','err',5000);
+  calcAdd({name:(p.kit_part?'⚠ ':'')+p.product_name,supplier:p.supplier||'',article:p.article||'',opt:p.price_opt||0,retail:p.price_retail||0});
 }
 function calcAdd(it){
   var same=_calcItems.find(function(x){return x.name===it.name&&x.supplier===it.supplier&&x.article===it.article;});
