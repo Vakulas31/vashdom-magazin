@@ -94,13 +94,17 @@ textarea{resize:vertical;min-height:60px}
 .pin-box{background:#fff;border-radius:var(--radius);padding:32px;text-align:center;width:320px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>/* qrcode-generator v1.4.4 (MIT, kazuhikoarase) — локальная генерация QR-кодов без интернета */
+var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1})},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(){var t=n("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
+</script>
 </head>
 <body>
 <div class="topbar">
   <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAoIAAADQCAMAAACk9/DyAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAwBQTFRF0dDJz87K2YqM2NXF6mVf29aY66aO5UhO6eTA5uG/7Rwk4t/F6OLA1aCh0ba367KZ7I174uHd7U5L5eHE29rS/fz7/Pz83XV55a2Z5ePU43h124CC6XFo+fnz3s252aSf7OrY9/Xn15aX393R60FC7uqr6cqs+Pj07Cgt7IFy16Gh4dx/2sq74V5j48Wt41NY6TI55aGQ5z1D53xy+e0Z4d/P3drH6llV3dvR7ORM3tmL6ujZ2djU6ycu2NWk7evY6uJZ6j9C3nV3//IA5t9m7DQ47e3r5ol806yt3NnI5lVW39zG0dC/0MLB4Wts4rik37Wm1a2r5pWG6kxL9o2R+sbI3drC8lVb7ioy0M/K09HI4d3B2tfE/vHx29jDzs3M0tHI8EdNzs3L3NjDzczL1NPH+Kqt1dPG/ePk9HF2/NTW29fE1tTG7zg/39vC4NzB19XG95uf1dPH6OK/2dbF+bi649/A9YCE4t7A82Np3tvC5ODA0c/J3dnD0c/I2dbE6uS/6eS/5eHA5eDA5N/A09HH1tXG2NbF3nZ45+K/4dzB2dfE6+W/6eK///VA4d3A5N/B//h/5+LA5OC/1dTH//y//uUC8EQd//MQ5eG/7iki//qf29jE/dcF6uW///3f6ePA//7vz8HB9GwX7ObA//dg6+a///3P06us//Qg//ZQ//Qw4t/A8lIb5uHA//hw9ocS4tG3/MoH//mP09HJ1aCi+KIOzczM8+kz//uv2tfF95QQ+70J+a8L/PAN+Pbn29fD7Oa/9XoU0M/J3drD39zB32lt818Z49/B4NzC0M7A7TU42NfU7zcg39vB19bV4d7B4NqA1dPI1tPG7umb/uuC2NXG19XF+fJ69/br0tHJ9opS7+zX16Kg+e858OZA497A497Bz83K1bm17rak7F1i1Kys2Mib6OFl8Ohv9vPG8IZ+08W+0M6/6HN369m16te18OY/36qr7+7f5sis491y6EpN7+Y/5NO29+wm6jQ44bek532B8O3X5tS1////Y75V9wAAAQB0Uk5T////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////AFP3ByUAABzpSURBVHja7J13YBzVnccly8Z47qiJbXJOAUKIyQUwDjnSDJc4Fzgu7ciMZlTW6xHyeGatkTQWq/ViGQOy42AbO8IIDDYudNtgIIGjhKMc6SSXcL3kWu4u13uvyvSd8trszqx2Nb/vX2DtSjszn/31917HDAg0q+qAWwACBEGAIAgECIIAQRAIEAQBgiAQIAgCBEEgQBAECIJAgGCrSxDKvClNNFW1/ksRhALcFkCwGewpvChyGMkibwhwjwDBrKQqmswxSNaMEtwtQDB9/CQugaSqocJdAwTTUomXuTqkV8ApA4Jp2L+KjsJLFCtmEmIIphQrHRFFFKZSBVwyINiQCkoULEmsGALGxxasXCXqr3XwyIBg/Q44Ev/JlTIDToUyH0mZq+CQAcF6JIjhwK6cpO4nVELmU1fgfgKCCaUEI0C5niqLasghCKFyDQjWCaDO1x3MhSiUwBICgsxeNACO1mAcF4wnwR0DgmymSwwYwBS8ZyFgUmVITABBKjB8BkarXKO6CiUaQJAMi56N16yl15IBdxkQxJvAanZhWw1CEQwhIIgzgVKmlsqPCcEQAoJoE6h5ZqqSVQmP9xgXoUgICMZU8ioxcoaTBX62LZXhjgOCES/pscE3ydlX4J4DgkF5TljOPFXwUx5wxoBgAAvPCfPN+GuKawh1mCUEBL0w0E1V9Sb1LlQZAkJAMChBarpn9Pw+NI0BwUAiws/5PwoItjSBzR6lKrmmVwMEgUCHwKanBl4KpAGCQGBTajEIBkVgEBD0CZydEp0GDOYewdklEBgEBGebQJ9BHhDMp0qzTqDPoAII5pJAafYJ9BkUAMH8yS2KyLM9LKDNUlEIEJx1ia1B4MyM81XQC4BgzlRpGePjmmMREMxlMtwS7k+Vcp0W5xRB96nXl4genp6empo6vick81+en36kodRcAARzJLmu2fnD01NP7Dm2mqg9x6cOJCbRsclSARDMWSAoJ3jH0een9uxfzawTDyXjUMtxOJhLBIWERuf5J06sTq79xw8cTpiSGIBgPlRw5vTZpuaPHji+un6dmGKk0KmTSyogmCM3zBQITj+0ulGdOHCU5S8ZuXXFOURQYK5JHzi2Og3tf4jFFFbz6opziKDMWBFMCUBbDBAWpJxmxflD0GBzw9MpAmhpiuqOlZzODuYOQcfY0DqyR4+vTlvHpmkfTcxngTp3CGosz/mRY6kTuPq+b9A6cGo+M5K8Ieg85iolCkwfwLsesJwsxfbyuRxfzRuCjrNTm03gk/eypOFOwVIHBOd+QYZvMoG//F1v88w/X8KQkSiA4Fw3guTCxyP70w4CHw8cwvT3S+gFIx0QzLcRPJGND/b0z0voH1ABBAvuGbu+rGN350L7sko3glPpAviluyNnw6743hKqma7TDKqCYPBoGUKpjRAsYI8gF7U2P8pPpRvBo+m64Sfjd3Hed5ZkYAYLSlWinBHPF9oEwTL5SsR2plCjG8EvZ2oCbTM48JElNDOYtDZY4Cn8tcpSLRYES9QLkfh2hbDQ5EjwSfQNvKaTxKBSR4tE0DkmyW2BoMxwJe16qqnTHSZ+gQ5nlAgHtXSg580EBvXEnWKFY5XSBgiW2C6l2paGkOHhPp9eLfBe3M1bWOycIDDI8EWpl0BaV6glEOQZr0Vuw8X/AsOQVmr58K/g792qwc6eDjyDzhwF+9xgiUugNkBQZL2WNpxr0xjCoSdScsJ3k+7d4EDPxNoPLG7kcyYMnXwJrY+gznwxcrsR6FgXSjS0J2MnbOvZgc6Jjl4sg6VEi+wVbo4hmOBq2m3xv8ISY+3JMBMOItjT0bvunYtJMSvrGmc9EYLGnEKQa7N2SZUl00xhUvWub3AsCK7dvh7HoJGgQ1JORGBL2o0GEGwvM1hgWrg5lXEY6MaCnT03re3dOPTz70Z+CDWBJ9ZyjWB7DXTY5kKivarh5siX7qXet4Uugus2/haGQZndE8tzHUFZdKW3vSfWmCq+0w0S+Et0ArmLPQTXf77rZ96N9cRs+R431xGsJVCqEaewrQ7xY8mHTTVG4FdYMFhWtBDseHr7+qGurUgGS8zfcCFSeo5lvOLcQdAMprR2DgZLjD2HhvKRB5gs0enFTssKPr1949Dojn4kgzprNy2MIGK6ISGCBcGR2pIIxuMO3PWoRtV9qVgJBNUlg+eRdSmB5w1c8K0qPF/GkUN6I8q3MQygHMicwJWDxc4eB8GNo127NvwCgsEKa59YoLWAEyBoPrbAvI1coTo5tcybT1SlMG0+dUVIC8EyE4JKmFTdvS/uNIcUq0y5c0bI86FV9w5WUBAaUoJDhEVGs13/vOBdj7OFY/MsP/xax9peE8HPd23tP4hgsMya7gm0wjMrggUlnthIGgmvsvcGHV9sFKoM41VJEJxhQFDR0f3kWhFfw1UV4t+6kkQYdaskmv+QWHsD9bbo7rqbjcBV91t+eMJD8Ib+NdfHGSywBoNpIahg5g2rKks1CHO8fKHKNFWQCEGddj0qsscsCaE2UhljWeNt58AXs0K4+QxbopWYm/SH92dKILd00A4FO6yijIngjv4Na7p/4m3IK1eahWBJTpxDV8JPGMVXIeIOCxkgKOCtVrQvJOHqiTrhakPtzwKhIEaPmlhDwXqr08wErrjf8sMmgr2969ZbCL7wypotcQYrjJXBVBAkt5mRZ9ULUSujUv809ik14ohLiS4F+b4SqdZdJXQ3Q2+kVpwdt8GWwR89liGB3PmDnh82EbzTRHCX6Ym/OhxlUGH8yqSBIK3BgnKzMW8nMoCtpp6OSHUSGLwPPIlp0rSlQfwyoJsIjHXM6QwJvHTQNYJmKLhu/ZCLYPeNIxEGVcbAIQUE6S2+uJtVGWZw4klBpXEEq8QR3JLE+hxE3B0q4w1d1ERqyQZAEnVzpjIjcKXlhj0juHH90GjXDTaC3cN9b3pb/AOXmoBghaUVW5ghGQCkm1WYO7oJEDSICxEKzATiEeRJ8Qbp1tJcLHs2YuuhjAhc9WjRcsO2EbRCQQvBF0wEt3QPj+wNMyiyme2GEWRzXTIpREInk4iXYDoDrAgWylH3L1GiA6bxcdINUtgRpOUjZZbQatqUe1LDiYwIdNzwn77D1HY7G+m6od9G8MaRvk0hBitswWujCLK6rgqixEW2SKjfUm5kTEGiTT8aXOoI8qTkR6J1puK/isjp4YfcYsyeJ0wMlzyUFYG/+LGF7v9e+w4zFOza2r/BRvBrfX3jQQZ5ttVGjSLIPGgj4EMkZFxmMIDMhCCzbU7ghutFUCB8UBqCVJsSKkgfmzo68zusCD7OHAeePlictzL4L9e+t2uHh+Dwzr7Htr3pd8NsiVkjyNf3uBX6CLNMicBSQDBSCEo2Odl0BGmRVdTo7Z+aedflKfaFnZL0+Ssi//bR95rZiI/gpvHNi84LGRopYwSTGA6F+rQNcsqMjcbrRDCSp6tcayMok9tziBT4xCNv+dkUCVz56OCnLo3/87939QcR3DZZY5AtgWoMQYQRlHlBEIwqOZ3VqYaykmD1VH0IRivmqGsxBLUkVPSWQJA8qYXcQmH/9FlvvESdUGW8XxffX7xmBXJm4eAra6yijIXg98e3bZ4cOy9RGakxBGNGUPI8hSoTcokCveWgJ1g9VReCBnIIINIWJoQbs4Ng0hrMgbOufCklAgeLP1qF7tf19K9Zs8VBsO+b4/tuPXn7eQF2hEwRjIV0wWEQDZ9ulKlps4B5RTU9K6iRp7hC16LMPoIqMbA6iiPsr8/6afI6EfaWyOmrMD+7ZmLD9RaCXzMRfGx8862Lxo6c1ywEq8T4XsRW9XDVbJ2aGkhppiNiiRCehiNFY9YRJKeX2H1kXvqXs/6ysZVK/mTCSmyWMvB7B00Eh0ccBPdN3jZ2y3k+H0amCJLLdqqE+zG2BFwm1Q2xkUUqS9l1sqMWWxtBfD/uuU+c9V+NFwSfKRa/jreQxc5eKxsZ6evbZCK4edI0gze/7F09nyWCAqVkwuP8LN45UlsuSqoI1kq9BUovUGhtBAll6Dc+8a6GC4KmGz4N/9OFg509vdc7CH7TRPCek2O3n3ro5WYgyFN6F9GSjUgJ9Gq+ukpnJh0E/d8n0LIVvaURJGzi8dInP7En+dZZYZ1eHFhI+PHgQM9NvVuGd+7t2zRuIbjoJ8duuXn3y01AsEqL0zT0YzNoxcMCe7O5UQQ9s8rTHH5llhE0iP050j4yH+/8jcaSYcsIvocjItg50fFr3TaC2ywEbzM98aFXX84eQZmWrZbRzzWMri7FnkPID8vUSQUygobgSeER22m70xE8bSZHmWUEyY+ThODlxZ7LG0mGOe58shG0d/fo6F1/Y18AwVNv3v3q32SOIEeb41LRheUwB5oWozREXZk6qZBkXtCQ0GawSuNBaFsEV7/RiWqS3HUvK4GrBn94OkdFcO32oW+Z2cgX95npiImg6YlfvajZCAqYcmr0FREwjXI0BlPDtpUGerLB/dhoj4y6zPg8RKF9EfyPgQWNzCZYfvjTxIqNt8fR6M7x8W37bp08aSN46OFWQFBGvUKJ/qMe8YB82EiJtCeVCMF4JFpgGw5vaQTJyzb/rrOBVMReNbyC9PPaHkddfaYfNhG8w0ZwdysgKKJeoUWfZSXSpNPDOU6FNqmQDMHYaIXQFggqxOE78hbnbww8F9tENUHG9mjxR+QBmqK/x9HW75uh4OTJMQvBm1sXQTl659WwCyxFiiZlbCO5LgRjFR8D8UmrLRcLUobviCuHP1iMBoP33ZsAwcHiMlrJxkVwqKv/T+xspHUQRL2iEI+65JDZ0yJvUWmTCgkR5FFplNbq6QgFQeKI9OWD/xb5l7sTEGj62UuJQ1zOwva1vdvXD43u2DA+mRBBIz0EFTYEhfi7Qh+iHFsyLlEMVBoI8hzF3fOtjSD5vJtvL6g7ELSykYFVlFCxs6dnwtrd487Rrl1rtp1MhiBPibMSIFihWg4B8VRUYimaj38EPRMEDUqnJ9YknhUECVtGEnPiBVeG/vfFRMX7pcVPkfPhwAYzo11b+6/fPDZ2+5FTTQTPxlTR0kNQpDUuDHruKZEbcioG2tQRFCiNQHW2e8QF8rwgefH6x4v1VQRdBE8jGsFBb1nxOnePo+5J0wieambEZzMNa1Vo3S/2Bl2cDRnVwUPdeNwAIfKnSsrpCI/sCaqUmeoWG1ml9OiKwf7INxIRyD1DzEZWPOvvreAiuOH67pOWHz60+wImBEXaXSAgaFDaIyoKqBLyPVKClnGlwaIMemIrOuVdJRvBWUKQMAX/CAHB54rPJdzJN1ST+RjRCIY3mDERXLNl+A4bQVxHlTAAwidDsIRut2KnFFBBV5k0our9Qp3s8JMhGPtTAnqMNph5F+TZR5A6gkxIip8b/Kf66jGWni1eTEyHIxvMWFsrfPVbYyaCD9MMN+LbXU6GYMx2aeQROwHhBgtomsO/r0qeVEiEII+ONxGfwCAROEsIkrbrI2yuevngx+tozPkd4IUkLx3dYOYFZ4+jI4d2n4HOHokJQyEhghpHqMvEuhASwqLpuHG80BPjyXYtwXbnqK1gsZ9AdN+qoD5c0xGkTz4RDhypIZjUDZt2joDg1wf9DWa2BzaY6e4e3ju2+xSWyyrotGyEiKDA4RmML6GrIIKq6gxhhlDH/B0+EYIa70pDnzyiYc2j+QmqPC+i49SmI2gQO3SUjGTwQ4kntAKVaSyCqwK7bNkI+hvMDO/ce+QidKkuyJ8ghDHRBIQiJIXXncWfqbu7dCE+FOU4PAXj7FALySuMD6uhkVU/+ki2n0fzEaQVBq2MBOuKBxfU0RahI3i+bwSftv2wvcGMv8fRFRS7LchcndJrm5ij1njIFR41Gure4grumYiYoiAiXZXSRFAnRIkthSDLjpFfpiH4leSPeyl+XvViJxepGcHR2gYzI319lJqMwjUihRjCoYWaUeBIH0jGBp2l9Af3Z9La1qhuUff/kdBDGkyuePCT9WXDnH3QEgbBFa4bvslLRqyN3gIbzJDLSAm9DtZ7Cczv0FDPSyZ9IgVbgTTSQ1AmrDNoLoLUXdCoKTEhKx4c+GBd2bC9qWrnQlzBsLbZZc0I+gieg/JYhLnNhJKR3RWC3BKfgK8yx9LrAjbv0VJDMLxgvZrgjTOkEKIeUdv5TMcZYfp03x7ovHLBgr84LbkGTc7QA6vLfDdspcOuEdzab20wYyN4Ndm2Vxu9YSqhZEYwmwa+iFMmFRmJ3egOQrWd2Q0nuZjwrdXSQZC660CZno/M4Ba1f9CE5YfFujTQuQwzQBN2w5YRdPywu8HMfPIXq+FvroBdi0H8ilcIQZ1OmFUROcI4RUfd1xZ1a+zbnVfTCqtxAS4uH6H2u9Dh4B99aMGCP3iPqWVfYNV7HJ1/MSkQ9N2wbQR9P2xtMPM6eU4mPQSZHpuG/rsSfmIiUlWvkPojHbT+B86Zko7rYrdZjcbVqOvFN1Ops0/Yo5de5NLUM04g6LthOxJ0jKCN4MgllG9MiggyPDYN83dJowB83AnhihsRBEusvhSVrOEvRsQUjJJWc+r1w67Hpx9nhKvM3J0mgV49xnHDVi7iRIKeERweuY4SN6SJIJVBDfd3y4QPpSIqEmwIsgW6Oia3VGXcRYjYCorc+CNlOb9cYbSWx+o/6ppVq4L1GMcNW+lwzQgOj1xB+cKkiuBMgfTrJOwOv6StgyqkuUZyLMiSVYgK6xRvzUgFv2lCvWkMjsACA4IqudDmC3ke8V33pong0sFgPaaWi7hGsHt4eOdyStiQLoKoTQrQ7q5ESgYCnMVOtAwFXBUygpjBglrjVyE/RjWW4zo7EdYYjH1yvqF4kHTSbczaGvWZwQdSN4JuIOhkw34uYiL4VcsIXkZr5qSN4ExBQz4EUcB3ZeIlLt+aIA7mLOPf2IHCSOCRKgtM9ia0v3RVCLMpo5pOmL/HIqbzsP2vKIPLPpB1LuIMyPiBoOOGrVzkoGMETQTfSiu3hxDUmW6URkTQmkyIuiNJQxQaSiLG1QY8OvJoWO/E4/iZ6B0zGcg6MV4TNd4IX6kgCOrMbKnE6IkRq4ofTxXB0/05VacoXXPDXiTolGSMRub1MZMaBASdxyY6HOqiZuAKXSW+KooVzE/Lmlg10IaqYFjvo29rNIclMXriJ+rex41Jl7rD+h21ekzNDTtG8BzqtyUbBGdJ+UFQY/TEsVXF300VwXk1I1gLBE03bOYinhGcT/2kgGBbitkTR85AfDJVArn7A0awFgjW3PDwSN9yqr0GBNtTOlt1OtIpTrcg4/rhcG847IZ3XkdvJgKC7akKeQDK1yNZGsF5wUVztXrMQd8Nj/R9jj5+Bgi2p1SOYWgwmhPfly6BZj4cXDTntkV8N2wZwUs4ejsbEGxTiYwP7HhWVWlnE5nQorlgPab7xl8d2bl3PkMrkecIzTC0CoRZFUCwWVLYBruCswppG8GLrU1VewLD+n49xnPDTy1nmMEtJZpUc1RN2FUHBDNLSDTqy6YzM4JOKDgRNoK1eozphve+jylxr5IaZRhsJeyMCyDYNPGMdZnMjCD3qJcPh9aL1LLhvY4RpGJVG26pMvvU2uaTxgwgOEty5jXoZuNEVkaQc0PB8KI5n8CRvr6rWX2rYkNYVRJcvqrpdutXmAEEW90MHs/KCK60QsHXnJ20Aovm/KK0awTFXD2UfCGoskVPU1kZQfuIhwl/J62AEXQCwb73tVzJBBBMWRqTnzuQkRF0jnhwNlVdHzCCXiDYl0cjmDcEnWiQ9oynMzKC3DInG7FCQdsPB4f1zUAwl0Ywbwi60SDlIR/OyAhyz7hHPFihYM0P+0bwEi6HRjB3CDpmkLaOKSMjyJ1WtAvTT7ubqgYXzZkEOt1hTgUE57YMjqH7kMGIjFcWtBPi7V4oWPPDphu+LFGpGRBsW9ktEolsavanPyJj69mif8SDtanqrpARfOrnkIvPAME5J4Eh4LIKgxkYwVVeTcbfVHVDwAi+tQU7F4BgJqrSH/XRv3rOXjGyciFCK4mVP6ScKZmljwYQdEJBdyctywie03oDBIBgphkJ2RUv+cO77dGqlLTQsYFFpyxoJcRONlLzw64bZh17AQTbWwqDvXnR2fdgIB3Ns//iNQOdTlnQSojdqqDvh+cnmP0DBNteIjUrnn7AW/KbjuyNLpdZs4I1BP1sxPLDTjasFwDBPLliUoH6N90dsKzNX9LQF+ylS1Y+PGGVBZ2Dbvr7D1p1acsIXrI8r244pwi6O5wQwsHfd3oZzlKjiCZquimiwI8mQu/5WycYtNywc/LrkHPEg7Op6shTF7BUKwHBuSSNsidXlfNOTLe2H0pBn3ZqMj0T1mZGHoIb3H2MnMXrecyGc4yguwkUthOh/u/SZffX9j1oXOvmLbVrMlY+vN2qTNcS4uGRqzmGcjkgOMfkrqTAVgeXfK9o78b7mjNln4J67O3Pezp611lr2Gs1mRuHL+PyOCCTewS9De+wg+9LvmNlsv6SX6o2bqS9qMP+hR1rtztbyVg1mYNWNvI/y3McCOYZQW8tLjYJXfKRnp7Akl+C7gwL+7q19i9c27vx14f8smB392eW53M6ARD0UhKJwOBE4Hyu0RTUayXK1pDCaJc9LGjVZN5+AftuxYDg3ExJCAy+ucM5lsFZ8puC1nV02B1iaw27jeCWt3+Uy+d8DCDIyKCVDfvnc9V0Q2K5b9zo1GSGzN+2yzr51SOwNAMI5lKqRGWwt3ZEnMlM47rT/oVDozv6rUktIDDvCHqlGQKDH1jnnY5kTdmnoFH7F4527XrFJ5BTZgDB3DMo4Blc756OZCWwBy2taUQHD/628wu39q/57H8DgYCgv9kPFoPF7xxytgF0lvymoB1DQ/aQwmeXA4GAYIBBHs9gV1do85eG1W//wutWAYGAYIhBrYBncEdtvWVKDO74KeyJpoBg/vJi99ghGTcmsPj9W3ftqi01IunGkLAvW/PeaznIhQFBX97ZaViLtPj9/cHTkRrXZ9xUWAcCAUGHQY2ybfPi928InM/V16iuXs7lvSsHCEbl7R8uY8zS4res8Y9lcDna6ygxf3ufuiLhFr2AYC5Uxh4U6erDW7b4+x5sakSXLW/J7XYBwZZJSiKHQAcY7HaPZejbu+mb4/XqP6/gIBEBBDHyDxXHHLL9YetoGtsPbxr/421RfTEg/A+8KJATIQwEBPHOmNPRqfGHh53deDc9Nr5tM1n7gvL+8dZzLuAo7h4QzHtm7B/nISKbxueO2OnwpvHxbfs232PrVnb963yOkvQAgqDA2RwaKiQ818qAHSN46+TkoqgmCfp/H0CJh/sMCBIMocaRIDzXJNA1gpMn77gNrTt83bbI/Z8L56/iKOkOIAhyJcg+hNW4O77qscfMvHbb5n33LFp02xijLvQtIC7MBARBQSm109rk2BzLVTaBph9edMfY2O0YhQA85XNczQdDIgwIMnljvgahVInkDlfZ2fA9k5YRPHJLTEfCuvCi1wMnFgKAgGA9EHKyEQrffrDZN4JHbrk5oBiO/3jdBYENWDUIAgHBuiHkZD5gC39wzz2TrhE89WasLjzzbA4ABAQbglDRgwzpmuJR9INFi3wjeOjQ7pgO/cMpb309+F6IAQHBOlWuhjcz16uGYMH0f7dZ2fDtR0wjeGj3ww9aetjVq2ecOf+C8LtEBe4kIFi3VEOPbqqvixX+z85YZBlBG8EHX7UZfPCMM8686OzXY6+ugAcGBBtUqaKjD3g4O6DlyFdIGpQBAcF0KOTl5AfdyBUB7hwgmGJyUq4kwDCQu4AAwRQxFPiqTqNPEvky4AcIZilB4TURQaIuVnlFgOoLINi8ZFkICOweIAgCBEEgQBAECIJAgCAIEASBAEEQIAgCAYIgQBAEYtKPBRgA/8odi0C99pUAAAAASUVORK5CYII=" class="topbar-logo" alt="Ваш Дом">
   <span id="conn-status" style="font-size:12px;color:#aaa">● Подключение...</span>
   <button onclick="openMarkupModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">⚙️ <span id="markup-display">50</span>%</button>
-  <button onclick="printActiveOrders()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">🖨 Заказы в работе</button>
+  <button onclick="printOrdersJournal('active')" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">🖨 В работе</button>
+  <button onclick="printOrdersJournal('all')" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">🖨 Все</button>
 </div>
 <div class="nav">
   <button class="nav-btn active" onclick="showPage('orders')">📋 Заказы</button>
@@ -110,7 +114,7 @@ textarea{resize:vertical;min-height:60px}
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v5.6</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v5.9</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -886,7 +890,7 @@ function orderCard(o){
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
   var hdrBg=isDone?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
 
-  var itemsHtml='';
+  var itemsHtml='',delivCnt=0;
   for(var i=0;i<items.length;i++){
     var it=items[i];
     var parts=[it.product_name];
@@ -897,11 +901,17 @@ function orderCard(o){
     var supTag=it.supplier_manual?'<span class="tag-sup">'+it.supplier_manual+'</span>':'';
     var qtyTag=it.qty>1?'<span class="tag-qty">'+it.qty+' шт.</span>':'';
     var availClass=it.availability==='Есть'?'badge-yes':'badge-order';
-    itemsHtml+='<div class="item-row-compact">'+
-      '<div class="item-info"><span class="item-text"><strong>'+it.product_name+'</strong>'+(parts.length>1?' · '+parts.slice(1).join(' · '):'')+'</span>'+
+    // Отметка «отвезено клиенту» по каждому товару отдельно (частичная доставка заказа)
+    var dlv=!!it.delivered_at;if(dlv)delivCnt++;
+    var dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="'+(dlv?'Товар у клиента. Нажмите, чтобы снять отметку':'Нажмите, когда товар отвезён клиенту')+'" '
+      +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;'
+      +(dlv?'background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7':'background:#FFF8E1;color:#B26A00;border:1px dashed #E0B252')+'">'
+      +(dlv?'✅ Отвезено '+fmtDate(it.delivered_at):'🚚 Не отвезено')+'</button>';
+    itemsHtml+='<div class="item-row-compact"'+(dlv?' style="background:#F4FBF4"':'')+'>'+
+      '<div class="item-info"><span class="item-text"'+(dlv?' style="opacity:.75"':'')+'><strong>'+it.product_name+'</strong>'+(parts.length>1?' · '+parts.slice(1).join(' · '):'')+'</span>'+
       (it.qty>1?'<span class="tag-qty" style="margin-left:6px">'+it.qty+' шт.</span>':'')+
       '</div>'+
-      '<div class="item-avail">'+
+      '<div class="item-avail">'+dlvBtn+
       '<span class="item-price" style="margin-right:8px">'+price+' ₽</span>'+
       '<span class="badge '+availClass+'">'+it.availability+'</span>'+
       supTag+'</div></div>';
@@ -942,6 +952,15 @@ function orderCard(o){
 
   var activeBadge=!isDone?'<span style="font-size:11px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:20px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
 
+  // Бейдж «отвезено X из Y» — виден сразу в шапке заказа, если товаров несколько
+  var dlvBadge='';
+  if(items.length>1&&delivCnt>0){
+    var allDlv=delivCnt===items.length;
+    dlvBadge='<span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700;margin-right:6px;flex-shrink:0;'
+      +(allDlv?'background:#E8F5E9;color:#1B5E20':'background:#FFF3E0;color:#E65100')+'">'
+      +'🚚 '+delivCnt+' из '+items.length+' отвезено</span>';
+  }
+
   return '<div class="'+cardClass+'">'+
     '<div class="order-hdr" style="'+hdrBg+(isDone?';cursor:pointer':'')+'">'+
     (isDone?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
@@ -949,13 +968,14 @@ function orderCard(o){
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
     '<span style="margin:0 6px;color:#ddd">|</span><strong>'+o.client_name+'</strong></div>'+
     (contactTags?'<div style="margin-top:4px">'+contactTags+'</div>':'')+
-    '</div>'+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
+    '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
     '<div id="order-body-'+o.id+'" style="'+(isDone?'display:none':'')+'">'+
     (itemsHtml||'')+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
     '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(o.goods_discounted||o.goods_total||0)+' ₽</div></div>'+
     ftrDeliv+ftrPre+ftrDebt+ftrClose+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+    '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1565C0;border-color:#1565C0">🖨 Наряд</button>'+
     '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px;color:var(--dark);border-color:var(--dark)">🖨 Договор</button>'+
     '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px;color:#2e7d32;border-color:#2e7d32">📋 Акт</button>'+
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'+
@@ -970,6 +990,20 @@ function toggleOrderBody(id){
   if(!body)return;
   if(body.style.display==='none'){body.style.display='';if(btn)btn.textContent='свернуть ↑';}
   else{body.style.display='none';if(btn)btn.textContent='развернуть ↓';}
+}
+
+// ── ОТМЕТКА «ТОВАР ОТВЕЗЁН КЛИЕНТУ» (по каждой позиции отдельно) ──
+function toggleItemDelivered(itemId,orderId){
+  var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
+  var it=(o.order_items||[]).find(function(x){return x.id===itemId;});if(!it)return;
+  var newVal=it.delivered_at?null:new Date().toISOString().split('T')[0];
+  sbPatch('order_items',{delivered_at:newVal},'id=eq.'+itemId).then(function(){
+    it.delivered_at=newVal;
+    toast(newVal?'🚚 Отмечено: «'+(it.product_name||'товар')+'» отвезён клиенту':'↩️ Отметка «отвезено» снята');
+    _paintOrders();
+  }).catch(function(e){
+    toast('❌ Не сохранилось: '+e.message+'. Выполните SQL_обновление_5.9 в Supabase','err',6000);
+  });
 }
 
 // Универсальный debounce (для живых полей поиска)
@@ -2356,8 +2390,20 @@ function searchPriceItems(id,q){
 
 // ── ЦЕННИКИ ─────────────────────────────────────────────
 function qrDataUrl(text,size){
-  // QR через Google Charts API (работает без дополнительных библиотек)
+  // QR генерируется ЛОКАЛЬНО встроенной библиотекой (data:URL) — печатается всегда,
+  // даже без интернета. Раньше был внешний сервис api.qrserver.com — он не грузился,
+  // и на печать выходило пустое место.
   if(!text)return '';
+  try{
+    if(typeof qrcode!=='undefined'){
+      qrcode.stringToBytes=qrcode.stringToBytesFuncs['UTF-8']; // поддержка кириллицы в QR
+      var qr=qrcode(0,'M');qr.addData(String(text),'Byte');qr.make();
+      var n=qr.getModuleCount();
+      var cell=Math.max(2,Math.round((size||100)/(n+8)));
+      return qr.createDataURL(cell,cell*4); // тихая зона 4 модуля по стандарту
+    }
+  }catch(e){}
+  // Резерв, если библиотека вдруг не загрузилась
   return'https://api.qrserver.com/v1/create-qr-code/?size='+size+'x'+size+'&data='+encodeURIComponent(text);
 }
 // Единый шаблон ценника (мм/pt) — предпросмотр и печать используют ОДИН и тот же код,
@@ -2635,24 +2681,31 @@ function printLabelSheet(){
   _openPrintWindow(html);
 }
 
-// ── ПЕЧАТЬ АКТИВНЫХ ЗАКАЗОВ ──────────────────────────────
-function printActiveOrders(){
-  var active=allOrders.filter(function(o){
+// ── ПЕЧАТЬ ЖУРНАЛА ЗАКАЗОВ (в работе / все) ──────────────
+function printActiveOrders(){printOrdersJournal('active');}
+function printOrdersJournal(mode){
+  mode=mode||'active';
+  var list=allOrders.filter(function(o){
+    if(mode==='all')return true;
     var s=o.status||'';
     return s.indexOf('Выполнен')<0;
   }).slice().reverse(); // от самого давнего к свежему
-  if(!active.length){toast('Нет заказов в работе','err');return;}
+  if(!list.length){toast(mode==='all'?'Заказов нет':'Нет заказов в работе','err');return;}
+  var title=mode==='all'?'📋 Все заказы':'📋 Заказы в работе';
 
   var rows='';
-  active.forEach(function(o,idx){
+  list.forEach(function(o,idx){
     var items=o.order_items||[];
+    var anyDlv=items.some(function(it){return!!it.delivered_at;});
     var itemsStr=items.map(function(it){
       var parts=[it.product_name];
       if(it.color)parts.push(it.color);
       if(it.dims)parts.push(it.dims);
       if(it.fabric_category)parts.push('кат.'+it.fabric_category);
       if(it.qty>1)parts.push(it.qty+' шт.');
-      return parts.join(', ');
+      // Отметка частичной доставки: ✅ отвезено / ⏳ ещё нет (если в заказе что-то уже отвезли)
+      var mark=it.delivered_at?'<span style="color:#1B5E20">✅</span> ':(anyDlv?'<span style="color:#E65100">⏳</span> ':'');
+      return mark+parts.join(', ')+(it.delivered_at?' <span style="color:#1B5E20;font-size:7px">(отв. '+fmtDate(it.delivered_at)+')</span>':'');
     }).join('<br>');
 
     var goodsTotal=o.goods_discounted||o.goods_total||0;
@@ -2686,7 +2739,7 @@ function printActiveOrders(){
       +'</tr>';
   });
 
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Заказы в работе</title><style>'
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+title.replace('📋 ','')+'</title><style>'
     +'@page{size:A4 landscape;margin:8mm}'
     +'body{font-family:Arial,sans-serif;font-size:8.5px;color:#111;margin:0}'
     +'.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;border-bottom:2px solid #333;padding-bottom:4px}'
@@ -2712,7 +2765,7 @@ function printActiveOrders(){
     +'.green{color:#1B5E20}'
     +'</style></head><body>'
     +'<div class="header">'
-    +'<h1>📋 Заказы в работе — '+active.length+' шт.</h1>'
+    +'<h1>'+title+' — '+list.length+' шт.</h1>'
     +'<div class="dt">'+new Date().toLocaleDateString('ru-RU')+', '
     +new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+'</div>'
     +'</div>'
@@ -2730,6 +2783,113 @@ function printActiveOrders(){
   var w=window.open('','_blank');
   w.document.write(html);w.document.close();
   setTimeout(function(){w.print();},400);
+}
+
+// ── ПЕЧАТЬ ОДНОГО ЗАКАЗА: «НАРЯД НА ДОСТАВКУ» (A4) ──────
+function printOrder(id){
+  var o=allOrders.find(function(x){return x.id===id;});
+  if(!o){toast('Заказ не найден','err');return;}
+  var items=o.order_items||[];
+  var isDone=(o.status||'')==='🏁 Выполнен';
+
+  // Таблица товаров: отметка отвезено (✅ с датой) или пустой квадрат — отметить ручкой при доставке
+  var itemRows='';
+  items.forEach(function(it,i){
+    var det=[];
+    if(it.color)det.push('Цвет/ткань: '+it.color);
+    if(it.dims)det.push('Размер: '+it.dims);
+    if(it.fabric_category)det.push('Категория ткани: '+it.fabric_category);
+    if(it.supplier_manual)det.push('Поставщик: '+it.supplier_manual);
+    var sum=fmt((it.price_discounted||it.price_retail||0)*(it.qty||1));
+    var dlv=it.delivered_at
+      ?'<span class="dlv-yes">✅ Отвезено<br>'+fmtDate(it.delivered_at)+'</span>'
+      :'<span class="dlv-no">☐<br><span style="font-size:8px;color:#999">отметить</span></span>';
+    itemRows+='<tr'+(it.delivered_at?' class="row-dlv"':'')+'>'
+      +'<td class="c">'+(i+1)+'</td>'
+      +'<td><strong>'+(it.product_name||'—')+'</strong>'+(det.length?'<br><span class="det">'+det.join(' · ')+'</span>':'')+'</td>'
+      +'<td class="c">'+(it.qty||1)+'</td>'
+      +'<td class="r">'+sum+' ₽</td>'
+      +'<td class="c dlv">'+dlv+'</td></tr>';
+  });
+
+  // Деньги
+  var goodsTotal=o.goods_discounted||o.goods_total||0;
+  var prepay=o.prepayment||0;
+  var goodsDebt=o.remainder||0;
+  var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
+  var delivExternal=o.delivery_our===false;
+  var delivPaid=o.delivery_paid==='yes';
+  var delivDebt=(delivPaid||delivExternal)?0:delivCost;
+  var totalDebt=goodsDebt+delivDebt;
+  var moneyRows='';
+  moneyRows+='<div class="mrow"><span>Товары по заказу</span><strong>'+fmt(goodsTotal)+' ₽</strong></div>';
+  if(prepay>0)moneyRows+='<div class="mrow"><span>Предоплата'+(o.payment_method?' ('+o.payment_method+')':'')+'</span><strong>− '+fmt(prepay)+' ₽</strong></div>';
+  if(delivCost>0){
+    var dparts=[];
+    if(o.delivery_cost>0)dparts.push('доставка '+fmt(o.delivery_cost)+' ₽');
+    if(o.lifting_cost>0)dparts.push('занос '+fmt(o.lifting_cost)+' ₽');
+    moneyRows+='<div class="mrow"><span>Доставка/занос ('+dparts.join(' + ')+')</span><strong>'
+      +(delivExternal?'<span style="color:#888">сторонняя — курьеру напрямую</span>':(delivPaid?'<span style="color:#1B5E20">оплачено ✅</span>':fmt(delivCost)+' ₽'))
+      +'</strong></div>';
+  }
+  var debtHtml=totalDebt>0
+    ?'<div class="debt-box red">💰 ВЗЯТЬ С КЛИЕНТА: <span>'+fmt(totalDebt)+' ₽</span></div>'
+    :'<div class="debt-box green">✅ Всё оплачено — долга нет</div>';
+
+  var phones=[o.client_phone,o.client_phone2].filter(Boolean).join(' · ');
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Заказ №'+o.order_number+'</title><style>'
+    +'@page{size:A4 portrait;margin:12mm}'
+    +'body{font-family:Arial,sans-serif;color:#111;margin:0;font-size:12px}'
+    +'.hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1B5E20;padding-bottom:8px;margin-bottom:12px}'
+    +'.hdr img{height:34px}'
+    +'.hdr .t{text-align:right}'
+    +'.hdr h1{font-size:20px;margin:0}'
+    +'.hdr .sub{font-size:11px;color:#555}'
+    +'.status-line{margin-bottom:10px;font-size:12px}'
+    +'.sbadge{background:#eee;padding:2px 8px;border-radius:4px;font-weight:700}'
+    +'.client-box{background:#F5F8F5;border:1.5px solid #C8E0C9;border-radius:8px;padding:10px 14px;margin-bottom:12px}'
+    +'.client-box .nm{font-size:17px;font-weight:800}'
+    +'.client-box .ln{font-size:14px;margin-top:3px}'
+    +'.client-box .ph{font-weight:700;color:#1565C0}'
+    +'.client-box .ad{font-weight:700;color:#E65100}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:12px}'
+    +'th{background:#2c2c2c;color:#fff;padding:5px 7px;text-align:left;font-size:10px}'
+    +'td{padding:6px 7px;border-bottom:1px solid #ccc;vertical-align:top;font-size:12px}'
+    +'td.c{text-align:center}td.r{text-align:right;white-space:nowrap;font-weight:700}'
+    +'.det{font-size:10.5px;color:#444}'
+    +'.dlv{width:72px}'
+    +'.dlv-yes{color:#1B5E20;font-weight:700;font-size:10px}'
+    +'.dlv-no{font-size:20px;line-height:.9;color:#555}'
+    +'.row-dlv td{background:#F1F8F1}'
+    +'.money{width:64%;margin-left:auto}'
+    +'.mrow{display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px dashed #bbb;font-size:12.5px}'
+    +'.debt-box{margin-top:8px;padding:9px 12px;border-radius:8px;font-size:16px;font-weight:800;text-align:right}'
+    +'.debt-box.red{background:#FDECEA;color:#C62828;border:2px solid #C62828}'
+    +'.debt-box.red span{font-size:20px}'
+    +'.debt-box.green{background:#E8F5E9;color:#1B5E20;border:2px solid #1B5E20}'
+    +'.note{background:#FFF9E6;border-left:4px solid #E0B252;padding:7px 10px;margin-bottom:10px;font-size:12px}'
+    +'.sign{display:flex;justify-content:space-between;gap:30px;margin-top:26px;font-size:11px;color:#555}'
+    +'.sign div{flex:1;border-top:1px solid #888;padding-top:4px;text-align:center}'
+    +'</style></head><body>'
+    +'<div class="hdr"><img src="'+LOGO+'" alt="Ваш Дом">'
+    +'<div class="t"><h1>Заказ №'+o.order_number+'</h1>'
+    +'<div class="sub">от '+fmtDate(o.order_date)+(o.manager?' · менеджер: '+o.manager:'')+'</div></div></div>'
+    +'<div class="status-line">Статус: <span class="sbadge">'+(o.status||'—')+'</span>'
+    +(o.delivery_date?' &nbsp; 📦 Доставка: <strong>'+fmtDate(o.delivery_date)+'</strong>':'')
+    +(isDone&&o.closed_at?' &nbsp; 🏁 Закрыт: '+fmtDate(o.closed_at):'')+'</div>'
+    +'<div class="client-box"><div class="nm">'+(o.client_name||'—')+'</div>'
+    +(phones?'<div class="ln">📞 <span class="ph">'+phones+'</span></div>':'')
+    +(o.client_address?'<div class="ln">📍 <span class="ad">'+o.client_address+'</span></div>':'')
+    +'</div>'
+    +(o.notes?'<div class="note">📝 '+o.notes+'</div>':'')
+    +'<table><thead><tr><th style="width:24px">№</th><th>Товар</th><th style="width:36px;text-align:center">Кол-во</th><th style="width:80px;text-align:right">Сумма</th><th style="width:76px;text-align:center">Отвезено</th></tr></thead>'
+    +'<tbody>'+itemRows+'</tbody></table>'
+    +'<div class="money">'+moneyRows+debtHtml+'</div>'
+    +'<div class="sign"><div>Доставил (подпись)</div><div>Получил, претензий не имею (подпись клиента)</div></div>'
+    +'<div style="margin-top:14px;font-size:9px;color:#999;text-align:center">Магазин «Ваш Дом», г. Короча · напечатано '
+    +new Date().toLocaleDateString('ru-RU')+' '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+'</div>'
+    +'</body></html>';
+  _openPrintWindow(html);
 }
 
 // ── УДАЛЕНИЕ С PIN-КОДОМ ────────────────────────────────
