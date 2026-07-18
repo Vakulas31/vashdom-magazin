@@ -1,0 +1,30 @@
+name: Скрейпер каталога Браво Мебель
+
+on:
+  workflow_dispatch:          # ручной запуск кнопкой (Actions → Run workflow)
+    inputs:
+      limit:
+        description: "Пробный лимит товаров (0 = без лимита)"
+        default: "30"
+  schedule:
+    - cron: "0 3 * * 1"       # каждый понедельник 03:00 UTC (06:00 МСК)
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установка зависимостей
+        run: pip install requests beautifulsoup4 lxml
+
+      - name: Запуск скрейпера
+        env:
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          SCRAPE_LIMIT: ${{ github.event.inputs.limit || '0' }}
+        run: python scraper/bravo_scraper.py
