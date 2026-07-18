@@ -122,14 +122,24 @@ def parse_product(url, html):
     name = re.sub(r"\s+", " ", h1.get_text(strip=True))
     if not name or len(name) < 3:
         return None
-    text = soup.get_text(" ", strip=True)
-    # признаки карточки товара: характеристики или цена или «добавить/купить»
-    is_product = bool(re.search(r"Характеристики|Ширина|Габарит|₽|Цена|В корзину|Купить", text, re.I))
-    if not is_product:
+    # v2: служебные страницы — не товары («Каталог» = страница раздела, 404)
+    if name.lower() in ("каталог", "404") or "Страница не найдена" in html[:30000]:
         return None
+    text = soup.get_text(" ", strip=True)
+
+    # v2: характеристики Браво лежат в блоках .prod-char-item (название + значение)
+    char_rows = []
+    for it in soup.select(".prod-char-item"):
+        tt = it.select_one(".prod-char-title-txt")
+        vv = it.select_one(".prod-char-capt-txt")
+        if tt and vv:
+            char_rows.append((tt.get_text(strip=True), vv.get_text(" ", strip=True)))
+    # признак карточки товара: есть блок характеристик (у разделов его нет)
+    if not char_rows and not re.search(r"Характеристики", text, re.I):
+        return None  # это раздел — из него дособерём ссылки на товары
 
     price = None
-    for sel in ("[itemprop=price]", ".price", ".product-price"):
+    for sel in ("[itemprop=price]", ".price", ".product-price", ".price-prod"):
         el = soup.select_one(sel)
         if el:
             price = parse_price(el.get("content") or el.get_text(" "))
@@ -137,35 +147,77 @@ def parse_product(url, html):
                 break
     if not price:
         price = parse_price(text[:4000])
+    # NB: Браво — фабричный b2b-сайт, цен на нём нет вовсе; price=None это норма.
 
     specs, color, w, h, d = [], None, None, None, None
-    for row in soup.select("tr, .props__item, .characteristics__row, li"):
-        t = re.sub(r"\s+", " ", row.get_text(" ", strip=True))
-        if len(t) > 120 or ":" not in t and not re.search(r"Ширина|Высота|Глубина|Цвет|Материал|Спальное", t, re.I):
-            continue
-        if re.search(r"Ширина", t, re.I):
-            mm = re.search(r"(\d{3,4})", t)
-            w = w or (int(mm.group(1)) if mm else None)
-        elif re.search(r"Высота", t, re.I):
-            mm = re.search(r"(\d{3,4})", t)
-            h = h or (int(mm.group(1)) if mm else None)
-        elif re.search(r"Глубина|Длина", t, re.I):
-            mm = re.search(r"(\d{3,4})", t)
-            d = d or (int(mm.group(1)) if mm else None)
-        elif re.search(r"Цвет", t, re.I):
-            color = color or t.split(":")[-1].strip()[:80]
-        if re.search(r"Ширина|Высота|Глубина|Цвет|Материал|Спальное|Основание", t, re.I):
-            specs.append(t)
+
+    def _mm(v):
+        m = re.search(r"(\d{3,4})", v)
+        return int(m.group(1)) if m else None
+
+    for k, v in char_rows:
+        kl = k.lower()
+        if "ширин" in kl:
+            w = w or _mm(v)
+        elif "высот" in kl:
+            h = h or _mm(v)
+        elif "глубин" in kl or "длин" in kl:
+            d = d or _mm(v)
+        elif "цвет" in kl:
+            color = color or v[:80]
+        specs.append(k + ": " + v)
+
+    if not char_rows:
+        # запасной разбор для иной вёрстки (как в первой версии скрейпера)
+        for row in soup.select("tr, .props__item, .characteristics__row, li"):
+            t = re.sub(r"\s+", " ", row.get_text(" ", strip=True))
+            if len(t) > 120 or ":" not in t and not re.search(r"Ширина|Высота|Глубина|Цвет|Материал|Спальное", t, re.I):
+                continue
+            if re.search(r"Ширина", t, re.I):
+                mm = re.search(r"(\d{3,4})", t)
+                w = w or (int(mm.group(1)) if mm else None)
+            elif re.search(r"Высота", t, re.I):
+                mm = re.search(r"(\d{3,4})", t)
+                h = h or (int(mm.group(1)) if mm else None)
+            elif re.search(r"Глубина|Длина", t, re.I):
+                mm = re.search(r"(\d{3,4})", t)
+                d = d or (int(mm.group(1)) if mm else None)
+            elif re.search(r"Цвет", t, re.I):
+                color = color or t.split(":")[-1].strip()[:80]
+            if re.search(r"Ширина|Высота|Глубина|Цвет|Материал|Спальное|Основание", t, re.I):
+                specs.append(t)
+
+    # цвет часто в скобках в названии: «Джали (Льняной) - Комод 5 ящиков»
+    if not color:
+        mc = re.search(r"\(([^)]{2,40})\)", name)
+        if mc:
+            color = mc.group(1).strip()
 
     uw, uh, ud = dims_from_url(url)
     w, h, d = w or uw, h or uh, d or ud
 
+    # фото: og:image → постер товара (.pl-mob-poster) → кадр галереи →
+    # первая товарная картинка /upload/iblock/ (svg и меню не берём)
     photo = None
     og = soup.find("meta", property="og:image")
     if og and og.get("content"):
         photo = og["content"]
-        if photo.startswith("/"):
-            photo = SITE + photo
+    if not photo:
+        el = soup.select_one(".pl-mob-poster img")
+        if el:
+            photo = el.get("src") or el.get("data-src")
+    if not photo:
+        for el in soup.select(".slide-prod-top-img img"):
+            cand = el.get("data-src") or el.get("src") or ""
+            if "/upload/" in cand:
+                photo = cand
+                break
+    if not photo:
+        im = soup.find("img", src=re.compile(r"/upload/(webp/)?iblock/.*\.(jpe?g|png|webp)"))
+        if im:
+            photo = im.get("src")
+    if photo and photo.startswith("/"):
+        photo = SITE + photo
 
     # категория из пути: /catalogue/<раздел>/<категория>/<товар>/
     parts = [p for p in url.replace(SITE, "").split("/") if p]
