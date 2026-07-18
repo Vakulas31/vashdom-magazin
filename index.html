@@ -2474,7 +2474,7 @@ async function _plPreflight(rows){
   catch(e){if(/price_kind|valid_until/i.test(e.message))rows.forEach(function(r){delete r.price_kind;delete r.valid_until;});}
 }
 // batches: [{sheetName, rows}]; replaceWhole=true — заменить все данные фабрики
-// (или всего поставщика, если фабрика пустая = самостоятельная фабрика)
+// (если фабрика пустая — заменяются только товары поставщика БЕЗ фабрики)
 async function _importBatches(supplier,factory,batches,replaceWhole){
   var all=[];batches.forEach(function(b){all=all.concat(b.rows);});
   // PostgREST требует ОДИНАКОВЫЙ набор ключей у всех строк пакета (ошибка PGRST102
@@ -2484,7 +2484,12 @@ async function _importBatches(supplier,factory,batches,replaceWhole){
   var _keys=Object.keys(_ks);
   all.forEach(function(r){for(var i=0;i<_keys.length;i++){if(!(_keys[i] in r))r[_keys[i]]=null;}});
   await _plPreflight(all);
-  var factScope=(_plHasFactoryCol&&factory)?'&factory=eq.'+encodeURIComponent(factory):'';
+  // v7.2.1: пустая фабрика больше НЕ означает «весь поставщик» — заменяются только
+  // строки БЕЗ фабрики. Товары других фабрик этого поставщика не трогаем никогда.
+  // (раньше импорт с пустым полем «фабрика» удалял ВСЕ товары поставщика — так
+  // 18.07.2026 при загрузке файла «Мебель Рум» стёрлась фабрика «Миф»)
+  var factScope='';
+  if(_plHasFactoryCol)factScope=factory?'&factory=eq.'+encodeURIComponent(factory):'&or=(factory.is.null,factory.eq.%22%22)';
   var delKey=supplier+'|'+(factory||'');
   if(replaceWhole||!_plHasSheetCol){
     if(replaceWhole||_plDeletedSupplier!==delKey){
@@ -2611,10 +2616,26 @@ async function importAllSheets(){
   });
   var total=plan.reduce(function(s,p){return s+p.rows.length;},0);
   if(!total){toast('⚠️ Ни на одном листе не найдены товары — настройте листы вручную по одному','err',6000);return;}
-  var scopeLbl=factory?('фабрики «'+factory+'» (поставщик «'+supplier+'»)'):('поставщика «'+supplier+'»');
+  var scopeLbl=factory?('фабрики «'+factory+'» (поставщик «'+supplier+'»)'):('поставщика «'+supplier+'» БЕЗ фабрики');
+  // v7.2.1: показываем реальные цифры из базы, чтобы случайно не стереть лишнее
+  var curNote='';
+  try{
+    var gcur=await sb('POST','rpc/price_summary',null);
+    if(Array.isArray(gcur)){
+      var mineTot=0,scopeTot=0;
+      gcur.forEach(function(r){
+        if(r.supplier!==supplier)return;
+        var n=+r.n||0,f=(r.factory||'').trim();
+        mineTot+=n;
+        if(factory?f===factory:!f)scopeTot+=n;
+      });
+      if(mineTot)curNote='\n⚠ Сейчас в базе у «'+supplier+'»: '+mineTot+' товаров. Будут удалены и заменены: '
+        +scopeTot+' ('+(factory?'фабрика «'+factory+'»':'товары без фабрики')+'). Остальные '+(mineTot-scopeTot)+' останутся как есть.';
+    }
+  }catch(e){}
   var msg='Импорт '+(factory?('«'+supplier+'» → «'+factory+'»'):('«'+supplier+'»'))+' — все листы:\n\n'
     +report.map(function(r){return '• '+r.sheet+': '+(r.count?r.count+' товаров ('+r.note+')':r.note);}).join('\n')
-    +'\n\nИтого: '+total+' товаров. Прежние товары '+scopeLbl+' будут заменены. Продолжить?';
+    +'\n\nИтого: '+total+' товаров.'+curNote+'\nПрежние товары '+scopeLbl+' будут заменены. Продолжить?';
   if(!confirm(msg))return;
   plan.forEach(function(p){p.rows.forEach(function(r){r.factory=factory;if(p.kit&&r.kit_part!==false)r.kit_part=true;});_plPriceKindApply(p.rows);});
   var btn=document.getElementById('pl-import-all-btn');
