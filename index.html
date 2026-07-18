@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Ваш Дом — Журнал заказов</title>
+<!-- PWA (v6.6): манифест + иконки. Файлы manifest.webmanifest, sw.js, icon-192.png,
+     icon-512.png должны лежать РЯДОМ с index.html на хостинге. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1565C0">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ВашДом">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--dark:#1F4E79;--mid:#2E75B6;--lite:#D6E4F0;--alt:#EBF3FB;--gold:#FFFDE7;--green:#E8F5E9;--orange:#FFF3E0;--grey:#F5F5F5;--white:#fff;--text:#1a1a1a;--text2:#666;--border:#e0e0e0;--radius:10px;--radius-sm:6px}
@@ -149,7 +158,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.5</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.6</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -555,6 +564,30 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           </div>
         </label>
 
+        <!-- РАУС: автосумма корпус+фасад по коду модуля (v6.6) -->
+        <label id="pl-raus-wrap" style="display:none;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;margin-bottom:10px;padding:8px 10px;background:#F4FBF4;border:1px solid #A5D6A7;border-radius:6px">
+          <input type="checkbox" id="pl-raus" style="margin-top:2px;flex-shrink:0">
+          <div>
+            <strong>➕ Прибавлять корпус к фасадам (РАУС: автосумма по коду модуля)</strong><br>
+            <span style="color:var(--text2)">В файле найден лист «Корпус». Цена на листах плёнок — только ФАСАД; при импорте к ней автоматически прибавится цена корпуса того же модуля (В-200, Н-600Я, СТ-01…). В базу попадёт полная цена изделия, разбивка сохранится в примечании.</span>
+            <div id="pl-raus-note" style="margin-top:4px;font-weight:600;color:#1B5E20"></div>
+          </div>
+        </label>
+
+        <!-- Тип цены и срок действия (этап D, v6.6) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;padding:8px 10px;background:var(--alt);border-radius:6px">
+          <div class="fg" style="margin:0"><label>Тип цены в этом файле</label>
+            <select id="pl-pricekind" class="inp-gold">
+              <option value="">Опт (обычная)</option>
+              <option value="rrc">РРЦ — розничная от фабрики</option>
+              <option value="promo">🔥 Акция</option>
+            </select>
+          </div>
+          <div class="fg" style="margin:0"><label>Цена действует до (для акций)</label>
+            <input type="date" id="pl-validuntil" class="inp-gold">
+          </div>
+        </div>
+
         <!-- Превью первых строк -->
         <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Предпросмотр (первые 5 строк данных):</div>
         <div id="pl-import-preview" style="overflow:auto;max-height:110px;border:1px solid var(--border);border-radius:6px;padding:4px;margin-bottom:12px;font-size:10px"></div>
@@ -653,6 +686,18 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div style="display:flex;gap:10px">
       <button class="btn btn-primary" onclick="applyMarkup()" style="flex:1;justify-content:center">✅ Применить</button>
       <button class="btn btn-outline" onclick="closeModal('modal-markup')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- История клиента (мини-CRM, v6.6) -->
+<div class="modal-bg" id="modal-chistory">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-title" id="ch-title">📇 История клиента</div>
+    <div id="ch-summary" style="background:var(--alt);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.6"></div>
+    <div id="ch-body" style="max-height:55vh;overflow-y:auto;margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-chistory')">Закрыть</button>
     </div>
   </div>
 </div>
@@ -1023,7 +1068,7 @@ function orderCard(o){
     (isDone?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
     '<div class="order-meta" style="display:block;flex:1">'+
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
-    '<span style="margin:0 6px;color:#ddd">|</span><strong>'+o.client_name+'</strong></div>'+
+    '<span style="margin:0 6px;color:#ddd">|</span><strong style="cursor:pointer;border-bottom:1px dashed #90A4AE" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
     (contactTags?'<div style="margin-top:4px">'+contactTags+'</div>':'')+
     '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
     '<div id="order-body-'+o.id+'" style="'+(isDone?'display:none':'')+'">'+
@@ -1471,6 +1516,17 @@ function onPriceFile(input){
       if(mn){
         mn.style.display=manySheets?'block':'none';
         if(manySheets)mn.innerHTML='В файле <strong>'+_plWB.SheetNames.length+'</strong> листов: '+_plWB.SheetNames.join(', ')+'.<br>Кнопка <strong>«📚 Все листы сразу»</strong> определит колонки автоматически на каждом листе. Либо настройте и импортируйте листы по одному — уже загруженные помечаются ✓.';
+      }
+      // v6.6: РАУС — если в файле есть лист «Корпус» и листы плёнок, предлагаем автосумму
+      var rausWrap=document.getElementById('pl-raus-wrap'),rausCb=document.getElementById('pl-raus');
+      if(rausWrap&&rausCb){
+        var hasCase=_plWB.SheetNames.some(function(n){return /корпус/i.test(String(n));});
+        var nCodes=(hasCase&&_plWB.SheetNames.length>1)?_rausBuildMap():0;
+        rausWrap.style.display=nCodes?'flex':'none';
+        rausCb.checked=!!nCodes;
+        var rn=document.getElementById('pl-raus-note');
+        if(rn)rn.textContent=nCodes?('Найдено корпусов: '+nCodes+' (лист «'+_plWB.SheetNames.filter(function(n){return /корпус/i.test(String(n));}).join('», «')+'»)'):'';
+        if(!nCodes)_rausMap=null;
       }
       onPriceSheetChange();
       document.getElementById('pl-mapper').style.display='block';
@@ -2132,6 +2188,73 @@ function _autoDetectMulti(data){
   }
   return{headerRow:headerRow,colName:colName,colArt:colArt,varCols:cols,cascade:false};
 }
+// ═══ v6.6: РАУС — автосумма корпус+фасад ═══
+// Итоговая цена модуля РАУС = цена корпуса (лист «Корпус») + цена фасада (лист плёнки),
+// join по коду модуля (В-200, Н-600Я, П-600, СТ-01…). В файле это прямо написано:
+// «К стоимости фасадов необходимо прибавлять корпус (первая закладка)».
+var _rausMap=null; // {КОД → цена корпуса}
+function _rausCode(s){
+  var m=String(s==null?'':s).toUpperCase().replace(/[–—]/g,'-').replace(/\s+/g,'').match(/[А-ЯЁA-Z]{1,4}-\d+[А-ЯЁA-Z]{0,3}(?:\/\d+)?/);
+  return m?m[0]:null;
+}
+function _rausBuildMap(){
+  _rausMap=null;
+  if(!_plWB)return 0;
+  var names=_plWB.SheetNames.filter(function(sn){return /корпус/i.test(String(sn));});
+  if(!names.length)return 0;
+  var map={},n=0;
+  names.forEach(function(sn){
+    var data=_plTrimData(XLSX.utils.sheet_to_json(_plExpandMerges(_plWB.Sheets[sn]),{header:1,defval:'',raw:false}));
+    data.forEach(function(row){
+      if(!row)return;
+      var code=null;
+      for(var c=0;c<Math.min(4,row.length);c++){
+        var v=_plClean(row[c]);
+        if(!v||/^\d+([.,]\d+)?$/.test(v))continue; // пусто или чистое число (№ п/п)
+        var cd=_rausCode(v);
+        if(cd){code=cd;break;}
+      }
+      if(!code)return;
+      // Цена — первое число ≥50 СПРАВА (там колонка цены); размеры «824*600*436» пропускаем
+      var price=0;
+      for(var p=row.length-1;p>=0;p--){
+        var cell=String(row[p]==null?'':row[p]);
+        if(/[*хx×]/i.test(cell))continue;
+        var num=_plToNum(row[p]);
+        if(num>=50){price=num;break;}
+      }
+      if(price>=50&&!(code in map)){map[code]=price;n++;}
+    });
+  });
+  if(n)_rausMap=map;
+  return n;
+}
+// Прибавляет корпус к строкам ФАСАДНОГО листа; возвращает число изменённых строк
+function _rausApply(rows,sheetName){
+  var on=document.getElementById('pl-raus');
+  if(!on||!on.checked||!_rausMap)return 0;
+  if(/корпус/i.test(String(sheetName||'')))return 0; // сам лист корпусов не трогаем
+  var hit=0;
+  rows.forEach(function(r){
+    var code=_rausCode(r.article)||_rausCode(r.product_name);
+    var cp=code?_rausMap[code]:null;
+    if(cp&&(r.price_opt||0)>=50){
+      var fas=r.price_opt;
+      r.price_opt=Math.round((fas+cp)*100)/100;
+      r.compatibility=((r.compatibility?r.compatibility+' | ':'')+'корпус+фасад: '+cp+' + '+fas+' ₽').slice(0,900);
+      r.kit_part=false; // цена теперь полная — это не «часть»
+      hit++;
+    }
+  });
+  return hit;
+}
+// v6.6: тип цены (опт/РРЦ/акция) и срок действия — на весь импортируемый файл
+function _plPriceKindApply(rows){
+  var pk=document.getElementById('pl-pricekind'),vu=document.getElementById('pl-validuntil');
+  var kind=(pk&&pk.value)?pk.value:null;
+  var until=(vu&&vu.value)?vu.value:null;
+  rows.forEach(function(r){r.price_kind=kind;r.valid_until=until;});
+}
 async function _plPreflight(rows){
   try{await sbGet('price_items','select=category&limit=1');}
   catch(e){if(/category/i.test(e.message))rows.forEach(function(r){delete r.category;});}
@@ -2147,6 +2270,9 @@ async function _plPreflight(rows){
   // Этап C: совместимость и «часть комплекта» (SQL_обновление_6.4)
   try{await sbGet('price_items','select=compatibility,kit_part&limit=1');}
   catch(e){if(/compatibility|kit_part/i.test(e.message))rows.forEach(function(r){delete r.compatibility;delete r.kit_part;});}
+  // Этап D: тип цены + срок действия (SQL_обновление_6.6)
+  try{await sbGet('price_items','select=price_kind,valid_until&limit=1');}
+  catch(e){if(/price_kind|valid_until/i.test(e.message))rows.forEach(function(r){delete r.price_kind;delete r.valid_until;});}
 }
 // batches: [{sheetName, rows}]; replaceWhole=true — заменить все данные фабрики
 // (или всего поставщика, если фабрика пустая = самостоятельная фабрика)
@@ -2221,6 +2347,8 @@ async function importPriceList(){
   }
   var kitOn=document.getElementById('pl-kitpart')&&document.getElementById('pl-kitpart').checked;
   rows.forEach(function(r){r.factory=factory;if(kitOn)r.kit_part=true;});
+  var rausHit=_rausApply(rows,sheetName); // РАУС: корпус+фасад (после kit_part — сбрасывает пометку у полных цен)
+  _plPriceKindApply(rows);
   var btn=document.getElementById('pl-import-btn');
   btn.innerHTML='<span class="spinner"></span> Импорт '+rows.length+' товаров...';
   btn.disabled=true;
@@ -2229,7 +2357,7 @@ async function importPriceList(){
     if(isMatrix){var _st=_getTplStore();_st[sheetName]={supplier:supplier,factory:factory,matrix:true};localStorage.setItem(_TPL_KEY,JSON.stringify(_st));}
     else savePriceTemplate(); // запоминаем настройки листа как шаблон
     var many=_plWB&&_plWB.SheetNames.length>1;
-    toast('✅ Лист «'+sheetName+'»: '+rows.length+' товаров загружено','ok',3500);
+    toast('✅ Лист «'+sheetName+'»: '+rows.length+' товаров загружено'+(rausHit?' (корпус прибавлен у '+rausHit+')':''),'ok',3500);
     if(many){
       var note=document.getElementById('pl-multi-note');
       note.style.display='block';
@@ -2279,7 +2407,8 @@ async function importAllSheets(){
     cands.forEach(function(c){if(!best||_plValidCount(c.rows)>_plValidCount(best.rows))best=c;});
     if(!best||!best.rows.length){report.push({sheet:sn,count:0,note:'не удалось определить колонки — импортируйте вручную'});return;}
     plan.push({sheetName:sn,rows:best.rows,cfg:best.cfg,kind:best.kind,kit:!!(tpl&&tpl.kit_part)});
-    report.push({sheet:sn,count:best.rows.length,note:best.src});
+    var rh=_rausApply(best.rows,sn); // РАУС: корпус+фасад по коду модуля
+    report.push({sheet:sn,count:best.rows.length,note:best.src+(rh?', ➕корпус у '+rh:'')});
   });
   var total=plan.reduce(function(s,p){return s+p.rows.length;},0);
   if(!total){toast('⚠️ Ни на одном листе не найдены товары — настройте листы вручную по одному','err',6000);return;}
@@ -2288,7 +2417,7 @@ async function importAllSheets(){
     +report.map(function(r){return '• '+r.sheet+': '+(r.count?r.count+' товаров ('+r.note+')':r.note);}).join('\n')
     +'\n\nИтого: '+total+' товаров. Прежние товары '+scopeLbl+' будут заменены. Продолжить?';
   if(!confirm(msg))return;
-  plan.forEach(function(p){p.rows.forEach(function(r){r.factory=factory;if(p.kit)r.kit_part=true;});});
+  plan.forEach(function(p){p.rows.forEach(function(r){r.factory=factory;if(p.kit&&r.kit_part!==false)r.kit_part=true;});_plPriceKindApply(p.rows);});
   var btn=document.getElementById('pl-import-all-btn');
   btn.innerHTML='<span class="spinner"></span> Импорт '+total+' товаров...';btn.disabled=true;
   try{
@@ -2331,6 +2460,12 @@ function resetPriceImport(){
   document.getElementById('pl-file').value='';
   document.getElementById('pl-sup').value='';
   document.getElementById('pl-factory').value='';
+  // v6.6: сброс РАУС и типа цены
+  _rausMap=null;
+  var _rw=document.getElementById('pl-raus-wrap');if(_rw)_rw.style.display='none';
+  var _rc=document.getElementById('pl-raus');if(_rc)_rc.checked=false;
+  var _pk=document.getElementById('pl-pricekind');if(_pk)_pk.value='';
+  var _vu=document.getElementById('pl-validuntil');if(_vu)_vu.value='';
 }
 
 function _renderPriceSummary(el,bySup,totalDisplay,tplNote,extraNote){
@@ -2410,7 +2545,7 @@ async function deleteFactory(supplier,factory){
 }
 
 // ── ГЛОБАЛЬНЫЙ ПОИСК ПО ВСЕМ ПРАЙСАМ ────────────────────
-var _gsTimer=null,_gsLastResults=[],_hasCategoryCol=true,_gsFactoryCol=true,_gsCompatCol=true;
+var _gsTimer=null,_gsLastResults=[],_hasCategoryCol=true,_gsFactoryCol=true,_gsCompatCol=true,_gsKindCol=true;
 function retailFromOpt(opt){return Math.ceil(opt*(1+MARKUP_PCT/100)/100)*100;}
 function globalSearch(){
   clearTimeout(_gsTimer);
@@ -2422,6 +2557,18 @@ function globalSearch(){
 // Шаблон ilike для PostgREST с экранированием: значение с запятой/точкой/скобкой
 // (напр. «K-1,2») ломает дерево or(), поэтому оборачиваем в двойные кавычки.
 function _ilikePat(v){return encodeURIComponent('"*'+String(v).replace(/(["\\])/g,'\\$1')+'*"');}
+// v6.6: бейдж типа цены (РРЦ / акция / акция истекла) в результатах поиска
+function _kindBadge(p){
+  if(!p||!p.price_kind)return'';
+  var st='font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap';
+  if(p.price_kind==='promo'){
+    var today=new Date().toISOString().slice(0,10);
+    if(p.valid_until&&p.valid_until<today)return' <span style="background:#FFEBEE;color:#C62828;'+st+'">⌛ акция истекла '+fmtDate(p.valid_until)+'</span>';
+    return' <span style="background:#FFF3E0;color:#E65100;'+st+'">🔥 акция'+(p.valid_until?' до '+fmtDate(p.valid_until):'')+'</span>';
+  }
+  if(p.price_kind==='rrc')return' <span style="background:#E3F2FD;color:#1565C0;'+st+'">РРЦ</span>';
+  return'';
+}
 function _gsRun(q,box){
   box.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 2px">Ищу «'+q+'»...</div>';
   var words=q.split(/\s+/).filter(Boolean);
@@ -2438,7 +2585,7 @@ function _gsRun(q,box){
     var p=_ilikePat(words[0]);
     params='or=(product_name.ilike.'+p+',article.ilike.'+p+',supplier.ilike.'+p+(_gsCompatCol?',compatibility.ilike.'+p:'')+')';
   }
-  var sel='supplier,product_name,price_opt,price_retail,article'+(_hasCategoryCol?',category':'')+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'');
+  var sel='supplier,product_name,price_opt,price_retail,article'+(_hasCategoryCol?',category':'')+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'')+(_gsKindCol?',price_kind,valid_until':'');
   sbGet('price_items','select='+sel+'&'+params+'&limit=30&order=product_name.asc')
   .then(function(rows){
     // если пользователь уже изменил запрос — не перерисовываем устаревший результат
@@ -2453,7 +2600,7 @@ function _gsRun(q,box){
       html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
         +'<div style="flex:1;min-width:0">'
         +'<div style="font-size:13px;font-weight:600">'+p.product_name
-        +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+'</div>'
+        +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+_kindBadge(p)+'</div>'
         +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
         +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')
         +'</div>'
@@ -2467,6 +2614,7 @@ function _gsRun(q,box){
     box.innerHTML=html+'</div>'+(rows.length>=30?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 30 результатов — уточните запрос</div>':'');
   }).catch(function(e){
     var msg=e.message||'';
+    if(_gsKindCol&&/price_kind|valid_until/i.test(msg)){_gsKindCol=false;_gsRun(q,box);return;}
     if(_gsCompatCol&&/compatibility|kit_part/i.test(msg)){_gsCompatCol=false;_gsRun(q,box);return;}
     if(_gsFactoryCol&&/factory/i.test(msg)){_gsFactoryCol=false;_gsRun(q,box);return;}
     if(_hasCategoryCol&&/category/i.test(msg)){_hasCategoryCol=false;_gsRun(q,box);return;}
@@ -2574,7 +2722,7 @@ function _ssRun(q){
   box.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 2px">Ищу...</div>';
   var sortV=(document.getElementById('ss-sort')||{}).value||'name';
   var order=sortV==='price_asc'?'price_opt.asc.nullslast':(sortV==='price_desc'?'price_opt.desc.nullslast':'product_name.asc');
-  var sel='id,supplier,product_name,price_opt,price_retail,article,ptype,color,dim_w,dim_h,dim_d,doors,material'+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'');
+  var sel='id,supplier,product_name,price_opt,price_retail,article,ptype,color,dim_w,dim_h,dim_d,doors,material'+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'')+(_gsKindCol?',price_kind,valid_until':'');
   sbGet('price_items','select='+sel+'&and=('+conds.join(',')+')&limit=40&order='+order)
   .then(function(rows){
     if(document.getElementById('ss-input').value.trim()!==q)return;
@@ -2588,7 +2736,7 @@ function _ssRun(q){
       var sub=[(p.factory||''),p.supplier,(p.ptype||''),(p.doors?p.doors+'-дв.':''),(dstr?dstr+' мм':''),(p.color||''),(p.material||'')].filter(Boolean).join(' · ');
       html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
         +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+p.product_name
-        +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+'</div>'
+        +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+_kindBadge(p)+'</div>'
         +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
         +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')+'</div>'
         +'<div style="text-align:right;flex-shrink:0">'+(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
@@ -2600,6 +2748,7 @@ function _ssRun(q){
     box.innerHTML=html+'</div>'+(rows.length>=40?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 40 — уточните запрос</div>':'');
   }).catch(function(e){
     var msg=e.message||'';
+    if(_gsKindCol&&/price_kind|valid_until/i.test(msg)){_gsKindCol=false;_ssRun(q);return;}
     if(_gsCompatCol&&/compatibility|kit_part/i.test(msg)){_gsCompatCol=false;_ssRun(q);return;}
     if(/doors|material/i.test(msg)){box.innerHTML='<div style="color:#c62828;font-size:12px;padding:6px 2px">Нужно применить <strong>SQL_обновление_5.8</strong> (двери/материал), затем «Разобрать атрибуты».</div>';return;}
     if(/dim_w|dim_h|dim_d|ptype|color/i.test(msg)){box.innerHTML='<div style="color:#c62828;font-size:12px;padding:6px 2px">Нужно применить <strong>SQL_обновление_5.6</strong> в Supabase, затем нажать «Разобрать атрибуты».</div>';return;}
@@ -3741,15 +3890,76 @@ function renderClients(){
   document.getElementById('clients-count').textContent=f.length+' клиентов';
   var html='';
   f.slice(0,100).forEach(function(c){
-    html+='<div class="client-row">'+
+    html+='<div class="client-row" style="cursor:pointer" title="Показать историю заказов" onclick="openClientHistory('+_chArg(c.phone)+','+_chArg(c.name)+')">'+
       '<div class="client-avatar">'+initials(c.name)+'</div>'+
       '<div style="flex:1"><div style="font-size:13px;font-weight:600">'+c.name+'</div>'+
       '<div style="font-size:12px;color:var(--text2)">'+(([c.phone,c.phone2,c.address].filter(Boolean).join(' · '))||'Нет данных')+'</div></div>'+
-      '<div style="font-size:12px;color:var(--text2)">'+(c.orders_count||0)+' заказ(ов)</div></div>';
+      '<div style="font-size:12px;color:var(--text2)">'+(c.orders_count||0)+' заказ(ов) <span style="color:#1565C0">📇</span></div></div>';
   });
   document.getElementById('clients-list').innerHTML=html||'<div class="empty"><p>Клиентов не найдено</p></div>';
 }
 var filterClients=_debounce(function(){renderClients();},180);
+// ═══ v6.6: история клиента (мини-CRM) ═══
+function _chArg(v){return JSON.stringify(String(v==null?'':v)).replace(/"/g,'&quot;');}
+function _chDigits(p){var d=String(p==null?'':p).replace(/\D/g,'');return d.length>10?d.slice(-10):d;}
+// Открыть историю: по телефону (основной ключ) с фолбэком по имени
+function openClientHistory(phone,name){
+  var pd=_chDigits(phone);
+  var nm=String(name||'').trim().toLowerCase();
+  var list=(allOrders||[]).filter(function(o){
+    if(pd&&(_chDigits(o.client_phone)===pd||_chDigits(o.client_phone2)===pd))return true;
+    if(!pd&&nm&&String(o.client_name||'').trim().toLowerCase()===nm)return true;
+    return false;
+  });
+  document.getElementById('ch-title').textContent='📇 '+(name||'История клиента');
+  var body=document.getElementById('ch-body'),sum=document.getElementById('ch-summary');
+  if(!list.length){
+    sum.innerHTML='<strong>'+(name||'')+'</strong>'+(phone?' · 📞 '+phone:'')+'<br>Заказов в журнале не найдено.';
+    body.innerHTML='<div class="empty" style="padding:20px"><p>Заказы этого клиента не найдены (поиск по телефону'+(pd?' …'+pd.slice(-4):'')+').</p></div>';
+    document.getElementById('modal-chistory').classList.add('open');
+    return;
+  }
+  var totalGoods=0,totalDebt=0,phones={},addr='';
+  list.forEach(function(o){
+    totalGoods+=(o.goods_discounted||o.goods_total||0);
+    var paid=(o.prepayment||0)+(o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0);
+    var due=(o.goods_discounted||o.goods_total||0)+((o.delivery_our===false)?0:((o.delivery_cost||0)+(o.lifting_cost||0)));
+    if(o.status!=='🏁 Выполнен')totalDebt+=Math.max(0,due-paid);
+    [o.client_phone,o.client_phone2].forEach(function(p){if(p)phones[p]=1;});
+    if(o.client_address)addr=o.client_address;
+  });
+  sum.innerHTML='<strong>'+(name||list[0].client_name||'')+'</strong>'
+    +(Object.keys(phones).length?' · 📞 '+Object.keys(phones).join(', '):'')
+    +(addr?'<br>📍 '+addr:'')
+    +'<br>Заказов: <strong>'+list.length+'</strong> · Товаров на сумму: <strong>'+fmt(totalGoods)+' ₽</strong>'
+    +(totalDebt>0?' · <span style="color:#C62828">Текущий долг: <strong>'+fmt(totalDebt)+' ₽</strong></span>':' · <span style="color:#1B5E20">долгов нет</span>');
+  var html='';
+  list.sort(function(a,b){return String(b.order_date||'').localeCompare(String(a.order_date||''))||((b.id||0)-(a.id||0));});
+  list.forEach(function(o){
+    var items=o.order_items||[];
+    var isDone=o.status==='🏁 Выполнен';
+    var goods=o.goods_discounted||o.goods_total||0;
+    var itHtml=items.map(function(it){
+      return '<div style="font-size:12px;color:var(--text2);padding:1px 0">• '+it.product_name
+        +(it.color?' ('+it.color+')':'')+(it.qty>1?' × '+it.qty:'')
+        +(it.delivered_at?' <span style="color:#1B5E20">🚚 '+fmtDate(it.delivered_at)+'</span>':'')+'</div>';
+    }).join('');
+    html+='<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:'+(isDone?'#F7FBF7':'#fff')+'">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+      +'<div style="font-size:13px;font-weight:700">№'+o.order_number+' · '+fmtDate(o.order_date)
+      +' <span style="font-weight:600;font-size:11px;padding:1px 8px;border-radius:10px;'+(isDone?'background:#E8F5E9;color:#1B5E20':'background:#E3F2FD;color:#1565C0')+'">'+(o.status||'')+'</span></div>'
+      +'<div style="font-size:13px;font-weight:700">'+fmt(goods)+' ₽</div></div>'
+      +itHtml
+      +'</div>';
+  });
+  body.innerHTML=html;
+  document.getElementById('modal-chistory').classList.add('open');
+}
+// Из карточки заказа в журнале — по id заказа
+function openClientHistoryFromOrder(orderId){
+  var o=(allOrders||[]).filter(function(x){return x.id===orderId;})[0];
+  if(o)openClientHistory(o.client_phone||o.client_phone2||'',o.client_name||'');
+}
 function openAddClient(){document.getElementById('modal-client').classList.add('open');}
 function saveNewClient(){
   var name=document.getElementById('nc-name').value.trim();
@@ -4000,14 +4210,56 @@ function renderStats(){
   bar('chart-geo',cities,cities.length?cities[0].val:1,'#F9A825');
 }
 
-function exportBackup(){
+// ═══ v6.6: полная резервная копия одной кнопкой — Excel-архив из Supabase ═══
+// Тянет ВСЕ таблицы постранично (лимит PostgREST 1000) и собирает один .xlsx
+// с листами: Заказы, Позиции, Клиенты, Касса-изъятия, Прайсы. Если библиотека
+// Excel недоступна — фолбэк в JSON (старое поведение).
+async function _bkFetchAll(table,orderCol){
+  var out=[],off=0;
+  for(;;){
+    var page=await sbGet(table,'select=*&order='+orderCol+'.asc&limit=1000&offset='+off);
+    out=out.concat(page||[]);
+    if(!page||page.length<1000)break;
+    off+=1000;
+    if(off>200000)break; // предохранитель
+  }
+  return out;
+}
+function _bkJson(){
   var data={exported_at:new Date().toISOString(),orders:allOrders,clients:allClients};
   var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
   a.href=url;a.download='vashdom_backup_'+new Date().toISOString().slice(0,10)+'.json';
   a.click();URL.revokeObjectURL(url);
-  toast('💾 Резервная копия скачана!');
+  toast('💾 Резервная копия (JSON) скачана');
+}
+async function exportBackup(){
+  if(typeof XLSX==='undefined'){_bkJson();return;}
+  toast('⏳ Собираю все данные из базы...','ok',4000);
+  try{
+    var orders=await _bkFetchAll('orders','id');
+    var items=await _bkFetchAll('order_items','id');
+    var clients=await _bkFetchAll('clients','id');
+    var withdrawals=[];try{withdrawals=await _bkFetchAll('cash_withdrawals','id');}catch(e1){}
+    var prices=[];try{prices=await _bkFetchAll('price_items','id');}catch(e2){}
+    var wb=XLSX.utils.book_new();
+    function addSheet(name,rows){
+      var ws=XLSX.utils.json_to_sheet(rows.length?rows:[{'пусто':''}]);
+      XLSX.utils.book_append_sheet(wb,ws,name);
+    }
+    addSheet('Заказы',orders);
+    addSheet('Позиции заказов',items);
+    addSheet('Клиенты',clients);
+    if(withdrawals.length)addSheet('Касса-изъятия',withdrawals);
+    if(prices.length)addSheet('Прайсы',prices);
+    var today=new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb,'ВашДом_копия_'+today+'.xlsx');
+    toast('💾 Резервная копия: '+orders.length+' заказов, '+items.length+' позиций, '+clients.length+' клиентов'+(prices.length?', '+prices.length+' позиций прайсов':''),'ok',6000);
+  }catch(e){
+    toast('⚠️ Не удалось собрать Excel ('+String(e.message||'').slice(0,80)+') — скачиваю JSON','err',5000);
+    _bkJson();
+  }
 }
 
 function printContract(orderId){
@@ -4281,6 +4533,27 @@ function initials(n){if(!n)return'?';return n.trim().split(/\s+/).slice(0,2).map
 function hideAc(id,delay){setTimeout(function(){var el=document.getElementById(id);if(el)el.style.display='none';},delay||200);}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
+// ═══ v6.6: PWA — регистрация service worker ═══
+// Работает только по HTTPS (GitHub Pages) или на localhost; при открытии файла
+// с диска (file://) молча ничего не делает — приложение работает как раньше.
+(function(){
+  if(!('serviceWorker' in navigator))return;
+  if(location.protocol!=='https:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1')return;
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      // Новая версия приложения скачана и ждёт — предложим обновиться
+      reg.addEventListener('updatefound',function(){
+        var nw=reg.installing;
+        if(!nw)return;
+        nw.addEventListener('statechange',function(){
+          if(nw.state==='installed'&&navigator.serviceWorker.controller){
+            if(typeof toast==='function')toast('🔄 Доступна новая версия — перезагрузите страницу','ok',8000);
+          }
+        });
+      });
+    }).catch(function(){});
+  });
+})();
 </script>
 <div id="app-pin-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:32px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)">
