@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.1</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.2</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1733,6 +1733,17 @@ function _fillSupplierDatalist(names){_fillDL('pl-sup-list',names);}
 function _fillFactoryDatalist(names){_fillDL('pl-factory-list',names);}
 function _uniqSorted(obj){return Object.keys(obj).sort(function(a,b){return String(a).localeCompare(String(b),'ru');});}
 async function loadSupplierDatalist(){
+  // v7.2: сначала RPC price_summary — обычный запрос сервер режет до 1000 строк,
+  // и поставщики «свежих» прайсов выпадали из подсказок.
+  try{
+    var g=await sb('POST','rpc/price_summary',null);
+    if(Array.isArray(g)&&g.length){
+      var supR={},facR={};
+      g.forEach(function(r){if(r.supplier)supR[r.supplier]=1;if(r.factory)facR[r.factory]=1;});
+      _fillSupplierDatalist(_uniqSorted(supR));_fillFactoryDatalist(_uniqSorted(facR));
+      return;
+    }
+  }catch(e){}
   try{
     var rows=await sbGet('price_items','select=supplier,factory&limit=10000');
     var sup={},fac={};
@@ -2734,6 +2745,12 @@ async function deleteFactory(supplier,factory){
 
 // ── ГЛОБАЛЬНЫЙ ПОИСК ПО ВСЕМ ПРАЙСАМ ────────────────────
 var _gsTimer=null,_gsLastResults=[],_hasCategoryCol=true,_gsFactoryCol=true,_gsCompatCol=true,_gsKindCol=true;
+// v7.2: поиск без учёта буквы Ё. Запрос нормализуется (ё→е) и идёт в колонку
+// search_name (SQL_обновление_7.2: название+артикул+совместимость без ё).
+// Если колонки ещё нет — флаг сбрасывается, поиск работает по-старому.
+var _gsNormCol=true;
+function _eNorm(s){return String(s).toLowerCase().replace(/ё/g,'е');}
+function _normPat(v){return _ilikePat(_eNorm(v));}
 function retailFromOpt(opt){return Math.ceil(opt*(1+MARKUP_PCT/100)/100)*100;}
 function globalSearch(){
   clearTimeout(_gsTimer);
@@ -2763,7 +2780,7 @@ function _kindBadge(p){
 function _gsCatalog(q,box){
   var words=q.split(/\s+/).filter(Boolean);
   if(!words.length)return;
-  var conds=words.map(function(w){return 'name.ilike.'+_ilikePat(w);}).join(',');
+  var conds=words.map(function(w){return _gsNormCol?'search_name.ilike.'+_normPat(w):'name.ilike.'+_ilikePat(w);}).join(',');
   sbGet('catalog_items','select=factory,name,url,photo_url,price,category,color,dim_w,dim_h,dim_d&and=('+conds+')&limit=10&order=name.asc')
   .then(function(rows){
     rows=rows||[];
@@ -2788,13 +2805,22 @@ function _gsCatalog(q,box){
         +'</div>';
     });
     box.insertAdjacentHTML('beforeend',h+'</div>');
-  }).catch(function(){}); // таблицы нет — тихо
+  }).catch(function(e){
+    if(_gsNormCol&&/search_name/i.test((e&&e.message)||'')){_gsNormCol=false;_gsCatalog(q,box);}
+  }); // таблицы нет — тихо
 }
 function _gsRun(q,box){
   box.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 2px">Ищу «'+q+'»...</div>';
   var words=q.split(/\s+/).filter(Boolean);
   var params;
-  if(words.length>1){
+  if(_gsNormCol){
+    // search_name = название+артикул+совместимость без ё: «аленка» найдёт «АЛЁНКА»
+    if(words.length>1){
+      params='and=('+words.map(function(w){return 'search_name.ilike.'+_normPat(w);}).join(',')+')';
+    }else{
+      params='or=(search_name.ilike.'+_normPat(words[0])+',supplier.ilike.'+_ilikePat(words[0])+')';
+    }
+  }else if(words.length>1){
     // Каждое слово ищем в названии ИЛИ в совместимости — так «основание карина»
     // находит комплектующую, у которой «Карина» упомянута только в примечании.
     var ands=words.map(function(w){
@@ -2836,6 +2862,7 @@ function _gsRun(q,box){
     _gsCatalog(q,box); // v7.1: дополняем результатами из каталогов фабрик (сайты)
   }).catch(function(e){
     var msg=e.message||'';
+    if(_gsNormCol&&/search_name/i.test(msg)){_gsNormCol=false;_gsRun(q,box);return;}
     if(_gsKindCol&&/price_kind|valid_until/i.test(msg)){_gsKindCol=false;_gsRun(q,box);return;}
     if(_gsCompatCol&&/compatibility|kit_part/i.test(msg)){_gsCompatCol=false;_gsRun(q,box);return;}
     if(_gsFactoryCol&&/factory/i.test(msg)){_gsFactoryCol=false;_gsRun(q,box);return;}
@@ -2864,8 +2891,20 @@ function smartSearchLive(){
 // Загрузка списка фабрик в фильтр
 function _ssLoadFactories(){
   var sel=document.getElementById('ss-factory');if(!sel||sel.dataset.loaded)return;
-  sbGet('price_items','select=factory&limit=10000').then(function(rows){
-    var f={};(rows||[]).forEach(function(r){if(r.factory)f[r.factory]=1;});
+  // v7.2: фабрики из RPC price_summary — обычный запрос сервер режет до 1000 строк
+  sb('POST','rpc/price_summary',null)
+  .then(function(g){
+    if(!Array.isArray(g)||!g.length)throw new Error('rpc недоступен');
+    var f={};g.forEach(function(r){if(r.factory)f[r.factory]=1;});
+    return f;
+  })
+  .catch(function(){
+    return sbGet('price_items','select=factory&limit=10000').then(function(rows){
+      var f={};(rows||[]).forEach(function(r){if(r.factory)f[r.factory]=1;});
+      return f;
+    });
+  })
+  .then(function(f){
     var names=Object.keys(f).sort(function(a,b){return String(a).localeCompare(String(b),'ru');});
     sel.innerHTML='<option value="">любая</option>'+names.map(function(n){return'<option value="'+String(n).replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('');
     sel.dataset.loaded='1';
@@ -2918,11 +2957,14 @@ function _ssRun(q){
   pb.innerHTML=chips.length?'Понял: <strong>'+chips.join('</strong> · <strong>')+'</strong>':'Не распознаны параметры — ищу по названию.';
   // Собираем условия в единый and(...). Тип/цвет/материал ищем и в атрибуте, и в названии.
   var conds=[];
-  if(P.ptype)conds.push('or(ptype.ilike.'+_ilikePat(P.ptype)+',product_name.ilike.'+_ilikePat(P.ptype)+')');
-  if(P.color)conds.push('or(color.ilike.'+_ilikePat(P.color)+',product_name.ilike.'+_ilikePat(P.color)+')');
-  if(P.material)conds.push('or(material.ilike.'+_ilikePat(P.material)+',product_name.ilike.'+_ilikePat(P.material)+')');
+  // v7.2: текстовые условия идут через search_name (без учёта ё), пока колонка есть
+  var _pnCond=function(v){return _gsNormCol?'search_name.ilike.'+_normPat(v):'product_name.ilike.'+_ilikePat(v);};
+  if(P.ptype)conds.push('or(ptype.ilike.'+_ilikePat(P.ptype)+','+_pnCond(P.ptype)+')');
+  if(P.color)conds.push('or(color.ilike.'+_ilikePat(P.color)+','+_pnCond(P.color)+')');
+  if(P.material)conds.push('or(material.ilike.'+_ilikePat(P.material)+','+_pnCond(P.material)+')');
   if(doorsVal)conds.push('doors.eq.'+doorsVal);
   P.free.forEach(function(w){
+    if(_gsNormCol){conds.push('search_name.ilike.'+_normPat(w));return;}
     var wp=_ilikePat(w);
     conds.push(_gsCompatCol?'or(product_name.ilike.'+wp+',compatibility.ilike.'+wp+')':'product_name.ilike.'+wp);
   });
@@ -2970,6 +3012,7 @@ function _ssRun(q){
     box.innerHTML=html+'</div>'+(rows.length>=40?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 40 — уточните запрос</div>':'');
   }).catch(function(e){
     var msg=e.message||'';
+    if(_gsNormCol&&/search_name/i.test(msg)){_gsNormCol=false;_ssRun(q);return;}
     if(_gsKindCol&&/price_kind|valid_until/i.test(msg)){_gsKindCol=false;_ssRun(q);return;}
     if(_gsCompatCol&&/compatibility|kit_part/i.test(msg)){_gsCompatCol=false;_ssRun(q);return;}
     if(/doors|material/i.test(msg)){box.innerHTML='<div style="color:#c62828;font-size:12px;padding:6px 2px">Нужно применить <strong>SQL_обновление_5.8</strong> (двери/материал), затем «Разобрать атрибуты».</div>';return;}
@@ -3133,7 +3176,12 @@ function searchPriceItems(id,q){
   clearTimeout(_priceSearchTimer);
   _priceSearchTimer=setTimeout(function(){
     sbGet('price_items','select=product_name,supplier,price_opt,price_retail,article'
-      +'&or=(product_name.ilike.'+_ilikePat(q)+',article.ilike.'+_ilikePat(q)+')&limit=10&order=product_name.asc')
+      +(_gsNormCol?'&or=(search_name.ilike.'+_normPat(q)+')':'&or=(product_name.ilike.'+_ilikePat(q)+',article.ilike.'+_ilikePat(q)+')')
+      +'&limit=10&order=product_name.asc')
+    .catch(function(e){
+      if(_gsNormCol&&/search_name/i.test((e&&e.message)||'')){_gsNormCol=false;searchPriceItems(id,q);}
+      return null;
+    })
     .then(function(rows){
       if(!rows||!rows.length)return;
       var list=document.getElementById('ac-model-'+id);
