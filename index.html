@@ -158,7 +158,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.7</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.8</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -205,6 +205,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <button class="btn btn-outline" onclick="cancelForm()">✕ Отмена</button>
   </div>
   <input type="hidden" id="edit-order-id">
+  <!-- v6.8: авточерновик — форма сохраняется по мере набора -->
+  <div id="draft-banner" style="display:none;background:#EAF2FB;border:1px solid #B3D1F0;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#0D47A1;margin-bottom:12px;gap:10px;align-items:center">
+    <span style="font-size:16px">📝</span>
+    <span id="draft-banner-txt" style="flex:1">Найден незаконченный заказ</span>
+    <button class="btn btn-primary" style="padding:6px 12px;font-size:12px" onclick="restoreDraft()">Восстановить</button>
+    <button class="btn btn-outline" style="padding:6px 12px;font-size:12px" onclick="_draftClear()">Начать заново</button>
+  </div>
   <div class="card">
     <div class="card-title">Клиент</div>
     <div class="fg" style="margin-bottom:12px">
@@ -216,19 +223,21 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
     <div class="form-row">
       <div class="fg"><label>Телефон 1 * <span style="color:#c62828;font-size:11px">(обязателен)</span></label>
-        <input type="tel" id="f-phone" class="inp-gold" placeholder="8-900-000-00-00"></div>
+        <input type="tel" id="f-phone" class="inp-gold" placeholder="8-900-000-00-00" oninput="phoneMask(this)"></div>
       <div class="fg"><label>Телефон 2 <span style="color:var(--text2);font-size:11px">(необязателен)</span></label>
-        <input type="tel" id="f-phone2" class="inp-gold" placeholder="8-900-000-00-00"></div>
+        <input type="tel" id="f-phone2" class="inp-gold" placeholder="8-900-000-00-00" oninput="phoneMask(this)"></div>
     </div>
     <div class="fg" style="margin-bottom:12px">
       <label>Адрес доставки *</label>
       <input type="text" id="f-address" class="inp-gold" placeholder="Улица, дом, квартира">
     </div>
-    <div class="form-row">
+    <!-- v6.8: дата заказа ставится сама (сегодня); поле видно только при редактировании -->
+    <div class="form-row" id="f-date-row" style="display:none">
       <div class="fg"><label>Дата заказа</label><input type="date" id="f-date" class="inp-gold"></div>
-      <div class="fg"><label>📦 Дата доставки</label><input type="date" id="f-delivery-date" class="inp-gold"></div>
+      <div></div>
     </div>
     <div class="form-row">
+      <div class="fg"><label>📦 Дата доставки</label><input type="date" id="f-delivery-date" class="inp-gold"></div>
       <div class="fg"><label>Менеджер *</label><input type="text" id="f-manager" class="inp-gold" placeholder="Имя менеджера"></div>
     </div>
   </div>
@@ -246,7 +255,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
   <div class="card">
-    <div class="card-title">Доставка</div>
+    <div class="card-title">Доставка и оплата</div>
     <div class="form-row">
       <div class="fg"><label>🚚 Стоимость доставки (₽)</label>
         <input type="number" id="f-delivery" value="0" min="0" class="inp-gold" oninput="recalcTotals()"></div>
@@ -264,43 +273,60 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <option value="yes">✅ Оплачена</option>
         </select></div>
     </div>
-  </div>
-  <div class="card">
-    <div class="card-title">Итого</div>
-    <div class="totals-block">
-      <div class="tot-row"><span style="color:var(--text2)">Товары (без скидки):</span><span id="t-goods">—</span></div>
-      <div class="tot-row" style="color:#1565C0"><span>Скидка:</span><span id="t-discount">—</span></div>
-      <div class="tot-row" style="font-size:15px;font-weight:600;border-top:1px solid var(--border);margin-top:8px;padding-top:10px"><span>Товары итого:</span><span id="t-discounted" style="color:#BF360C">—</span></div>
-      <div class="tot-row" style="color:#1B5E20;margin-top:6px"><span>Доставка + занос:</span><span id="t-delivery">—</span></div>
+    <!-- v6.8: предоплата с кнопками-подсказками; статус считается сам -->
+    <div class="fg" style="margin-bottom:4px">
+      <label>Предоплата за товары (₽)</label>
+      <input type="number" id="f-prepay" value="0" min="0" class="inp-gold" oninput="recalcTotals()">
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <span onclick="setPrepayPct(30)" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#1565C0">30%</span>
+        <span onclick="setPrepayPct(50)" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#1565C0">50%</span>
+        <span onclick="setPrepayPct(100)" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#1565C0">Вся сумма</span>
+        <span onclick="setPrepayPct(0)" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#78909C">Без предоплаты</span>
+      </div>
     </div>
-    <div class="form-row">
-      <div class="fg"><label>Предоплата за товары (₽)</label>
-        <input type="number" id="f-prepay" value="0" min="0" class="inp-gold" oninput="recalcTotals()"></div>
-      <div class="fg"><label>Остаток к оплате (₽)</label>
-        <input type="number" id="f-remainder" readonly class="inp-green"></div>
-    </div>
-    <div class="form-row">
-      <div class="fg"><label>Статус оплаты *</label>
-        <select id="f-status" class="inp-gold">
-          <option>🔴 Не оплачено</option><option>⚠️ Частичная</option>
-          <option>✅ Оплачено</option><option>💳 Кредит</option><option>📆 Рассрочка</option>
-        </select></div>
-      <div class="fg"><label>Способ оплаты *</label>
+    <div class="form-row" style="margin-top:12px">
+      <div class="fg" id="f-payment-wrap"><label>Способ оплаты предоплаты</label>
         <select id="f-payment" class="inp-gold">
           <option value="">— выберите —</option>
           <option>💵 Наличные</option>
           <option>💳 Карта</option>
           <option>📲 Перевод</option>
         </select></div>
+      <div class="fg"><label>Статус оплаты <span style="color:var(--text2);font-size:11px">(считается сам)</span></label>
+        <div id="f-status-view" style="padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:var(--alt);font-weight:600;font-size:14px">🔴 Не оплачено</div></div>
     </div>
+    <div class="form-row">
+      <div class="fg"><label>Кредит / рассрочка</label>
+        <select id="f-credit" class="inp-gold" onchange="recalcTotals()">
+          <option value="">Обычная оплата</option>
+          <option>💳 Кредит</option>
+          <option>📆 Рассрочка</option>
+        </select></div>
+      <div></div>
+    </div>
+    <!-- скрытые поля-хранилища: статус пишется в заказ как раньше -->
+    <select id="f-status" style="display:none">
+      <option>🔴 Не оплачено</option><option>⚠️ Частичная</option>
+      <option>✅ Оплачено</option><option>💳 Кредит</option><option>📆 Рассрочка</option>
+    </select>
+    <input type="number" id="f-remainder" readonly style="display:none">
   </div>
   <div class="card" style="border-color:#F9A825">
     <div class="card-title" style="color:#856404">📝 Примечание</div>
     <textarea id="f-notes" class="inp-gold" placeholder="Например: привезти 20 июня после 14:00, позвонить за час..."></textarea>
   </div>
-  <div style="display:flex;gap:10px;margin-bottom:40px">
-    <button class="btn btn-success" onclick="saveOrder()" id="save-btn" style="flex:1;justify-content:center;padding:12px">✅ Сохранить заказ</button>
-    <button class="btn btn-outline" onclick="cancelForm()">Отмена</button>
+  <div style="height:86px"></div>
+  <!-- v6.8: липкая панель итогов — видна из любого места формы (скрывается вместе со страницей) -->
+  <div id="new-sticky" style="position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:2px solid #1565C0;box-shadow:0 -4px 16px rgba(13,59,102,.13);padding:10px 14px;z-index:60">
+    <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="font-size:11px;color:var(--text2);line-height:1.3">Товары<br><b id="t-goods" style="font-size:14px;color:#1a1a1a">—</b></div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.3">Скидка<br><b id="t-discount" style="font-size:14px;color:#1565C0">—</b></div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.3">Товары итого<br><b id="t-discounted" style="font-size:14px;color:#BF360C">—</b></div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.3">Дост.+занос<br><b id="t-delivery" style="font-size:14px;color:#1a1a1a">—</b></div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.3">Предоплата<br><b id="t-prepay" style="font-size:14px;color:#1B5E20">—</b></div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.3">Долг клиента<br><b id="t-debt" style="font-size:17px;color:#BF360C">—</b></div>
+      <button class="btn btn-success" onclick="saveOrder()" id="save-btn" style="margin-left:auto;padding:12px 22px">✅ Сохранить заказ</button>
+    </div>
   </div>
 </div>
 
@@ -3604,6 +3630,7 @@ function doDeleteOrder(id){
 
 
 function cancelForm(){
+  _draftClear(); // явная отмена — черновик не нужен
   document.getElementById('edit-order-id').value='';
   document.getElementById('form-title').textContent='Новый заказ';
   resetForm();showPage('orders');
@@ -3612,35 +3639,144 @@ function resetForm(){
   _recoverOrderId=null;
   document.getElementById('edit-order-id').value='';
   document.getElementById('form-title').textContent='Новый заказ';
-  ['f-client','f-phone','f-phone2','f-address','f-manager','f-notes'].forEach(function(id){document.getElementById(id).value='';});
+  ['f-client','f-phone','f-phone2','f-address','f-notes'].forEach(function(id){document.getElementById(id).value='';});
+  ['f-phone','f-phone2'].forEach(function(id){document.getElementById(id).style.borderColor='';});
+  // v6.8: менеджер запоминается с прошлого заказа
+  document.getElementById('f-manager').value=localStorage.getItem('vd_manager')||'';
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
+  var dr=document.getElementById('f-date-row');if(dr)dr.style.display='none'; // дата заказа видна только при редактировании
+  document.getElementById('f-delivery-date').value='';
   document.getElementById('f-discount').value='0';
   document.getElementById('f-delivery').value='0';
   document.getElementById('f-lifting').value='0';
   document.getElementById('f-prepay').value='0';
   document.getElementById('f-status').value='🔴 Не оплачено';
+  var cr=document.getElementById('f-credit');if(cr)cr.value='';
   document.getElementById('f-payment').value='';
   document.getElementById('f-delivery-paid').value='no';
   document.getElementById('form-items').innerHTML='';
   itemCount=0;itemPrices={};addFormItem();recalcTotals();
+  _draftCheckBanner(); // предложить восстановить незаконченный заказ
 }
+// ═══ v6.8: авточерновик — форма сохраняется по мере набора ═══
+var _draftTimer=null;
+function _draftFieldIds(){return['f-client','f-phone','f-phone2','f-address','f-delivery-date','f-manager','f-discount','f-delivery','f-lifting','f-prepay','f-notes','f-payment','f-delivery-type','f-delivery-paid','f-credit'];}
+function _draftSave(){
+  if(document.getElementById('edit-order-id').value)return; // черновики только для НОВЫХ заказов
+  var d={f:{},items:[],t:Date.now()};
+  _draftFieldIds().forEach(function(id){var el=document.getElementById(id);if(el)d.f[id]=el.value;});
+  for(var i=1;i<=itemCount;i++){
+    var m=document.getElementById('fi-model-'+i);if(!m||!m.value.trim())continue;
+    var catSel=document.getElementById('fi-cat-'+i);var isFab=!!(catSel&&catSel.value);
+    var ib=document.getElementById('ib-'+i);
+    var qtyEl=isFab?document.getElementById('fi-qty-'+i):document.getElementById('fi-qty2-'+i);
+    var avEl=isFab?document.getElementById('fi-avail-cat-'+i):document.getElementById('fi-avail-'+i);
+    d.items.push({model:m.value,color:(document.getElementById('fi-color-'+i)||{}).value||'',
+      dims:(document.getElementById('fi-dims-'+i)||{}).value||'',
+      sup:((document.getElementById('sup-lbl-'+i)||{}).textContent||'').trim(),
+      supMan:(document.getElementById('fi-supplier-'+i)||{}).value||'',
+      cat:isFab?catSel.value:'',cats:(catSel&&catSel.dataset.cats)||'',catPrices:(catSel&&catSel.dataset.prices)||'',
+      qty:parseInt(qtyEl&&qtyEl.value)||1,avail:(avEl&&avEl.value)||'Есть',
+      opt:(ib&&ib.dataset.opt)||'',ret:(ib&&ib.dataset.ret)||'',
+      manual:(ib&&ib.dataset.manual==='1')?((document.getElementById('fi-manual-'+i)||{}).value||''):'',
+      price:itemPrices[i]||0});
+  }
+  var any=(d.f['f-client']||'').trim()||(d.f['f-notes']||'').trim()||d.items.length;
+  try{
+    if(any)localStorage.setItem('vd_order_draft',JSON.stringify(d));
+    else localStorage.removeItem('vd_order_draft');
+  }catch(e){}
+}
+function _draftGet(){try{var s=localStorage.getItem('vd_order_draft');return s?JSON.parse(s):null;}catch(e){return null;}}
+function _draftClear(){
+  try{localStorage.removeItem('vd_order_draft');}catch(e){}
+  var b=document.getElementById('draft-banner');if(b)b.style.display='none';
+}
+function _draftCheckBanner(){
+  var b=document.getElementById('draft-banner');if(!b)return;
+  var d=_draftGet();
+  if(!d||!((d.f&&(d.f['f-client']||'').trim())||(d.items&&d.items.length))){b.style.display='none';return;}
+  var mins=Math.max(1,Math.round((Date.now()-(d.t||Date.now()))/60000));
+  var when=mins<60?(mins+' мин. назад'):(Math.round(mins/60)+' ч. назад');
+  var who=(d.f['f-client']||'').trim();
+  document.getElementById('draft-banner-txt').innerHTML='<strong>Найден незаконченный заказ</strong>'+(who?' — '+who:'')+' <span style="color:#78909C">(набирали '+when+')</span>';
+  b.style.display='flex';
+}
+function restoreDraft(){
+  var d=_draftGet();if(!d)return;
+  _draftFieldIds().forEach(function(id){var el=document.getElementById(id);if(el&&d.f[id]!=null)el.value=d.f[id];});
+  document.getElementById('form-items').innerHTML='';itemCount=0;itemPrices={};
+  var list=(d.items&&d.items.length)?d.items:[null];
+  list.forEach(function(it){
+    addFormItem();var id2=itemCount;if(!it)return;
+    document.getElementById('fi-model-'+id2).value=it.model||'';
+    document.getElementById('fi-color-'+id2).value=it.color||'';
+    document.getElementById('fi-dims-'+id2).value=it.dims||'';
+    document.getElementById('fi-supplier-'+id2).value=it.supMan||'';
+    if(it.sup){
+      var l=document.getElementById('sup-lbl-'+id2);l.textContent=it.sup;l.style.display='inline';
+      if(!it.supMan){var sr=document.getElementById('suprow-'+id2);if(sr)sr.style.display='none';}
+    }
+    var ib=document.getElementById('ib-'+id2);
+    if(it.cat){
+      document.getElementById('cat-row-'+id2).style.display='grid';
+      document.getElementById('nocat-row-'+id2).style.display='none';
+      var ar=document.getElementById('avail-row-'+id2);if(ar)ar.style.display='block';
+      var cs=document.getElementById('fi-cat-'+id2);
+      if(it.cats&&it.catPrices){
+        cs.dataset.cats=it.cats;cs.dataset.prices=it.catPrices;
+        try{cs.innerHTML='<option value="">— категория —</option>'+JSON.parse(it.cats).map(function(c){return'<option>'+c+'</option>';}).join('');}catch(e2){}
+      }else cs.innerHTML='<option value="">— категория —</option><option>'+it.cat+'</option>';
+      cs.value=it.cat;
+      document.getElementById('fi-qty-'+id2).value=it.qty||1;
+      var ac=document.getElementById('fi-avail-cat-'+id2);if(ac&&it.avail)ac.value=it.avail;
+    }else{
+      document.getElementById('fi-qty2-'+id2).value=it.qty||1;
+      var av=document.getElementById('fi-avail-'+id2);if(av&&it.avail)av.value=it.avail;
+    }
+    if(ib){if(it.opt)ib.dataset.opt=it.opt;if(it.ret)ib.dataset.ret=it.ret;}
+    if(it.manual){
+      if(ib)ib.dataset.manual='1';
+      document.getElementById('fi-manual-'+id2).value=it.manual;
+      var mw=document.getElementById('manual-wrap-'+id2);if(mw)mw.style.display='block';
+    }
+    itemPrices[id2]=it.price||0;
+    document.getElementById('fi-ret-'+id2).textContent=it.price?fmt(it.price)+' ₽':'—';
+    collapseItem(id2);
+  });
+  var b=document.getElementById('draft-banner');if(b)b.style.display='none';
+  recalcTotals();
+  toast('📝 Черновик восстановлен');
+}
+// слушатель: любое изменение на странице формы пишет черновик (с задержкой)
+(function(){
+  var pg=document.getElementById('page-new');if(!pg)return;
+  function arm(ms){clearTimeout(_draftTimer);_draftTimer=setTimeout(_draftSave,ms);}
+  pg.addEventListener('input',function(){arm(700);});
+  pg.addEventListener('change',function(){arm(300);});
+})();
 
 function addFormItem(){
+  // v6.8: заполненные товары сворачиваем в строку — форма не растягивается
+  for(var p=1;p<itemCount+1;p++)collapseItem(p);
   itemCount++;var id=itemCount;itemPrices[id]=0;
   var div=document.createElement('div');div.className='item-block';div.id='ib-'+id;
   div.innerHTML=
     '<button onclick="removeFormItem('+id+')" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#999;font-size:18px">✕</button>'+
+    // свёрнутая строка (v6.8)
+    '<div id="ib-sum-'+id+'" style="display:none;cursor:pointer;padding-right:24px" onclick="expandItem('+id+')" title="Нажмите, чтобы развернуть и изменить"></div>'+
+    '<div id="ib-body-'+id+'">'+
     '<div class="fg" style="margin-bottom:10px">'+
-      '<label>Модель / Товар * <span id="sup-lbl-'+id+'" style="font-size:11px;color:var(--dark);background:var(--lite);padding:1px 6px;border-radius:10px;display:none"></span></label>'+
+      '<label>Модель / Товар * <span id="sup-lbl-'+id+'" onclick="var s=document.getElementById(\'suprow-'+id+'\');if(s)s.style.display=\'block\'" title="Нажмите, чтобы изменить поставщика" style="cursor:pointer;font-size:11px;color:var(--dark);background:var(--lite);padding:1px 6px;border-radius:10px;display:none"></span></label>'+
       '<div class="ac-wrap">'+
         '<input type="text" id="fi-model-'+id+'" class="inp-gold" placeholder="Введите название..." autocomplete="off" oninput="onModelInput('+id+')" onfocus="onModelInput('+id+')" onblur="hideAc(\'ac-model-'+id+'\',250)">'+
         '<div class="ac-list" id="ac-model-'+id+'"></div>'+
       '</div></div>'+
     '<div class="form-row" style="margin-bottom:10px">'+
-      '<div class="fg"><label>Цвет / Ткань *</label><input type="text" id="fi-color-'+id+'" class="inp-gold" placeholder="Цвет или ткань..."></div>'+
-      '<div class="fg"><label>Размер *</label><input type="text" id="fi-dims-'+id+'" class="inp-gold" placeholder="напр. 2200×950 мм"></div>'+
+      '<div class="fg"><label>Цвет / Ткань</label><input type="text" id="fi-color-'+id+'" class="inp-gold" placeholder="Цвет или ткань..."></div>'+
+      '<div class="fg"><label>Размер</label><input type="text" id="fi-dims-'+id+'" class="inp-gold" placeholder="напр. 2200×950 мм"></div>'+
     '</div>'+
-    '<div class="fg" style="margin-bottom:10px">'+
+    '<div class="fg" id="suprow-'+id+'" style="margin-bottom:10px">'+
       '<label>Поставщик * <small style="color:var(--text2)">(заполняется автоматически при выборе товара, или вручную)</small></label>'+
       '<input type="text" id="fi-supplier-'+id+'" class="inp-gold" placeholder="Название поставщика...">'+
     '</div>'+
@@ -3655,14 +3791,73 @@ function addFormItem(){
       '<div class="fg"><label>Наличие</label><select id="fi-avail-'+id+'" class="inp-gold"><option>Есть</option><option>Под заказ</option></select></div>'+
       '<div class="fg"><label>Кол-во *</label><input type="number" id="fi-qty2-'+id+'" value="1" min="1" class="inp-gold" oninput="calcItemPrice('+id+')"></div>'+
     '</div>'+
-    '<div style="display:flex;gap:16px;margin-top:6px;align-items:center">'+
+    '<div style="display:flex;gap:14px;margin-top:6px;align-items:center">'+
       '<div style="font-size:13px">Розн.: <strong id="fi-ret-'+id+'" style="color:#BF360C">—</strong></div>'+
+      '<a href="#" style="font-size:12px;color:#1565C0" onclick="toggleManual('+id+');return false">✏️ цена вручную</a>'+
+      '<a href="#" style="font-size:12px;color:var(--text2);margin-left:auto" onclick="collapseItem('+id+');return false">⌃ свернуть</a>'+
     '</div>'+
-    '<div style="margin-top:8px;padding:8px 10px;background:#FFF8E1;border:1.5px solid #FFB74D;border-radius:6px">'+
+    '<div id="manual-wrap-'+id+'" style="display:none;margin-top:8px;padding:8px 10px;background:#FFF8E1;border:1.5px solid #FFB74D;border-radius:6px">'+
       '<div style="font-size:11px;color:#E65100;font-weight:500;margin-bottom:4px">✏️ Ввести розничную цену вручную:</div>'+
       '<input type="number" id="fi-manual-'+id+'" placeholder="Розничная цена (₽)" min="0" style="padding:6px 10px;font-size:13px;border:1px solid #FFB74D;border-radius:5px;background:#fff;width:200px" onchange="onManualPrice('+id+')">'+
+    '</div>'+
     '</div>';
   document.getElementById('form-items').appendChild(div);
+}
+// ═══ v6.8: сворачивание товара в одну строку ═══
+function collapseItem(id){
+  var body=document.getElementById('ib-body-'+id),sum=document.getElementById('ib-sum-'+id);
+  if(!body||!sum)return;
+  var model=((document.getElementById('fi-model-'+id)||{}).value||'').trim();
+  if(!model)return; // пустой товар не сворачиваем
+  var color=((document.getElementById('fi-color-'+id)||{}).value||'').trim();
+  var dims=((document.getElementById('fi-dims-'+id)||{}).value||'').trim();
+  var catSel=document.getElementById('fi-cat-'+id);
+  var isFabric=!!(catSel&&catSel.value);
+  var qtyEl=isFabric?document.getElementById('fi-qty-'+id):document.getElementById('fi-qty2-'+id);
+  var qty=parseInt(qtyEl&&qtyEl.value)||1;
+  var availEl=isFabric?document.getElementById('fi-avail-cat-'+id):document.getElementById('fi-avail-'+id);
+  var avail=availEl?availEl.value:'';
+  var sup=((document.getElementById('sup-lbl-'+id)||{}).textContent||'').trim();
+  var supMan=((document.getElementById('fi-supplier-'+id)||{}).value||'').trim();
+  var price=itemPrices[id]||0;
+  sum.innerHTML='<div style="display:flex;align-items:center;gap:10px">'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="font-size:13.5px;font-weight:700">'+model
+    +(avail?' <span style="'+(avail==='Есть'?'background:#E8F5E9;color:#1B5E20':'background:#FFF3E0;color:#E65100')+';border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700;vertical-align:middle">'+avail+'</span>':'')+'</div>'
+    +'<div style="font-size:12px;color:var(--text2)">'+[color,dims,(isFabric?'кат.'+catSel.value:''),(sup||supMan)].filter(Boolean).join(' · ')+'</div>'
+    +'</div>'
+    +'<div style="font-weight:700;color:#BF360C;white-space:nowrap">'+(price?fmt(price)+' ₽':'—')+(qty>1?' <span style="color:var(--text2);font-weight:400;font-size:11px">('+qty+' шт.)</span>':'')+'</div>'
+    +'<span style="color:#90A4AE;font-size:13px">✏️</span></div>';
+  body.style.display='none';sum.style.display='block';
+}
+function expandItem(id){
+  var b=document.getElementById('ib-body-'+id),s=document.getElementById('ib-sum-'+id);
+  if(b)b.style.display='block';if(s)s.style.display='none';
+}
+function toggleManual(id){
+  var w=document.getElementById('manual-wrap-'+id);
+  if(w)w.style.display=(w.style.display==='none'||!w.style.display)?'block':'none';
+}
+// v6.8: кнопки предоплаты (проценты от товаров со скидкой)
+function setPrepayPct(pct){
+  var goods=Object.values(itemPrices).reduce(function(a,b){return a+b;},0);
+  var disc=Math.min(Math.max(parseFloat(document.getElementById('f-discount').value)||0,0),100);
+  var discounted=Math.round(goods*(1-disc/100));
+  document.getElementById('f-prepay').value=pct?Math.round(discounted*pct/100):0;
+  recalcTotals();
+}
+// v6.8: маска телефона 8-9XX-XXX-XX-XX (зелёная рамка при 11 цифрах)
+function phoneMask(el){
+  var d=String(el.value||'').replace(/\D/g,'').slice(0,11);
+  if(!d){el.value='';el.style.borderColor='';return;}
+  if(d[0]==='7')d='8'+d.slice(1);
+  var out=d[0];
+  if(d.length>1)out+='-'+d.slice(1,4);
+  if(d.length>4)out+='-'+d.slice(4,7);
+  if(d.length>7)out+='-'+d.slice(7,9);
+  if(d.length>9)out+='-'+d.slice(9,11);
+  el.value=out;
+  el.style.borderColor=(d.length===11)?'#A5D6A7':'';
 }
 
 function removeFormItem(id){var el=document.getElementById('ib-'+id);if(el)el.remove();delete itemPrices[id];recalcTotals();}
@@ -3691,6 +3886,8 @@ function selectModel(id,item){
   document.getElementById('fi-model-'+id).value=item.name;
   document.getElementById('ac-model-'+id).style.display='none';
   var lbl=document.getElementById('sup-lbl-'+id);lbl.textContent=item.sup;lbl.style.display='inline';
+  // v6.8: поставщик определился из прайса — поле прячем (виден бейдж; клик по бейджу вернёт поле)
+  if(item.sup){var _sr=document.getElementById('suprow-'+id);if(_sr)_sr.style.display='none';}
   if(item.dims)document.getElementById('fi-dims-'+id).value=item.dims;
   var manEl=document.getElementById('fi-manual-'+id);if(manEl)manEl.value='';
   var ib=document.getElementById('ib-'+id);if(ib)delete ib.dataset.manual;
@@ -3801,6 +3998,17 @@ function recalcTotals(){
   document.getElementById('t-delivery').textContent=delivery?fmt(delivery)+' ₽':'—';
   document.getElementById('f-disc-save').textContent=save?'− '+fmt(save)+' ₽':'—';
   document.getElementById('f-remainder').value=discounted?Math.max(0,discounted-prepay):'';
+  // v6.8: липкая панель — предоплата и долг клиента
+  var tp=document.getElementById('t-prepay');if(tp)tp.textContent=prepay?fmt(prepay)+' ₽':'—';
+  var debt=Math.max(0,discounted-prepay)+delivery;
+  var td=document.getElementById('t-debt');if(td)td.textContent=(goods||delivery)?fmt(debt)+' ₽':'—';
+  // v6.8: статус оплаты считается сам (кредит/рассрочка выбираются отдельно)
+  var credit=(document.getElementById('f-credit')||{}).value||'';
+  var st=credit||(prepay<=0?'🔴 Не оплачено':(discounted>0&&prepay>=discounted?'✅ Оплачено':'⚠️ Частичная'));
+  var stEl=document.getElementById('f-status');if(stEl)stEl.value=st;
+  var stView=document.getElementById('f-status-view');if(stView)stView.textContent=st;
+  // способ оплаты нужен только когда есть предоплата
+  var pw=document.getElementById('f-payment-wrap');if(pw)pw.style.opacity=prepay>0?'1':'0.4';
 }
 
 var _saving=false,_recoverOrderId=null;
@@ -3828,6 +4036,7 @@ function saveOrder(){
   ['f-client','f-phone','f-address','f-manager'].forEach(function(id){document.getElementById(id).style.borderColor='';});
   var items=[];
   var itemErrors=[];
+  var softWarns=[]; // v6.8: нежёсткие пропуски (цвет/размер)
   for(var i=1;i<=itemCount;i++){
     var modelEl=document.getElementById('fi-model-'+i);if(!modelEl)continue;
     var model=modelEl.value.trim();if(!model)continue;
@@ -3852,19 +4061,19 @@ function saveOrder(){
     var dimsVal=document.getElementById('fi-dims-'+i)?document.getElementById('fi-dims-'+i).value.trim():'';
     var supplierVal=document.getElementById('sup-lbl-'+i)?document.getElementById('sup-lbl-'+i).textContent.trim():'';
     var supplierManualVal=document.getElementById('fi-supplier-'+i)?document.getElementById('fi-supplier-'+i).value.trim():'';
+    // v6.8: цвет/размер — мягкая проверка (один вопрос, не блокирует);
+    // поставщик и количество — по-прежнему обязательны
     var itemMissing=[];
-    if(!colorVal)itemMissing.push('Цвет');
-    if(!dimsVal)itemMissing.push('Размер');
     if(!supplierVal&&!supplierManualVal)itemMissing.push('Поставщик');
     if(qty<1)itemMissing.push('Количество');
     if(itemMissing.length){
       itemErrors.push('Товар '+i+' ('+model+'): не заполнено — '+itemMissing.join(', '));
-      if(document.getElementById('fi-color-'+i))document.getElementById('fi-color-'+i).style.borderColor='#C62828';
-      if(document.getElementById('fi-dims-'+i))document.getElementById('fi-dims-'+i).style.borderColor='#C62828';
-    }else{
-      if(document.getElementById('fi-color-'+i))document.getElementById('fi-color-'+i).style.borderColor='';
-      if(document.getElementById('fi-dims-'+i))document.getElementById('fi-dims-'+i).style.borderColor='';
+      expandItem(i);
     }
+    var softMiss=[];
+    if(!colorVal)softMiss.push('цвет');
+    if(!dimsVal)softMiss.push('размер');
+    if(softMiss.length)softWarns.push('«'+model+'» — '+softMiss.join(' и '));
     items.push({
       product_name:model,
       supplier:supplierVal,
@@ -3880,6 +4089,10 @@ function saveOrder(){
   }
   if(!items.length){toast('⚠️ Добавьте хотя бы один товар!','err');_saving=false;btn.disabled=false;return;}
   if(itemErrors.length){toast('⚠️ '+itemErrors[0],'err',4000);_saving=false;btn.disabled=false;return;}
+  // v6.8: мягкое подтверждение по цвету/размеру — один вопрос на всё
+  if(softWarns.length&&!confirm('У товаров не указано:\n• '+softWarns.join('\n• ')+'\n\nСохранить заказ как есть?')){
+    _saving=false;btn.disabled=false;return;
+  }
   var goods=Object.values(itemPrices).reduce(function(a,b){return a+b;},0);
   var disc2=parseFloat(document.getElementById('f-discount').value)||0;
   var goodsDisc=Math.round(goods*(1-disc2/100));
@@ -3907,10 +4120,10 @@ function saveOrder(){
     payment_method:document.getElementById('f-payment').value,
     notes:document.getElementById('f-notes').value.trim()
   };
-  // Проверка способа оплаты
-  if(!orderData.payment_method){
+  // v6.8: способ оплаты обязателен только когда есть предоплата
+  if(prepay>0&&!orderData.payment_method){
     document.getElementById('f-payment').style.borderColor='#C62828';
-    toast('⚠️ Укажите способ оплаты','err');_saving=false;return;
+    toast('⚠️ Укажите, как получена предоплата (наличные / карта / перевод)','err');_saving=false;return;
   }
   document.getElementById('f-payment').style.borderColor='';
   btn.innerHTML='<span class="spinner"></span> Сохраняем...';btn.disabled=true;
@@ -3935,6 +4148,9 @@ function saveOrder(){
     var idx=allOrders.findIndex(function(o){return o.id==orderId;});
     if(idx>=0)allOrders[idx]=local;else allOrders.unshift(local);
     toast('✅ Заказ сохранён!');
+    // v6.8: менеджер запоминается; черновик больше не нужен
+    try{localStorage.setItem('vd_manager',manager);}catch(e){}
+    _draftClear();
     resetForm();updateManagerFilter();filterOrders();showPage('orders');
     // Клиент в базу — в фоне, не задерживает сохранение
     var exists=allClients.some(function(c){return c.name&&c.name.toLowerCase()===clientName.toLowerCase();});
@@ -3972,14 +4188,23 @@ function editOrder(id){
   document.getElementById('f-prepay').value=o.prepayment||0;
   document.getElementById('f-notes').value=o.notes||'';
   document.getElementById('f-status').value=o.status||'🔴 Не оплачено';
+  // v6.8: кредит/рассрочка — отдельный выбор; остальные статусы считаются сами
+  var _cr=document.getElementById('f-credit');
+  if(_cr)_cr.value=(o.status==='💳 Кредит'||o.status==='📆 Рассрочка')?o.status:'';
   document.getElementById('f-payment').value=o.payment_method||'';
   document.getElementById('f-delivery-paid').value=o.delivery_paid||'no';
   document.getElementById('f-delivery-type').value=o.delivery_type||'🚚 Доставка + занос';
+  // v6.8: при редактировании дата заказа видна, баннер черновика прячем
+  var _dr=document.getElementById('f-date-row');if(_dr)_dr.style.display='grid';
+  var _db=document.getElementById('draft-banner');if(_db)_db.style.display='none';
   document.getElementById('form-items').innerHTML='';itemCount=0;itemPrices={};
   (o.order_items||[]).forEach(function(item){
     addFormItem();var id2=itemCount;
     document.getElementById('fi-model-'+id2).value=item.product_name;
-    if(item.supplier){var l=document.getElementById('sup-lbl-'+id2);l.textContent=item.supplier;l.style.display='inline';}
+    if(item.supplier){
+      var l=document.getElementById('sup-lbl-'+id2);l.textContent=item.supplier;l.style.display='inline';
+      if(!item.supplier_manual){var _sr2=document.getElementById('suprow-'+id2);if(_sr2)_sr2.style.display='none';}
+    }
     if(item.color)document.getElementById('fi-color-'+id2).value=item.color;
     if(item.dims)document.getElementById('fi-dims-'+id2).value=item.dims;
     if(item.supplier_manual)document.getElementById('fi-supplier-'+id2).value=item.supplier_manual;
@@ -4008,6 +4233,7 @@ function editOrder(id){
     document.getElementById('fi-ret-'+id2).textContent=fmt(ret*qty)+' ₽';
     var ib2=document.getElementById('ib-'+id2);
     if(ib2){ib2.dataset.opt=opt;ib2.dataset.ret=ret;}
+    collapseItem(id2); // v6.8: загруженные позиции показываем компактно
   });
   recalcTotals();showPage('new');
 }
