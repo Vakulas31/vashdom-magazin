@@ -158,7 +158,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.6</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v6.7</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -690,6 +690,31 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </div>
 </div>
 
+<!-- Оплата позиции при доставке (v6.7) -->
+<div class="modal-bg" id="modal-itempay">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">🚚 Товар отвезён клиенту</div>
+    <div id="ip-summary" style="background:var(--alt);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;line-height:1.6"></div>
+    <div class="fg" style="margin-bottom:12px"><label>Получено за этот товар, ₽</label><input type="number" id="ip-amount" min="0" step="1" inputmode="numeric"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="fg" style="margin:0"><label>Способ оплаты</label>
+        <select id="ip-method">
+          <option>💵 Наличные</option>
+          <option>💳 Карта</option>
+          <option>📲 Перевод</option>
+        </select>
+      </div>
+      <div class="fg" style="margin:0"><label>Дата оплаты</label><input type="date" id="ip-date"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="ipSavePaid()" style="flex:1;justify-content:center">💰 Оплата получена</button>
+      <button class="btn btn-outline" onclick="ipSaveNoPay()">Отвезён, оплаты не было</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-itempay')">Отмена</button>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-top:10px">Полученная сумма спишется с долга заказа и попадёт в учёт кассы указанной датой — при довозе остальных товаров она уже не будет числиться за клиентом.</div>
+  </div>
+</div>
+
 <!-- История клиента (мини-CRM, v6.6) -->
 <div class="modal-bg" id="modal-chistory">
   <div class="modal" style="max-width:680px">
@@ -992,7 +1017,7 @@ function orderCard(o){
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
   var hdrBg=isDone?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
 
-  var itemsHtml='',delivCnt=0;
+  var itemsHtml='',delivCnt=0,itemsPaid=0;
   for(var i=0;i<items.length;i++){
     var it=items[i];
     var parts=[it.product_name];
@@ -1005,6 +1030,9 @@ function orderCard(o){
     var availClass=it.availability==='Есть'?'badge-yes':'badge-order';
     // Отметка «отвезено клиенту» по каждому товару отдельно (частичная доставка заказа)
     var dlv=!!it.delivered_at;if(dlv)delivCnt++;
+    // v6.7: оплата позиции при доставке
+    var itPaid=Math.round(it.paid_amount||0);if(itPaid>0)itemsPaid+=itPaid;
+    var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
     var dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="'+(dlv?'Товар у клиента. Нажмите, чтобы снять отметку':'Нажмите, когда товар отвезён клиенту')+'" '
       +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;'
       +(dlv?'background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7':'background:#FFF8E1;color:#B26A00;border:1px dashed #E0B252')+'">'
@@ -1013,7 +1041,7 @@ function orderCard(o){
       '<div class="item-info"><span class="item-text"'+(dlv?' style="opacity:.75"':'')+'><strong>'+it.product_name+'</strong>'+(parts.length>1?' · '+parts.slice(1).join(' · '):'')+'</span>'+
       (it.qty>1?'<span class="tag-qty" style="margin-left:6px">'+it.qty+' шт.</span>':'')+
       '</div>'+
-      '<div class="item-avail">'+dlvBtn+
+      '<div class="item-avail">'+paidTag+dlvBtn+
       '<span class="item-price" style="margin-right:8px">'+price+' ₽</span>'+
       '<span class="badge '+availClass+'">'+it.availability+'</span>'+
       supTag+'</div></div>';
@@ -1038,6 +1066,9 @@ function orderCard(o){
     '<div class="ftr-col"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'✅':'⏳')+'</span></div><div class="ftr-val">'+fmt(delivCost)+' ₽</div></div>'):'';
   var ftrPre=(o.prepayment||0)>0?
     '<div class="ftr-col"><div class="ftr-lbl">Предоплата'+(o.payment_method?' <span style="font-size:9px;color:var(--text2)">'+o.payment_method+'</span>':'')+'</div><div class="ftr-val">'+fmt(o.prepayment)+' ₽</div></div>':'';
+  // v6.7: сколько уже получено при доставке позиций
+  var ftrItemPaid=itemsPaid>0?
+    '<div class="ftr-col"><div class="ftr-lbl">💰 Оплачено при доставке</div><div class="ftr-val" style="color:#1B5E20">'+fmt(itemsPaid)+' ₽</div></div>':'';
   var noteHtml=o.notes?'<div class="note-box">📝 '+o.notes+'</div>':'';
   if(isDone&&o.close_comment)noteHtml+='<div class="note-box" style="border-left-color:#2e7d32">🏁 '+o.close_comment+'</div>';
   var doneBtn=!isDone?'<button class="btn btn-success" onclick="markDone('+o.id+')" style="padding:5px 10px;font-size:12px">✅ Выполнен</button>':'';
@@ -1075,7 +1106,7 @@ function orderCard(o){
     (itemsHtml||'')+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
     '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(o.goods_discounted||o.goods_total||0)+' ₽</div></div>'+
-    ftrDeliv+ftrPre+ftrDebt+ftrClose+'</div>'+
+    ftrDeliv+ftrPre+ftrItemPaid+ftrDebt+ftrClose+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
     '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1565C0;border-color:#1565C0">🖨 Наряд</button>'+
     '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px;color:var(--dark);border-color:var(--dark)">🖨 Договор</button>'+
@@ -1095,17 +1126,94 @@ function toggleOrderBody(id){
 }
 
 // ── ОТМЕТКА «ТОВАР ОТВЕЗЁН КЛИЕНТУ» (по каждой позиции отдельно) ──
+// ═══ v6.7: отметка «отвезено» + оплата позиции ═══
+// Клиент часто рассчитывается за товар в момент довоза. Полученная сумма
+// хранится у позиции (paid_amount/method/at) и СПИСЫВАЕТСЯ с долга заказа
+// (orders.remainder) — карточка, закрытие, печать и аналитика читают remainder,
+// поэтому долг везде сразу честный, и повторно эти деньги никто не спросит.
+var _ipItemId=null,_ipOrderId=null;
+function _ipFind(){
+  var o=allOrders.find(function(x){return x.id===_ipOrderId;});
+  var it=o?(o.order_items||[]).find(function(x){return x.id===_ipItemId;}):null;
+  return{o:o,it:it};
+}
 function toggleItemDelivered(itemId,orderId){
   var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
   var it=(o.order_items||[]).find(function(x){return x.id===itemId;});if(!it)return;
-  var newVal=it.delivered_at?null:new Date().toISOString().split('T')[0];
-  sbPatch('order_items',{delivered_at:newVal},'id=eq.'+itemId).then(function(){
-    it.delivered_at=newVal;
-    toast(newVal?'🚚 Отмечено: «'+(it.product_name||'товар')+'» отвезён клиенту':'↩️ Отметка «отвезено» снята');
+  if(it.delivered_at){
+    // ── Снятие отметки ──
+    var paid=Math.round(it.paid_amount||0);
+    if(paid>0){
+      if(!confirm('У товара «'+(it.product_name||'')+'» записана оплата '+fmt(paid)+' ₽'+(it.paid_method?' ('+it.paid_method+')':'')+'.\n\nСнять отметку «отвезено» И удалить запись об оплате?\nДолг заказа снова увеличится на '+fmt(paid)+' ₽.'))return;
+      var backRem=Math.round((o.remainder||0)+paid);
+      sbPatch('order_items',{delivered_at:null,paid_amount:null,paid_method:null,paid_at:null},'id=eq.'+itemId)
+        .then(function(){return sbPatch('orders',{remainder:backRem},'id=eq.'+o.id);})
+        .then(function(){
+          it.delivered_at=null;it.paid_amount=null;it.paid_method=null;it.paid_at=null;o.remainder=backRem;
+          toast('↩️ Отметка и оплата удалены — долг заказа: '+fmt(backRem)+' ₽');
+          _paintOrders();
+        })
+        .catch(function(e){toast('❌ Не сохранилось: '+e.message,'err',6000);});
+      return;
+    }
+    sbPatch('order_items',{delivered_at:null},'id=eq.'+itemId).then(function(){
+      it.delivered_at=null;
+      toast('↩️ Отметка «отвезено» снята');
+      _paintOrders();
+    }).catch(function(e){
+      toast('❌ Не сохранилось: '+e.message+'. Выполните SQL_обновление_5.9 в Supabase','err',6000);
+    });
+    return;
+  }
+  // ── Отметка «отвезено» → модалка: была ли оплата? ──
+  _ipItemId=itemId;_ipOrderId=orderId;
+  var price=Math.round((it.price_discounted||it.price_retail||0)*(it.qty||1));
+  var rem=Math.round(o.remainder||0);
+  var suggest=Math.min(price,rem);
+  document.getElementById('ip-summary').innerHTML=
+    '<strong>'+(it.product_name||'товар')+'</strong>'+(it.qty>1?' × '+it.qty+' шт.':'')
+    +'<br>Цена по заказу: <strong>'+fmt(price)+' ₽</strong> · Текущий долг заказа: <strong style="color:'+(rem>0?'#C62828':'#1B5E20')+'">'+fmt(rem)+' ₽</strong>'
+    +((o.prepayment||0)>0?'<br><span style="color:var(--text2);font-size:12px">Предоплата '+fmt(o.prepayment)+' ₽ уже вычтена из долга.</span>':'');
+  document.getElementById('ip-amount').value=suggest>0?suggest:'';
+  document.getElementById('ip-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('modal-itempay').classList.add('open');
+}
+// «Отвезён, оплаты не было» — просто отметка (старое поведение)
+function ipSaveNoPay(){
+  var f=_ipFind();if(!f.it){closeModal('modal-itempay');return;}
+  var d=document.getElementById('ip-date').value||new Date().toISOString().split('T')[0];
+  sbPatch('order_items',{delivered_at:d},'id=eq.'+_ipItemId).then(function(){
+    f.it.delivered_at=d;
+    closeModal('modal-itempay');
+    toast('🚚 Отмечено: «'+(f.it.product_name||'товар')+'» отвезён клиенту (без оплаты)');
     _paintOrders();
   }).catch(function(e){
     toast('❌ Не сохранилось: '+e.message+'. Выполните SQL_обновление_5.9 в Supabase','err',6000);
   });
+}
+// «Оплата получена» — отметка + запись оплаты + списание с долга заказа
+function ipSavePaid(){
+  var f=_ipFind();if(!f.it){closeModal('modal-itempay');return;}
+  var amt=Math.round(parseFloat(document.getElementById('ip-amount').value)||0);
+  if(amt<=0){toast('⚠️ Укажите сумму, либо нажмите «Отвезён, оплаты не было»','err');return;}
+  var rem=Math.round(f.o.remainder||0);
+  if(amt>rem&&!confirm('Сумма '+fmt(amt)+' ₽ больше текущего долга заказа ('+fmt(rem)+' ₽).\nЗаписать всё равно? Долг за товары станет 0.'))return;
+  var d=document.getElementById('ip-date').value||new Date().toISOString().split('T')[0];
+  var method=(document.getElementById('ip-method').value||'').replace(/^[^А-ЯЁа-яё]*/,'');
+  var newRem=Math.max(0,rem-amt);
+  sbPatch('order_items',{delivered_at:d,paid_amount:amt,paid_method:method,paid_at:d},'id=eq.'+_ipItemId)
+    .then(function(){return sbPatch('orders',{remainder:newRem},'id=eq.'+f.o.id);})
+    .then(function(){
+      f.it.delivered_at=d;f.it.paid_amount=amt;f.it.paid_method=method;f.it.paid_at=d;f.o.remainder=newRem;
+      closeModal('modal-itempay');
+      toast('💰 Получено '+fmt(amt)+' ₽ ('+method+'). Остаток долга за товары: '+fmt(newRem)+' ₽','ok',5000);
+      _paintOrders();
+    })
+    .catch(function(e){
+      var msg=e.message||'';
+      if(/paid_amount|paid_method|paid_at/i.test(msg))toast('❌ Нужно выполнить SQL_обновление_6.7 в Supabase, затем повторить','err',8000);
+      else toast('❌ Не сохранилось: '+msg,'err',6000);
+    });
 }
 
 // Универсальный debounce (для живых полей поиска)
@@ -1239,6 +1347,9 @@ function coDeliveryToggle(){
   // Сводка
   var o=allOrders.find(function(x){return x.id===_closeOrderId;})||{};
   var summary='<strong>'+(o.client_name||'')+'</strong><br>Остаток за товары: <strong>'+fmt(_closeGoodsDebt)+' ₽</strong>';
+  // v6.7: напоминание, что часть уже получена при доставке позиций
+  var _ipSum=0;(o.order_items||[]).forEach(function(it){_ipSum+=Math.round(it.paid_amount||0);});
+  if(_ipSum>0)summary+='<br><span style="color:#1B5E20;font-size:12px">💰 Уже получено при доставке позиций: '+fmt(_ipSum)+' ₽ (учтено в остатке)</span>';
   if(hasDeliv&&isOur)summary+='<br>Доставка/занос (наша, в кассу): <strong>'+fmt(_closeDelivCost)+' ₽</strong>';
   summary+='<br>Итого в кассу: <strong style="color:#C62828;font-size:15px">'+fmt(_closeTarget)+' ₽</strong>';
   if(_closeTarget===0)summary+='<br><span style="color:#1B5E20">К получению в кассу 0 ₽ — просто укажите дату выдачи.</span>';
@@ -1337,9 +1448,11 @@ function renderCash(){
   el.innerHTML='<div class="empty"><p>Загрузка данных...</p></div>';
   Promise.all([
     sbGet('orders','select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,pay_cash,pay_card,pay_transfer,delivery_cost,lifting_cost,delivery_our&or=(prepayment.gt.0,closed_at.not.is.null)&order=order_date.desc,id.desc&limit=2000'),
-    sbGet('cash_withdrawals','select=*&order=created_at.desc&limit=300')
+    sbGet('cash_withdrawals','select=*&order=created_at.desc&limit=300'),
+    // v6.7: оплаты позиций при доставке; если SQL 6.7 ещё не выполнен — тихо пропускаем
+    sbGet('order_items','select=paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc&limit=2000').catch(function(){return[];})
   ]).then(function(res){
-    _renderCashUI(res[0]||[],res[1]||[]);
+    _renderCashUI(res[0]||[],res[1]||[],res[2]||[]);
   }).catch(function(e){
     var msg=e.message||'';
     if(/cash_withdrawals|closed_at|pay_cash|does not exist|column|relation/i.test(msg)){
@@ -1352,12 +1465,25 @@ function renderCash(){
   });
 }
 
-function _renderCashUI(orders,withdrawals){
+function _renderCashUI(orders,withdrawals,itemPays){
   var el=document.getElementById('cash-content');
   // По каждому заказу: предоплата (по способу оплаты заказа) + финальные оплаты при закрытии
   var tot={cash:0,card:0,transfer:0,other:0};
   var list=[];
   var cashParts=[]; // отдельные наличные поступления для расшифровки кассы
+  // v6.7: оплаты позиций при доставке — отдельные строки поступлений
+  (itemPays||[]).forEach(function(p){
+    var amt=Math.round(p.paid_amount||0);if(amt<=0)return;
+    var ord=p.orders||{};
+    var kind=_payKind(p.paid_method);
+    var r={order_number:ord.order_number,client_name:ord.client_name,order_date:p.paid_at||ord.order_date,closed_at:ord.closed_at,
+      cash:0,card:0,transfer:0,other:0,
+      preNote:'💰 оплата при доставке: '+(p.product_name||'товар')+(p.paid_method?' ('+p.paid_method+')':''),delivNote:''};
+    r[kind==='other'?'other':kind]+=amt;
+    tot[kind==='other'?'other':kind]+=amt;
+    if(kind==='cash')cashParts.push({num:ord.order_number,client:ord.client_name,kind:'оплата при доставке',amt:amt,date:p.paid_at||ord.order_date});
+    list.push(r);
+  });
   orders.forEach(function(o){
     var pre=Math.round(o.prepayment||0);
     var preKind=_payKind(o.payment_method);
@@ -1455,7 +1581,7 @@ function _renderCashUI(orders,withdrawals){
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;font-size:13px">'+fmt(rowTot)+' ₽</td>'
       +'</tr>';
   });
-  html+='<div class="card"><div class="card-title">📋 Поступления по заказам ('+list.length+') — предоплаты и оплаты при закрытии</div>'
+  html+='<div class="card"><div class="card-title">📋 Поступления по заказам ('+list.length+') — предоплаты, оплаты при доставке и при закрытии</div>'
     +(pRows?'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:720px">'
       +'<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Заказ</th>'
       +'<th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Клиент</th>'
@@ -3254,7 +3380,7 @@ function printOrdersJournal(mode){
       if(it.qty>1)parts.push(it.qty+' шт.');
       // Отметка частичной доставки: ✅ отвезено / ⏳ ещё нет (если в заказе что-то уже отвезли)
       var mark=it.delivered_at?'<span style="color:#1B5E20">✅</span> ':(anyDlv?'<span style="color:#E65100">⏳</span> ':'');
-      return mark+parts.join(', ')+(it.delivered_at?' <span style="color:#1B5E20;font-size:7px">(отв. '+fmtDate(it.delivered_at)+')</span>':'');
+      return mark+parts.join(', ')+(it.delivered_at?' <span style="color:#1B5E20;font-size:7px">(отв. '+fmtDate(it.delivered_at)+')</span>':'')+(Math.round(it.paid_amount||0)>0?' <span style="color:#1B5E20;font-size:7px;font-weight:700">💰'+fmt(it.paid_amount)+'₽</span>':'');
     }).join('<br>');
 
     var goodsTotal=o.goods_discounted||o.goods_total||0;
@@ -3353,6 +3479,8 @@ function printOrder(id){
     var dlv=it.delivered_at
       ?'<span class="dlv-yes">✅ Отвезено<br>'+fmtDate(it.delivered_at)+'</span>'
       :'<span class="dlv-no">☐<br><span style="font-size:8px;color:#999">отметить</span></span>';
+    // v6.7: за позицию уже рассчитались — видно водителю, чтобы деньги не просили дважды
+    if(Math.round(it.paid_amount||0)>0)dlv+='<br><span style="color:#1B5E20;font-weight:700;font-size:9px">💰 оплачен '+fmt(it.paid_amount)+' ₽</span>';
     itemRows+='<tr'+(it.delivered_at?' class="row-dlv"':'')+'>'
       +'<td class="c">'+(i+1)+'</td>'
       +'<td><strong>'+(it.product_name||'—')+'</strong>'+(det.length?'<br><span class="det">'+det.join(' · ')+'</span>':'')+'</td>'
@@ -3373,6 +3501,9 @@ function printOrder(id){
   var moneyRows='';
   moneyRows+='<div class="mrow"><span>Товары по заказу</span><strong>'+fmt(goodsTotal)+' ₽</strong></div>';
   if(prepay>0)moneyRows+='<div class="mrow"><span>Предоплата'+(o.payment_method?' ('+o.payment_method+')':'')+'</span><strong>− '+fmt(prepay)+' ₽</strong></div>';
+  // v6.7: уже получено при доставке отдельных позиций
+  var itemsPaidPrn=0;items.forEach(function(it){itemsPaidPrn+=Math.round(it.paid_amount||0);});
+  if(itemsPaidPrn>0)moneyRows+='<div class="mrow"><span>💰 Оплачено при доставке (по позициям)</span><strong>− '+fmt(itemsPaidPrn)+' ₽</strong></div>';
   if(delivCost>0){
     var dparts=[];
     if(o.delivery_cost>0)dparts.push('доставка '+fmt(o.delivery_cost)+' ₽');
@@ -3922,9 +4053,12 @@ function openClientHistory(phone,name){
   var totalGoods=0,totalDebt=0,phones={},addr='';
   list.forEach(function(o){
     totalGoods+=(o.goods_discounted||o.goods_total||0);
-    var paid=(o.prepayment||0)+(o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0);
-    var due=(o.goods_discounted||o.goods_total||0)+((o.delivery_our===false)?0:((o.delivery_cost||0)+(o.lifting_cost||0)));
-    if(o.status!=='🏁 Выполнен')totalDebt+=Math.max(0,due-paid);
+    // Долг как в карточке заказа: remainder (уже за вычетом предоплаты и оплат
+    // при доставке, v6.7) + неоплаченная наша доставка
+    if(o.status!=='🏁 Выполнен'){
+      var delivDebt=(o.delivery_paid==='yes'||o.delivery_our===false)?0:((o.delivery_cost||0)+(o.lifting_cost||0));
+      totalDebt+=Math.max(0,Math.round(o.remainder||0))+delivDebt;
+    }
     [o.client_phone,o.client_phone2].forEach(function(p){if(p)phones[p]=1;});
     if(o.client_address)addr=o.client_address;
   });
@@ -3942,7 +4076,8 @@ function openClientHistory(phone,name){
     var itHtml=items.map(function(it){
       return '<div style="font-size:12px;color:var(--text2);padding:1px 0">• '+it.product_name
         +(it.color?' ('+it.color+')':'')+(it.qty>1?' × '+it.qty:'')
-        +(it.delivered_at?' <span style="color:#1B5E20">🚚 '+fmtDate(it.delivered_at)+'</span>':'')+'</div>';
+        +(it.delivered_at?' <span style="color:#1B5E20">🚚 '+fmtDate(it.delivered_at)+'</span>':'')
+        +(Math.round(it.paid_amount||0)>0?' <span style="color:#1B5E20;font-weight:600">💰 '+fmt(it.paid_amount)+' ₽</span>':'')+'</div>';
     }).join('');
     html+='<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:'+(isDone?'#F7FBF7':'#fff')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
