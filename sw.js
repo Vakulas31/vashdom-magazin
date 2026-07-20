@@ -1,7 +1,7 @@
 // Service worker приложения «ВашДом — Журнал заказов».
 // Версия подставляется сборкой (build.mjs) из APP_VERSION — при каждом деплое
 // новой версии кэш обновляется автоматически.
-var CACHE = 'vashdom-7.3';
+var CACHE = 'vashdom-7.4';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {

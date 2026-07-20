@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.3</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.4</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -3227,12 +3227,21 @@ function calcToOrder(){
 
 // Поиск в price_items (вызывается из onModelInput с дебаунсом)
 var _priceSearchTimer=null;
+// Релевантность совпадения: 0 — название начинается с запроса, 1 — с запроса
+// начинается слово, 2 — просто вхождение внутри слова, 3 — нет вхождения.
+// Благодаря этому «Кровать» показывает сначала кровати, а не «Кресло-кровать».
+function _acRank(name,q){
+  var n=_eNorm(name),qq=_eNorm(q),pos=n.indexOf(qq);
+  if(pos<0)return 3;
+  if(pos===0)return 0;
+  return /[\s.,;:·()\/\-]/.test(n.charAt(pos-1))?1:2;
+}
 function searchPriceItems(id,q){
   clearTimeout(_priceSearchTimer);
   _priceSearchTimer=setTimeout(function(){
     sbGet('price_items','select=product_name,supplier,price_opt,price_retail,article'
       +(_gsNormCol?'&or=(search_name.ilike.'+_normPat(q)+')':'&or=(product_name.ilike.'+_ilikePat(q)+',article.ilike.'+_ilikePat(q)+')')
-      +'&limit=10&order=product_name.asc')
+      +'&limit=40&order=product_name.asc')
     .catch(function(e){
       if(_gsNormCol&&/search_name/i.test((e&&e.message)||'')){_gsNormCol=false;searchPriceItems(id,q);}
       return null;
@@ -3240,7 +3249,15 @@ function searchPriceItems(id,q){
     .then(function(rows){
       if(!rows||!rows.length)return;
       var list=document.getElementById('ac-model-'+id);
-      if(!list||list.style.display==='none')return;
+      var cur=document.getElementById('fi-model-'+id);
+      // показываем, только если текст в поле всё ещё тот же (ответ не устарел).
+      // РАНЬШЕ здесь стояла проверка display==='none' — она отбрасывала товары из
+      // прайсов, когда по локальным спискам совпадений не было (баг «Карина-5»).
+      if(!list||!cur||cur.value.toLowerCase().trim()!==q)return;
+      // сортируем по релевантности, затем по алфавиту, и берём первые 15
+      rows.sort(function(a,b){var ra=_acRank(a.product_name,q),rb=_acRank(b.product_name,q);
+        return ra!==rb?ra-rb:String(a.product_name||'').localeCompare(String(b.product_name||''));});
+      rows=rows.slice(0,15);
       var sep=document.createElement('div');
       sep.style='font-size:10px;color:var(--text2);padding:2px 10px;background:var(--alt)';
       sep.textContent='📦 Из прайс-листов';
