@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.2</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.3</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1576,24 +1576,51 @@ function _renderCashUI(orders,withdrawals,itemPays){
   withdrawals.forEach(function(w){withdrawn+=(w.amount||0);});
   _cashBoxNow=Math.round(tot.cash-withdrawn);
 
-  // Состав кассы «с последнего забора»: наличные поступления после даты последнего забора
-  var _cutoff=withdrawals.length?String(withdrawals[0].created_at||'').slice(0,10):'';
-  _cashBoxParts=cashParts.filter(function(p){return !_cutoff||String(p.date||'')>=_cutoff;})
-    .sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
+  // ── Разбивка наличных ПО ЗАБОРАМ (FIFO) ──────────────────────────────
+  // Каждый забор опустошает кассу целиком, поэтому наличные поступления делятся
+  // на непересекающиеся отрезки: у каждого забора — свой список поступлений,
+  // а в текущей кассе лежат только поступления ПОСЛЕ последнего забора.
+  // Сумма любого отрезка сходится с суммой соответствующего забора / остатком
+  // кассы, поэтому цифры не смешиваются и легко сверяются при проверке.
+  function _mkPart(p,amt,full){var o={num:p.num,client:p.client,kind:p.kind,amt:amt,date:p.date};if(amt<full)o.of=full;return o;}
+  var _partsAsc=cashParts.slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
+  var _wdAsc=withdrawals.slice().sort(function(a,b){return String(a.created_at||'').localeCompare(String(b.created_at||''));});
+  var _segParts=_wdAsc.map(function(){return [];});
+  var _curParts=[]; // то, что физически лежит в кассе сейчас
+  (function(){
+    var si=0, need=_wdAsc.length?Math.round(_wdAsc[0].amount||0):0;
+    _partsAsc.forEach(function(p){
+      var rem=p.amt;
+      while(rem>0){
+        while(si<_wdAsc.length && need<=0){si++;need=si<_wdAsc.length?Math.round(_wdAsc[si].amount||0):0;}
+        if(si>=_wdAsc.length){_curParts.push(_mkPart(p,rem,p.amt));rem=0;break;}
+        var take=Math.min(rem,need);
+        _segParts[si].push(_mkPart(p,take,p.amt));
+        need-=take;rem-=take;
+      }
+    });
+  })();
+  _wdAsc.forEach(function(w,i){w._parts=_segParts[i];});
+
+  // текущая касса — новейшие поступления сверху
+  _cashBoxParts=_curParts.slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
   var boxSum=0;_cashBoxParts.forEach(function(p){boxSum+=p.amt;});
   _cashBoxComment=_cashBoxParts.length
     ?('Забор: '+_cashBoxParts.slice(0,10).map(function(p){return fmt(p.amt)+'₽ '+p.kind+' №'+p.num;}).join('; ')+(_cashBoxParts.length>10?'; и ещё '+(_cashBoxParts.length-10):''))
     :'Забор наличных владельцем';
 
+  // общий помощник: список поступлений (используется и кассой, и каждым забором)
+  function _partsRows(arr){return arr.map(function(p){
+    return '<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:12px;border-bottom:1px dashed var(--border)">'
+      +'<span>'+fmt(p.amt)+' ₽'+(p.of?' <span style="color:var(--text2)">(часть из '+fmt(p.of)+' ₽)</span>':'')+' — '+p.kind+' <span style="color:var(--text2)">№'+p.num+' · '+(p.client||'')+'</span></span>'
+      +'<span style="color:var(--text2);white-space:nowrap">'+fmtDate(p.date)+'</span></div>';
+  }).join('');}
+
   var html='';
   // Касса наличных
-  var breakRows=_cashBoxParts.map(function(p){
-    return '<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:12px;border-bottom:1px dashed var(--border)">'
-      +'<span>'+fmt(p.amt)+' ₽ — '+p.kind+' <span style="color:var(--text2)">№'+p.num+' · '+(p.client||'')+'</span></span>'
-      +'<span style="color:var(--text2);white-space:nowrap">'+fmtDate(p.date)+'</span></div>';
-  }).join('');
+  var breakRows=_partsRows(_cashBoxParts);
   var breakBlock=_cashBoxParts.length
-    ?'<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:#1B5E20;font-weight:600">📋 Из чего складывается ('+_cashBoxParts.length+' поступлений на '+fmt(boxSum)+' ₽) — с последнего забора</summary>'
+    ?'<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:#1B5E20;font-weight:600">📋 Что сейчас в кассе ('+_cashBoxParts.length+' поступл. на '+fmt(boxSum)+' ₽) — после последнего забора</summary>'
       +'<div style="margin-top:6px">'+breakRows+'</div></details>'
     :'';
   html+='<div class="card" style="border:2px solid '+(_cashBoxNow>0?'#2e7d32':'var(--border)')+';background:'+(_cashBoxNow>0?'#f9fff9':'#fff')+'">'
@@ -1613,18 +1640,25 @@ function _renderCashUI(orders,withdrawals,itemPays){
     +'<div class="stat-card"><div class="stat-label">Итого поступлений</div><div class="stat-val" style="font-size:18px;color:var(--dark)">'+fmt(tot.cash+tot.card+tot.transfer+tot.other)+' ₽</div>'
     +(tot.other>0?'<div style="font-size:10px;color:#E65100">в т.ч. '+fmt(tot.other)+' ₽ без способа оплаты</div>':'')+'</div>'
     +'</div>';
-  // История забора наличных
+  // История забора наличных — у каждого забора свой раскрывающийся список поступлений
   var wdRows='';
   withdrawals.forEach(function(w){
     var dt=w.created_at?new Date(w.created_at):null;
     var dtStr=dt?dt.toLocaleDateString('ru-RU')+' '+dt.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):'—';
-    wdRows+='<tr><td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">'+dtStr+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;font-size:13px">'+fmt(w.amount)+' ₽</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">'+(w.comment||'')+'</td></tr>';
+    var wp=(w._parts||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
+    var wpSum=0;wp.forEach(function(p){wpSum+=p.amt;});
+    var wpBlock=wp.length
+      ?'<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:#1B5E20;font-weight:600">📋 Состав забора ('+wp.length+' поступл. на '+fmt(wpSum)+' ₽)</summary>'
+        +'<div style="margin-top:6px">'+_partsRows(wp)+'</div></details>'
+      :(w.comment?'<div style="font-size:11px;color:var(--text2);margin-top:4px">'+w.comment+'</div>':'');
+    wdRows+='<div style="padding:9px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'
+      +'<span style="font-size:12px;color:var(--text2)">'+dtStr+'</span>'
+      +'<span style="font-weight:700;font-size:15px;color:#1B5E20;white-space:nowrap">−'+fmt(w.amount)+' ₽</span></div>'
+      +wpBlock+'</div>';
   });
   html+='<div class="card"><div class="card-title">📤 История забора наличных'+(withdrawn>0?' · всего забрано '+fmt(withdrawn)+' ₽':'')+'</div>'
-    +(wdRows?'<table style="width:100%;border-collapse:collapse"><tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Дата и время</th><th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Сумма</th><th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Комментарий</th></tr>'+wdRows+'</table>'
-      :'<p style="font-size:13px;color:var(--text2);padding:8px 0">Наличные ещё не забирали</p>')
+    +(wdRows||'<p style="font-size:13px;color:var(--text2);padding:8px 0">Наличные ещё не забирали</p>')
     +'</div>';
   // Все поступления по заказам (предоплаты + закрытия)
   var pRows='';
