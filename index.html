@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.4</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.5</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1090,15 +1090,27 @@ function orderCard(o){
     var supTag=it.supplier_manual?'<span class="tag-sup">'+it.supplier_manual+'</span>':'';
     var qtyTag=it.qty>1?'<span class="tag-qty">'+it.qty+' шт.</span>':'';
     var availClass=it.availability==='Есть'?'badge-yes':'badge-order';
-    // Отметка «отвезено клиенту» по каждому товару отдельно (частичная доставка заказа)
-    var dlv=!!it.delivered_at;if(dlv)delivCnt++;
+    // Отметка «отвезено клиенту» по каждому товару отдельно (частичная доставка заказа).
+    // Выполненный заказ (isDone) = товар у клиента, поэтому НЕ показываем оранжевую
+    // плашку «не отвезено» на закрытых заказах (иначе выглядит как противоречие).
+    var dlv=!!it.delivered_at;
+    if(dlv||isDone)delivCnt++;
     // v6.7: оплата позиции при доставке
     var itPaid=Math.round(it.paid_amount||0);if(itPaid>0)itemsPaid+=itPaid;
     var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
-    var dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="'+(dlv?'Товар у клиента. Нажмите, чтобы снять отметку':'Нажмите, когда товар отвезён клиенту')+'" '
-      +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;'
-      +(dlv?'background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7':'background:#FFF8E1;color:#B26A00;border:1px dashed #E0B252')+'">'
-      +(dlv?'✅ Отвезено '+fmtDate(it.delivered_at):'🚚 Не отвезено')+'</button>';
+    var dlvBtn;
+    if(dlv){
+      dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Товар у клиента. Нажмите, чтобы снять отметку" '
+        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">'
+        +'✅ Отвезено '+fmtDate(it.delivered_at)+'</button>';
+    }else if(isDone){
+      // заказ выполнен, отметки довоза не было — считаем отвезённым, статичный зелёный бейдж
+      dlvBtn='<span title="Заказ выполнен — товар у клиента" style="border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">✅ Отвезено</span>';
+    }else{
+      dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Нажмите, когда товар отвезён клиенту" '
+        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#FFF8E1;color:#B26A00;border:1px dashed #E0B252">'
+        +'🚚 Не отвезено</button>';
+    }
     itemsHtml+='<div class="item-row-compact"'+(dlv?' style="background:#F4FBF4"':'')+'>'+
       '<div class="item-info"><span class="item-text"'+(dlv?' style="opacity:.75"':'')+'><strong>'+it.product_name+'</strong>'+(parts.length>1?' · '+parts.slice(1).join(' · '):'')+'</span>'+
       (it.qty>1?'<span class="tag-qty" style="margin-left:6px">'+it.qty+' шт.</span>':'')+
@@ -1630,7 +1642,9 @@ function _renderCashUI(orders,withdrawals,itemPays){
     +'<div style="font-size:11px;color:var(--text2);margin-top:2px">= наличные предоплаты + наличные доплаты при закрытии − забрано из кассы</div></div>'
     +(_cashBoxNow>0
       ?'<button class="btn btn-success" onclick="takeCash()" style="padding:12px 22px;font-size:14px">✅ Я забрал наличные</button>'
-      :'<span style="font-size:13px;color:var(--text2)">Касса пуста</span>')
+      :_cashBoxNow<0
+        ?'<span style="font-size:12px;color:#C62828;max-width:300px;text-align:right;line-height:1.4">⚠️ Касса в минусе — скорее всего забор записан дважды. Удалите лишнюю запись кнопкой «✖ отменить» в истории заборов ниже.</span>'
+        :'<span style="font-size:13px;color:var(--text2)">Касса пуста</span>')
     +'</div>'+breakBlock+'</div>';
   // Сводка по способам (все поступления)
   html+='<div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">'
@@ -1652,9 +1666,12 @@ function _renderCashUI(orders,withdrawals,itemPays){
         +'<div style="margin-top:6px">'+_partsRows(wp)+'</div></details>'
       :(w.comment?'<div style="font-size:11px;color:var(--text2);margin-top:4px">'+w.comment+'</div>':'');
     wdRows+='<div style="padding:9px 0;border-bottom:1px solid var(--border)">'
-      +'<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'
+      +'<div style="display:flex;justify-content:space-between;gap:10px;align-items:center">'
       +'<span style="font-size:12px;color:var(--text2)">'+dtStr+'</span>'
-      +'<span style="font-weight:700;font-size:15px;color:#1B5E20;white-space:nowrap">−'+fmt(w.amount)+' ₽</span></div>'
+      +'<span style="display:flex;align-items:center;gap:8px;white-space:nowrap">'
+      +'<span style="font-weight:700;font-size:15px;color:#1B5E20">−'+fmt(w.amount)+' ₽</span>'
+      +'<button onclick="undoWithdrawal('+w.id+','+(w.amount||0)+')" title="Удалить эту запись о заборе — сумма вернётся в кассу" style="cursor:pointer;background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:600">✖ отменить</button>'
+      +'</span></div>'
       +wpBlock+'</div>';
   });
   html+='<div class="card"><div class="card-title">📤 История забора наличных'+(withdrawn>0?' · всего забрано '+fmt(withdrawn)+' ₽':'')+'</div>'
@@ -1705,11 +1722,49 @@ function takeCash(){
   var brk=_cashBoxParts.length?('\n\nСостав:\n'+_cashBoxParts.slice(0,15).map(function(p){return '• '+fmt(p.amt)+' ₽ — '+p.kind+' №'+p.num+' ('+(p.client||'')+')';}).join('\n')+(_cashBoxParts.length>15?'\n• …и ещё '+(_cashBoxParts.length-15):'')):'';
   if(!confirm('Подтвердите: вы забрали из кассы '+fmt(_cashBoxNow)+' ₽ наличными?'+brk+'\n\nСчётчик кассы будет обнулён, запись попадёт в историю.'))return;
   _takingCash=true;
-  sbPost('cash_withdrawals',{amount:_cashBoxNow,comment:_cashBoxComment}).then(function(){
-    toast('✅ Записано: забрано '+fmt(_cashBoxNow)+' ₽. Касса обнулена.');
+  var amt=_cashBoxNow, cmt=_cashBoxComment;
+  // ── Защита от ЗАДВОЕНИЯ на слабом интернете ──
+  // POST не повторяется автоматически (sb()), и при обрыве связи ответ может
+  // потеряться, хотя запись на сервере уже прошла. Поэтому перед вставкой
+  // проверяем: не записан ли такой же забор за последние 3 минуты. Если да —
+  // не дублируем, а просто перечитываем кассу. А при ошибке — тоже перечитываем
+  // реальное состояние из базы, а не разрешаем слепой повтор.
+  sbGet('cash_withdrawals','select=id,amount,created_at&order=created_at.desc&limit=1').catch(function(){return null;})
+  .then(function(last){
+    if(last&&last[0]){
+      var l=last[0], ageMs=Date.now()-new Date(l.created_at).getTime();
+      if(Math.round(l.amount||0)===Math.round(amt) && ageMs>=0 && ageMs<180000){
+        toast('⚠️ Такой забор ('+fmt(amt)+' ₽) уже записан только что — задвоения не делаю, обновляю кассу.','err',6000);
+        renderCash();
+        return '__dup__';
+      }
+    }
+    return sbPost('cash_withdrawals',{amount:amt,comment:cmt});
+  })
+  .then(function(res){
+    if(res==='__dup__')return;
+    toast('✅ Записано: забрано '+fmt(amt)+' ₽. Касса обнулена.');
     renderCash();
-  }).catch(function(e){toast('❌ '+e.message,'err',5000);})
+  })
+  .catch(function(e){
+    // связь могла оборваться уже ПОСЛЕ записи — не задваиваем, показываем реальное
+    // состояние. Если касса не обнулилась — можно нажать ещё раз, защита сработает.
+    toast('❌ Связь прервалась. Проверяю по базе, записалось ли… Если касса не обнулилась — нажмите «Я забрал» ещё раз, задвоения не будет.','err',8000);
+    renderCash();
+  })
   .finally(function(){_takingCash=false;});
+}
+
+var _undoingWd=false;
+function undoWithdrawal(id,amount){
+  if(_undoingWd)return;
+  if(!confirm('Удалить эту запись о заборе на '+fmt(amount)+' ₽?\n\nСумма вернётся в кассу. Используйте, если забор записался дважды или по ошибке.'))return;
+  _undoingWd=true;
+  sbDel('cash_withdrawals','id=eq.'+id).then(function(){
+    toast('↩️ Запись о заборе удалена, касса пересчитана.');
+    renderCash();
+  }).catch(function(e){toast('❌ '+((e&&e.message)||e),'err',5000);})
+  .finally(function(){_undoingWd=false;});
 }
 
 // ── ПРАЙС-ЛИСТЫ ─────────────────────────────────────────
