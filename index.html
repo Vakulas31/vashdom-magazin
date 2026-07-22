@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.8</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.10</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -2130,10 +2130,15 @@ function _extractAttrs(name,article,dims){
   }
   return{dim_w:w,dim_h:h,dim_d:d,ptype:ptype,color:color,doors:_extractDoors(low),material:material};
 }
+// Слова-типы мебели: помогают отличить строку-вариант (цвет/опция) от самостоятельного товара
+function _plHasGoodsWord(s){return /кроват|диван|шкаф|стол|комод|тумб|кресл|стеллаж|полк|пуф|матрас|стул|прихож|горк|витрин|банкет|вешалк|зеркал|наматрасник/i.test(String(s||''));}
+// Строка под заголовком-товаром считается вариантом, если сам заголовок — товар (есть тип),
+// а строка — нет (напр. цвет обивки «СВЕТЛО-СЕРЫЙ» под «БЕЛИСТА кровать двойная»).
+function _isVariantUnder(group,name){return _plHasGoodsWord(group)&&!_plHasGoodsWord(name);}
 // Собирает товары из данных листа по настройкам колонок
 function _collectRows(data,cfg){
   var rows=[];
-  var currentGroupName='';
+  var currentGroupName='',groupIsHeader=false;
   var noteBuf='',groupStart=0; // примечание-совместимость текущей группы (этап C)
   for(var i=cfg.start-1;i<data.length;i++){
     var row=data[i]||[];
@@ -2146,7 +2151,7 @@ function _collectRows(data,cfg){
       if(nameVal&&!optNum){
         if(!_plIsNoteRow(nameVal)){
           // Заголовок группы (без цены) — новая группа, примечание сбрасываем
-          currentGroupName=nameVal;
+          currentGroupName=nameVal;groupIsHeader=true;
           noteBuf='';groupStart=rows.length;
         }else{
           // Примечание-совместимость («* кровати СОНЯ…», «Для кроватей: …»):
@@ -2178,7 +2183,12 @@ function _collectRows(data,cfg){
           nameVal=currentGroupName;rowCategory=currentGroupName;
           if(_sz)nameVal=currentGroupName+' · '+_sz; // размер в имя для различимости
         }
-        if(nameVal&&optNum&&!rowCategory)currentGroupName=nameVal;
+        else if(nameVal&&optNum&&currentGroupName&&groupIsHeader&&_isVariantUnder(currentGroupName,nameVal)){
+          // Вариант (цвет/опция) под заголовком-товаром (напр. кровать → цвета обивки):
+          // имя = «Модель · Вариант». Группу и флаг НЕ сбрасываем — следующие цвета тоже под моделью.
+          rowCategory=currentGroupName;nameVal=currentGroupName+' · '+nameVal;
+        }
+        else if(nameVal&&optNum&&!rowCategory){currentGroupName=nameVal;groupIsHeader=false;}
       }
     }
     if(!nameVal||!optNum)continue;
@@ -2233,8 +2243,10 @@ function _autoDetectSheet(data){
     for(var i=0;i<row.length;i++){
       // Заголовок колонки — короткая ячейка. Длинные тексты (приветствия, примечания) — не заголовки.
       var hl=String(row[i]||'').toLowerCase().trim();if(!hl||hl.length>35)continue;
-      // название: «наименование/номенклатура» приоритетнее «продукция/товар» (продукция бывает кодом или категорией)
-      if(/наимен|номенклатур|название|модель|издели|product|^name/.test(hl))nameCands.push({c:i,pri:3});
+      // название: «полное наименование» важнее «модели» (модель — это код: T-9904NSL),
+      // а «наименование/модель» важнее «продукция/товар» (продукция/товар бывает кодом/категорией)
+      if(/наимен|номенклатур|название|издели|product|^name/.test(hl))nameCands.push({c:i,pri:4});
+      else if(/модель/.test(hl))nameCands.push({c:i,pri:3});
       else if(/продукц|товар/.test(hl))nameCands.push({c:i,pri:1});
       if(d.ret<0&&/розн|retail|продаж/.test(hl))d.ret=i;
       if(d.art<0&&/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант|размер/.test(hl))d.art=i;
@@ -2261,6 +2273,32 @@ function _autoDetectSheet(data){
     if(opt>=0&&opt!==d.name){
       var cascade=_plLooksCascade(data,r+1,d.name,opt);
       return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):'',cascade:cascade};
+    }
+  }
+  // ── Запасной СТРУКТУРНЫЙ детектор ──────────────────────────────────────
+  // Если в шапке нет слов-подсказок (лист с авто-именами «Столбец2», «Столбец3»…),
+  // определяем колонки по данным: цены — плотно-числовые колонки, имя — текстовая слева.
+  var _ncols=0;for(var _r=0;_r<data.length;_r++){var _rl=(data[_r]||[]).length;if(_rl>_ncols)_ncols=_rl;}
+  var _numc=[],_maxNum=0;
+  for(var _c=0;_c<_ncols;_c++){var _n=_plColNumericCount(data,0,_c);_numc[_c]=_n;if(_n>_maxNum)_maxNum=_n;}
+  if(_maxNum>=3){
+    var _thr=_maxNum*0.6,_dense=[];
+    for(var _c2=0;_c2<_ncols;_c2++)if(_numc[_c2]>=_thr)_dense.push(_c2);
+    if(_dense.length){
+      var _opt=_dense[0],_ret=_dense[_dense.length-1];
+      // имя: ЛЕВЕЙШАЯ колонка (до цен), где текста заметно больше, чем чисел — обычно это
+      // названия товаров в 1-й колонке (а не разреженные заметки правее).
+      var _nameC=0;
+      for(var _c3=0;_c3<_opt;_c3++){
+        var _tc=0,_nn=0,_seen=0;
+        for(var _r3=0;_r3<data.length&&_seen<120;_r3++){var _v=(data[_r3]||[])[_c3];if(_v===''||_v==null)continue;_seen++;if(_plToNum(_v)>=50){_nn++;continue;}if(String(_v).trim().length>=2)_tc++;}
+        if(_tc>=3&&_tc>_nn){_nameC=_c3;break;}
+      }
+      // первая строка с ценой в опт-колонке → данные начинаются со строки выше (заголовок группы)
+      var _firstNum=-1;for(var _r4=0;_r4<data.length;_r4++){if(_plToNum((data[_r4]||[])[_opt])>=50){_firstNum=_r4;break;}}
+      if(_firstNum>0){
+        return{headerRow:Math.max(0,_firstNum-2),colName:_nameC,colOpt:_opt,colRet:(_ret!==_opt?String(_ret):''),colArt:'',cascade:true};
+      }
     }
   }
   return null;
