@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.12</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.13</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -2746,16 +2746,18 @@ async function importAllSheets(){
     // Так плохой сохранённый шаблон не мешает — автоопределение его перекроет.
     var cands=[];
     var tpl=store[sn];
+    var det=_autoDetectSheet(data);
     // Сохранённый шаблон «матрица общего вида» (этап B) — используем его разметку колонок
     if(tpl&&tpl.matrix_multi&&tpl.var_cols&&tpl.var_cols.length&&tpl.col_name!==''&&tpl.col_name!=null){
       var cfgM={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colArt:tpl.col_art,varCols:tpl.var_cols,supplier:supplier,sheetName:sn};
       cands.push({rows:_collectMulti(data,cfgM),src:'матрица вариантов (по шаблону)',cfg:null,kind:'multi'});
     }
     if(tpl&&!tpl.matrix_multi&&tpl.col_name!==''&&tpl.col_opt!==''&&!tpl.matrix){
-      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),supplier:supplier,sheetName:sn};
+      // descCols (рисунки обивки и т.п.) наследуем от автоопределения, чтобы старый
+      // сохранённый шаблон не терял описательные столбцы при переимпорте.
+      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),descCols:(tpl.descCols||(det&&det.descCols)),supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgT),src:'по шаблону',cfg:cfgT,kind:'flat'});
     }
-    var det=_autoDetectSheet(data);
     if(det){
       var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,modular:_plModularOn(),descCols:det.descCols,supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgA),src:'автоопределение'+(det.cascade?' (каскад)':''),cfg:cfgA,kind:'flat'});
@@ -3009,7 +3011,7 @@ function _gsRun(q,box){
     params='or=(product_name.ilike.'+p+',article.ilike.'+p+',supplier.ilike.'+p+(_gsCompatCol?',compatibility.ilike.'+p:'')+')';
   }
   var sel='supplier,product_name,price_opt,price_retail,article'+(_hasCategoryCol?',category':'')+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'')+(_gsKindCol?',price_kind,valid_until':'');
-  sbGet('price_items','select='+sel+'&'+params+'&limit=30&order=product_name.asc')
+  sbGet('price_items','select='+sel+'&'+params+'&limit=50&order=product_name.asc')
   .then(function(rows){
     // если пользователь уже изменил запрос — не перерисовываем устаревший результат
     if(document.getElementById('gs-input').value.trim()!==q)return;
@@ -3057,7 +3059,7 @@ function _gsRenderRows(rows,q,box,note){
       +'</div>';
   });
   box.innerHTML=(note?'<div style="font-size:12px;color:#E65100;background:#FFF3E0;border-radius:6px;padding:6px 10px;margin-bottom:6px">'+note+'</div>':'')
-    +html+'</div>'+(rows.length>=30?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 30 результатов — уточните запрос</div>':'');
+    +html+'</div>'+(rows.length>=50?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 50 результатов — уточните запрос</div>':'');
   _gsCatalog(q,box); // v7.1: дополняем результатами из каталогов фабрик (сайты)
 }
 // Терпимый поиск: параллельно ищем по всем наборам «без одного слова» (AND), объединяем,
@@ -3067,7 +3069,7 @@ function _gsRunRelaxed(q,box,words,sel){
   var queries=W.map(function(_w,k){
     var sub=W.filter(function(_x,j){return j!==k;});
     var params='and=('+sub.map(function(w){return 'search_name.ilike.'+_normPat(w);}).join(',')+')';
-    return sbGet('price_items','select='+sel+'&'+params+'&limit=30&order=product_name.asc').catch(function(){return[];});
+    return sbGet('price_items','select='+sel+'&'+params+'&limit=50&order=product_name.asc').catch(function(){return[];});
   });
   Promise.all(queries).then(function(res){
     if(document.getElementById('gs-input').value.trim()!==q)return;
@@ -3078,7 +3080,7 @@ function _gsRunRelaxed(q,box,words,sel){
     var scored=merged.map(function(p){var s=_eNorm((p.product_name||'')+' '+(p.article||'')+' '+(p.compatibility||''));var cnt=0;wl.forEach(function(w){if(s.indexOf(w)>=0)cnt++;});return{p:p,cnt:cnt};})
       .sort(function(a,b){return b.cnt-a.cnt||String(a.p.product_name||'').localeCompare(String(b.p.product_name||''));});
     var thr=Math.max(2,words.length-1),strong=scored.filter(function(x){return x.cnt>=thr;});
-    var out=(strong.length?strong:scored).slice(0,30).map(function(x){return x.p;});
+    var out=(strong.length?strong:scored).slice(0,50).map(function(x){return x.p;});
     _gsLastResults=out;
     _gsRenderRows(out,q,box,'Точных совпадений по всем словам нет — показаны ближайшие (по большинству слов).');
   }).catch(function(){_gsNotFound(q,box);});
