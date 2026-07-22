@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.5</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.6</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1075,6 +1075,11 @@ function orderCard(o){
   if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span></a>';
   if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span></a>';
   if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span style="background:#FFF3E0;color:#E65100;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span></a>';}
+  // v7.6: тип доставки показываем всегда (даже если заполнен адрес — клиент мог передумать
+  // и выбрать самовывоз; тогда важно видеть именно «Самовывоз», а адрес остаётся справочно)
+  var _dtype=o.delivery_type||'';
+  var _isPickup=/самовыв/i.test(_dtype);
+  var deliveryChip=_dtype?'<span style="background:'+(_isPickup?'#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7':'#EDE7F6;color:#4527A0')+';font-weight:700;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">'+(_isPickup?'🏬 Самовывоз':_dtype)+'</span>':'';
   var delivBadge=o.delivery_date?'<span style="background:#E8F5E9;color:#2E7D32;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>':'';
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
   var hdrBg=isDone?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
@@ -1174,7 +1179,7 @@ function orderCard(o){
     '<div class="order-meta" style="display:block;flex:1">'+
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
     '<span style="margin:0 6px;color:#ddd">|</span><strong style="cursor:pointer;border-bottom:1px dashed #90A4AE" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
-    (contactTags?'<div style="margin-top:4px">'+contactTags+'</div>':'')+
+    ((deliveryChip||contactTags)?'<div style="margin-top:4px">'+deliveryChip+contactTags+'</div>':'')+
     '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
     '<div id="order-body-'+o.id+'" style="'+(isDone?'display:none':'')+'">'+
     (itemsHtml||'')+noteHtml+
@@ -2236,6 +2241,10 @@ function _autoDetectSheet(data){
     // из кандидатов-названий берём с наивысшим приоритетом (левый при равенстве)
     var _npri=-1;nameCands.forEach(function(p){if(p.pri>_npri){_npri=p.pri;d.name=p.c;}});
     if(d.name<0)continue; // без колонки названия лист не разобрать
+    // Колонка «Продукция/Товар» с кодами, которая НЕ стала названием (есть более
+    // приоритетное «Полное наименование»), — это артикул/код модели. Иначе коды вроде
+    // «СВ-20» терялись, и товар находился, только если код продублирован в названии.
+    if(d.art<0)nameCands.forEach(function(p){if(d.art<0&&p.c!==d.name&&p.pri<=1)d.art=p.c;});
     // Из ценовых кандидатов берём колонку с реальными (ненулевыми) ценами, приоритет «опт».
     // Так «Общая стоимость = 0» не побеждает настоящую «Цена».
     var opt=-1,best=-1;
@@ -3359,10 +3368,10 @@ function _labelSpec(){
   return half
     ?{half:true, pw:'210mm',ph:'297mm',w:190,h:130, pad:'8mm',logoH:'14mm',
       nameBase:34,nameMin:14,nameComfy:16, infoBase:22,infoMin:13,infoComfy:30,
-      priceBase:46,priceMin:26,oldSize:'16pt', qrMm:'26mm',qrPx:150, discMm:'16mm',discFont:'12pt',gap:'3mm'}
+      priceBase:46,priceMin:26,oldSize:'24pt', qrMm:'26mm',qrPx:150, discMm:'16mm',discFont:'12pt',gap:'3mm'}
     :{half:false,pw:'60mm', ph:'80mm', w:52, h:72, pad:'3mm',logoH:'6mm',
       nameBase:15,nameMin:7,nameComfy:14, infoBase:11,infoMin:7.5,infoComfy:26,
-      priceBase:20,priceMin:13,oldSize:'8pt', qrMm:'12mm',qrPx:64, discMm:'8mm',discFont:'6pt',gap:'1.5mm'};
+      priceBase:20,priceMin:13,oldSize:'12pt', qrMm:'12mm',qrPx:64, discMm:'8mm',discFont:'6pt',gap:'1.5mm'};
 }
 function _fitPt(base,min,len,comfy){
   if(!len||len<=comfy)return base;
@@ -3380,7 +3389,7 @@ function _labelCss(s){
     +'.lbl .pfeat{color:#1B5E20;line-height:1.35;margin-bottom:'+s.gap+';flex-shrink:0;font-weight:600}'
     +'.lbl.bstyle .bfeat{color:#1B5E20;line-height:1.35;margin:'+s.gap+' 0;flex-shrink:0;font-weight:600}'
     +'.lbl .bottom-row{display:flex;align-items:flex-end;justify-content:space-between;gap:2mm;flex-shrink:0}'
-    +'.lbl .oldprice{font-size:'+s.oldSize+';color:#888;text-decoration:line-through}'
+    +'.lbl .oldprice{font-size:'+s.oldSize+';color:#777;font-weight:700;text-decoration:line-through;text-decoration-color:#c62828;text-decoration-thickness:2px}'
     +'.lbl .newprice{font-weight:800;color:#1B5E20;line-height:1;white-space:nowrap}'
     +'.lbl .newprice.nodata{color:#ccc}'
     +'.lbl .qrimg{width:'+s.qrMm+';height:'+s.qrMm+';flex-shrink:0}'
@@ -3435,8 +3444,10 @@ function _labelHtml(s,d){
   // Доп. характеристики / преимущества → список с галочками
   var featList=(d.features||'').split(/[;,\n]+/).map(function(x){return x.trim();}).filter(Boolean);
   var featSize=Math.max(s.infoMin,infoSize*0.82);
-  var featA=featList.length?'<div class="pfeat" style="font-size:'+featSize+'pt">'+featList.map(function(f){return '✓ '+f;}).join('&nbsp;&nbsp;')+'</div>':'';
-  var featB=featList.length?'<div class="bfeat" style="font-size:'+featSize+'pt">'+featList.map(function(f){return '✓ '+f;}).join('&nbsp;&nbsp;')+'</div>':'';
+  // Преимущества — списком (каждое с новой строки), а не в одну строчку
+  var _featItems=featList.map(function(f){return '<div style="display:flex;gap:3px;align-items:flex-start"><span>✓</span><span>'+f+'</span></div>';}).join('');
+  var featA=featList.length?'<div class="pfeat" style="font-size:'+featSize+'pt">'+_featItems+'</div>':'';
+  var featB=featList.length?'<div class="bfeat" style="font-size:'+featSize+'pt">'+_featItems+'</div>':'';
   if((d.style||'A')==='B'){
     // Стиль B «Премиум-карточка»
     var bNameSize=_fitPt(s.nameBase*0.72,s.nameMin,shown.length,s.nameComfy*1.3);
@@ -4934,15 +4945,26 @@ function renderStats(){
   var byStatus={};orders.forEach(function(o){byStatus[o.status||'—']=(byStatus[o.status||'—']||0)+1;});
   var statuses=Object.keys(byStatus).map(function(k){return{label:k,val:byStatus[k],display:''+byStatus[k]};}).sort(function(a,b){return b.val-a.val;});
   bar('chart-statuses',statuses,orders.length,'#4CAF50');
-  // Способы оплаты (получено)
-  var pay={cash:0,card:0,transfer:0};
-  orders.forEach(function(o){pay.cash+=(o.pay_cash||0);pay.card+=(o.pay_card||0);pay.transfer+=(o.pay_transfer||0);});
-  var payTot=pay.cash+pay.card+pay.transfer;
-  var pays=[{label:'Наличные',val:pay.cash},{label:'Карта',val:pay.card},{label:'Перевод',val:pay.transfer}].map(function(p){return{label:p.label,val:p.val,display:fmtK(p.val)+' ₽'+(payTot?' ('+Math.round(p.val/payTot*100)+'%)':'')};});
+  // Способы оплаты (получено). ВАЖНО: учитываем ВСЕ полученные деньги по способу —
+  // предоплату (по способу оплаты заказа), доплаты при закрытии (pay_cash/card/transfer)
+  // и оплаты позиций при доставке (v6.7). Раньше суммировались только доплаты при
+  // закрытии, поэтому оплаты картой (обычно это предоплата) показывались как 0.
+  var pay={cash:0,card:0,transfer:0,other:0};
+  orders.forEach(function(o){
+    var pre=Math.round(o.prepayment||0);
+    if(pre>0)pay[_payKind(o.payment_method)]+=pre;
+    pay.cash+=Math.round(o.pay_cash||0);pay.card+=Math.round(o.pay_card||0);pay.transfer+=Math.round(o.pay_transfer||0);
+    (o.order_items||[]).forEach(function(it){var a=Math.round(it.paid_amount||0);if(a>0)pay[_payKind(it.paid_method)]+=a;});
+  });
+  var payTot=pay.cash+pay.card+pay.transfer+pay.other;
+  var pays=[{label:'Наличные',val:pay.cash},{label:'Карта',val:pay.card},{label:'Перевод',val:pay.transfer}];
+  if(pay.other>0)pays.push({label:'Без способа',val:pay.other});
+  pays=pays.map(function(p){return{label:p.label,val:p.val,display:fmtK(p.val)+' ₽'+(payTot?' ('+Math.round(p.val/payTot*100)+'%)':'')};});
   bar('chart-payments',pays,payTot||1,'#7B1FA2');
-  // Доставка и операции
+  // Доставка и операции. Тип берём из delivery_type (надёжно); для старых заказов без
+  // него — фолбэк на пометку в адресе.
   var pickup=0,deliv=0,delivInc=0;
-  orders.forEach(function(o){if(/самовыв/i.test(o.client_address||''))pickup++;else deliv++;if(o.delivery_our!==false)delivInc+=(o.delivery_cost||0)+(o.lifting_cost||0);});
+  orders.forEach(function(o){var _dt=o.delivery_type||'';if(/самовыв/i.test(_dt)||(!_dt&&/самовыв/i.test(o.client_address||'')))pickup++;else deliv++;if(o.delivery_our!==false)delivInc+=(o.delivery_cost||0)+(o.lifting_cost||0);});
   var delEl=document.getElementById('chart-delivery');
   if(delEl)delEl.innerHTML='<div style="font-size:13px;line-height:1.9">'+
     '<div>🚚 Доставка: <strong>'+deliv+'</strong> · 🏬 Самовывоз: <strong>'+pickup+'</strong></div>'+
