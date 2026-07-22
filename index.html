@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.6</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.7</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -662,32 +662,37 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <div id="stats-period-note" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
   <div class="stats-grid" id="stats-kpis"></div>
 
-  <h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2)">💰 Деньги</h3>
+  <!-- v7.7: секции сворачиваются, чтобы не листать всё сразу (клик по заголовку) -->
+  <details open><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">💰 Деньги</summary>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card"><div class="card-title">📅 По месяцам — каждый месяц отдельно (последние 12)</div><div id="chart-months"></div></div>
     <div class="card"><div class="card-title">По поставщикам (выручка · прибыль)</div><div id="chart-suppliers"></div></div>
   </div>
+  </details>
 
-  <h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2)">🧑‍💼 Менеджеры</h3>
+  <details open><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🧑‍💼 Менеджеры</summary>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card"><div class="card-title">Эффективность менеджеров</div><div id="chart-managers"></div></div>
     <div class="card"><div class="card-title">📅 Отработанные дни — по месяцам</div><div id="chart-workdays"></div></div>
   </div>
+  </details>
 
-  <h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2)">🏆 Товары и клиенты</h3>
+  <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🏆 Товары и клиенты <span style="font-weight:400;font-size:11px">(нажмите, чтобы развернуть)</span></summary>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card"><div class="card-title">Топ товаров</div><div id="chart-topgoods"></div></div>
     <div class="card"><div class="card-title">Топ клиентов</div><div id="chart-topclients"></div></div>
     <div class="card"><div class="card-title">Должники</div><div id="chart-debtors"></div></div>
     <div class="card"><div class="card-title">По статусам</div><div id="chart-statuses"></div></div>
   </div>
+  </details>
 
-  <h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2)">💳 Финансы и операции</h3>
+  <details open><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">💳 Финансы и операции</summary>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card"><div class="card-title">Способы оплаты (получено)</div><div id="chart-payments"></div></div>
     <div class="card"><div class="card-title">Доставка и операции</div><div id="chart-delivery"></div></div>
     <div class="card"><div class="card-title">География заказов</div><div id="chart-geo"></div></div>
   </div>
+  </details>
 </div>
 
 <div class="page" id="page-cash">
@@ -4826,12 +4831,13 @@ function renderStats(){
   function itSell(it){return (it.price_discounted||it.price_retail||0)*(it.qty||1);}
   function itCost(it){return (it.price_opt||0)*(it.qty||1);}
   function metrics(list){
-    var rev=0,cost=0,debt=0,ci=0,ti=0;
+    var rev=0,cost=0,debt=0,ci=0,ti=0,done=0;
     list.forEach(function(o){
       rev+=(o.goods_discounted||o.goods_total||0);debt+=(o.remainder||0);
+      if((o.status||'')==='🏁 Выполнен')done++;
       (o.order_items||[]).forEach(function(it){ti++;if((it.price_opt||0)>0){cost+=itCost(it);ci++;}});
     });
-    return {n:list.length,rev:rev,cost:cost,profit:rev-cost,debt:debt,margin:rev?(rev-cost)/rev*100:0,avg:list.length?rev/list.length:0,cov:ti?ci/ti:0};
+    return {n:list.length,rev:rev,cost:cost,profit:rev-cost,debt:debt,done:done,donePct:list.length?done/list.length*100:0,margin:rev?(rev-cost)/rev*100:0,avg:list.length?rev/list.length:0,cov:ti?ci/ti:0};
   }
   var M=metrics(orders),P=metrics(prevOrders);
   function delta(cur,prev){if(!prevR||!prev)return'';var d=(cur-prev)/Math.abs(prev)*100;var col=d>=0?'#2E7D32':'#C62828';return'<div style="font-size:11px;color:'+col+';margin-top:2px">'+(d>=0?'▲':'▼')+' '+Math.abs(Math.round(d))+'% к пред.</div>';}
@@ -4840,6 +4846,7 @@ function renderStats(){
     {l:'Выручка',v:fmtK(M.rev)+' ₽',d:delta(M.rev,P.rev)},
     {l:'Прибыль',v:fmtK(M.profit)+' ₽',s:'маржа '+Math.round(M.margin)+'%',d:delta(M.profit,P.profit)},
     {l:'Средний чек',v:fmtK(Math.round(M.avg))+' ₽',d:delta(M.avg,P.avg)},
+    {l:'Выполнено',v:Math.round(M.donePct)+'%',s:M.done+' из '+M.n,c:'#2E7D32'},
     {l:'Закупка',v:fmtK(M.cost)+' ₽'},
     {l:'Долг к получению',v:fmtK(M.debt)+' ₽',c:'#C62828'}
   ];
