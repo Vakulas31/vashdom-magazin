@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.14</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.16</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -2439,7 +2439,7 @@ function _collectMulti(data,cfg){
   var labels={};
   (cfg.varCols||[]).forEach(function(c){
     var L=_plClean(lrow[c])||_plClean((data[cfg.start-2]||[])[c])||('вариант '+(c+1));
-    if(/^\d{1,2}$/.test(L))L='кат.'+L; // «1|2|3» — категории тканей (Боринское)
+    if(/^\d{1,2}$/.test(L)||/^[ivxIVX]{1,5}$/.test(L))L='кат. '+L; // «1|2|3» или «I|II|III» — категории тканей
     labels[c]=L;
   });
   // повторные строки-шапки внутри листа: имя совпадает с заголовком колонки названия
@@ -2541,6 +2541,21 @@ function _autoDetectMulti(data){
     }
   }
   return{headerRow:headerRow,colName:colName,colArt:colArt,varCols:cols,cascade:false};
+}
+// v7.15: матрица КАТЕГОРИЙ ткани? Признак — по строкам цены СТРОГО РАСТУТ по колонкам
+// (I<II<III… — дороже категория, дороже ткань). Отличает матрицу от опт/розница (равны).
+function _plMatrixMonotone(data,start,varCols){
+  if(!varCols||varCols.length<3)return false;
+  var inc=0,tot=0;
+  for(var r=start-1;r<data.length;r++){
+    var vals=[],full=true;
+    for(var k=0;k<varCols.length;k++){var v=_plToNum((data[r]||[])[varCols[k]]);vals.push(v);if(v<50)full=false;}
+    if(!full)continue; // строка без полного набора цен (группа/пустая) — не считаем
+    tot++;
+    var up=true;for(var j=1;j<vals.length;j++){if(!(vals[j]>vals[j-1])){up=false;break;}}
+    if(up)inc++;
+  }
+  return tot>=3&&inc/tot>=0.7;
 }
 // ═══ v6.6: РАУС — автосумма корпус+фасад ═══
 // Итоговая цена модуля РАУС = цена корпуса (лист «Корпус») + цена фасада (лист плёнки),
@@ -2741,6 +2756,8 @@ async function importAllSheets(){
   var store=_getTplStore();
   var plan=[],report=[];
   _plWB.SheetNames.forEach(function(sn){
+    // Служебные листы (примечание/условия/инструкция/оглавление) — не товары, пропускаем
+    if(/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац|прайс-лист\s*$)/i.test(String(sn))){report.push({sheet:sn,count:0,note:'служебный лист — пропущен'});return;}
     var data=_plTrimData(XLSX.utils.sheet_to_json(_plExpandMerges(_plWB.Sheets[sn]),{header:1,defval:'',raw:false}));
     // Собираем все варианты разбора и берём тот, что даёт больше валидных цен.
     // Так плохой сохранённый шаблон не мешает — автоопределение его перекроет.
@@ -2764,6 +2781,13 @@ async function importAllSheets(){
     }
     var m=_autoDetectMatrix(data);
     if(m)cands.push({rows:_collectMatrix(data,m,supplier,sn),src:'таблица размеров',cfg:null,kind:'matrix'});
+    // v7.15: авто-матрица КАТЕГОРИЙ (мягкая мебель: цена от категории ткани I…VIII).
+    // Признак — ≥3 ценовых колонки, где цены СТРОГО РАСТУТ по строкам (кат. дороже).
+    // Так не путаем с опт/розница (там колонки равны/не растут — Браво, Бюрократ).
+    var mu=_autoDetectMulti(data);
+    if(mu&&mu.varCols&&mu.varCols.length>=3&&_plMatrixMonotone(data,mu.headerRow+2,mu.varCols)){
+      cands.push({rows:_collectMulti(data,{start:mu.headerRow+2,colName:mu.colName,colArt:mu.colArt,varCols:mu.varCols,supplier:supplier,sheetName:sn}),src:'матрица категорий ткани',cfg:null,kind:'multi'});
+    }
     var best=null;
     cands.forEach(function(c){if(!best||_plValidCount(c.rows)>_plValidCount(best.rows))best=c;});
     if(!best||!best.rows.length){report.push({sheet:sn,count:0,note:'не удалось определить колонки — импортируйте вручную'});return;}
@@ -3428,9 +3452,12 @@ function searchPriceItems(id,q){
           dims:'',article:p.article||''};
         var d=document.createElement('div');
         d.className='ac-item';
+        var _optN=p.price_opt||0;
+        var _retN=_optN?retailFromOpt(_optN):(p.price_retail||0);
         d.innerHTML=p.product_name+'<span class="ac-sup">'+(p.supplier||'')+'</span>'
           +(p.article?'<span style="font-size:10px;color:#333;display:block">'+p.article+'</span>':'')
-          +(p.price_opt?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(p.price_opt)+' ₽</span>':'');
+          +(_retN?'<span style="font-size:12px;font-weight:700;color:#BF360C;display:block">розн.: '+fmt(_retN)+' ₽</span>':'')
+          +(_optN?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(_optN)+' ₽</span>':'');
         d.onmousedown=function(){selectModel(id,it);};
         list.appendChild(d);
       });
