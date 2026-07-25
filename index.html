@@ -169,7 +169,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.13</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.14</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -4214,12 +4214,26 @@ function phoneMask(el){
 
 function removeFormItem(id){var el=document.getElementById('ib-'+id);if(el)el.remove();delete itemPrices[id];recalcTotals();}
 
+// v7.14: множество поставщиков, чьи прайсы ЗАГРУЖЕНЫ (норм. имена без Ё). По ним не
+// подсказываем из старого каталога products — там устаревшие цены (см. инцидент СВ-15:
+// старый каталог 6037,5 опт → 9100, свежий прайс Восход 5250 → 7900). Берём из прайса.
+var _plSuppliers=null;
+function _loadPriceSuppliers(){
+  if(_plSuppliers)return; _plSuppliers=new Set();
+  sb('POST','rpc/price_summary',null).then(function(g){
+    if(Array.isArray(g))g.forEach(function(r){if(r.supplier)_plSuppliers.add(_eNorm(r.supplier));});
+  }).catch(function(){});
+}
 function onModelInput(id){
   var q=document.getElementById('fi-model-'+id).value.toLowerCase().trim();
   var list=document.getElementById('ac-model-'+id);
   if(q.length<1){list.style.display='none';return;}
   var fab=FABRIC_DB.filter(function(x){return x.n.toLowerCase().indexOf(q)>=0;}).slice(0,8);
-  var prod=allProducts.filter(function(p){return(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.supplier&&p.supplier.toLowerCase().indexOf(q)>=0);}).slice(0,6);
+  var prod=allProducts.filter(function(p){
+    // товар из старого каталога, чей прайс уже загружен → пропускаем (покажется из прайса с актуальной ценой)
+    if(p.supplier&&_plSuppliers&&_plSuppliers.has(_eNorm(p.supplier)))return false;
+    return(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.supplier&&p.supplier.toLowerCase().indexOf(q)>=0);
+  }).slice(0,6);
   var items=fab.map(function(x){return{type:'fabric',name:x.n,sup:x.s,cats:x.c,prices:x.p,dims:x.d};})
     .concat(prod.map(function(p){return{type:'fixed',name:p.name,sup:p.supplier,price_opt:p.price_opt,price_retail:p.price_retail,dims:p.dims||''};}));
   var html='';
@@ -4870,6 +4884,7 @@ function selectClient(c){
 }
 
 function ensureProducts(){
+  _loadPriceSuppliers(); // v7.14: чтобы форма не дублировала старый каталог по загруженным прайсам
   if(allProducts.length)return;
   sbGet('products','select=*&has_fabric_cats=eq.false&limit=2000').then(function(rows){allProducts=rows||[];}).catch(function(e){console.error(e);});
 }
