@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="ВашДом">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--dark:#1F4E79;--mid:#2E75B6;--lite:#D6E4F0;--alt:#EBF3FB;--gold:#FFFDE7;--green:#E8F5E9;--orange:#FFF3E0;--grey:#F5F5F5;--white:#fff;--text:#1a1a1a;--text2:#666;--border:#e0e0e0;--radius:10px;--radius-sm:6px}
+:root{--dark:#1F4E79;--mid:#2E75B6;--lite:#D6E4F0;--alt:#EBF3FB;--gold:#FFFDE7;--green:#E8F5E9;--orange:#FFF3E0;--grey:#F5F5F5;--white:#fff;--text:#1a1a1a;--text2:#666;--border:#e0e0e0;--primary:#1F4E79;--radius:10px;--radius-sm:6px}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:var(--text);font-size:14px}
 .topbar{background:var(--dark);padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .topbar-logo{height:36px}
@@ -103,6 +103,65 @@ textarea{resize:vertical;min-height:60px}
 .pin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:600;align-items:center;justify-content:center}
 .pin-overlay.open{display:flex}
 .pin-box{background:#fff;border-radius:var(--radius);padding:32px;text-align:center;width:320px}
+/* ══════ v7.20 · ПОЛИРОВКА (без изменения структуры экранов) ══════
+   Тот же синий интерфейс и те же элементы на своих местах — аккуратнее
+   типографика, спокойнее плашки, живые состояния кнопок. */
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;background:#f1f3f6}
+h2{letter-spacing:-.01em}
+/* деньги моноширинными разрядами — колонки цифр перестают «плясать» */
+.ftr-val,.item-price,.stat-val,.bar-val,.tot-row,.order-status,.badge,.ftr-lbl,.stat-label,.item-text{font-variant-numeric:tabular-nums}
+/* карточки: мягкая синеватая тень вместо чёрной, тоньше линии, отклик на наведение */
+.card,.order-card,.stat-card{border-color:#e6e9ee;box-shadow:0 1px 2px rgba(31,78,121,.05)}
+.order-card{transition:box-shadow .18s ease,border-color .18s ease}
+.order-card:hover{border-color:#d5dde6;box-shadow:0 2px 10px -4px rgba(31,78,121,.22)}
+.order-card.done{opacity:1;background:#fff;border-color:#cfe0d4}
+.order-hdr,.item-row-compact,.client-row,.ac-item{border-color:#eceff3}
+.order-hdr{padding:11px 16px;gap:8px}
+.item-row-compact{padding:8px 16px}
+.order-ftr{background:#f7f8fa;border-top:1px solid #eceff3;padding:10px 16px}
+.ftr-lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#7c8593}
+.ftr-val{font-size:13.5px;letter-spacing:-.01em}
+.item-price{color:#9c3b2e}
+/* плашки: одна форма и приглушённые тона вместо ярких заливок */
+.order-status,.badge,.tag-sup{border-radius:7px}
+.order-status{padding:4px 9px;font-weight:600}
+.s-paid{background:#eaf4ec;color:#256b3c}
+.s-part{background:#fbf0e2;color:#8a5a18}
+.s-no{background:#f8eae7;color:#9c3b2e}
+.s-done{background:#2c6b44;color:#fff}
+.badge-yes{background:#eaf4ec;color:#256b3c}
+.badge-order{background:#fbf0e2;color:#8a5a18}
+.tag-sup{background:#eef1f5;color:#5b6270}
+.note-box{background:#fdfaee;border-left-color:#dcb45c;color:#5a5348}
+/* поля ввода */
+input,select,textarea{border-radius:8px;border-color:#dfe3e9;padding:10px 12px;transition:border-color .15s,box-shadow .15s}
+input:hover,select:hover,textarea:hover{border-color:#c9d1da}
+input[type="checkbox"]:hover,input[type="radio"]:hover{border-color:initial}
+.inp-gold{background:#fdfaee}
+.inp-green{background:#eef6ef}
+/* кнопки: наведение, нажатие, видимый фокус с клавиатуры */
+.btn{border-radius:8px;transition:filter .15s ease,transform .1s ease,border-color .15s ease,background .15s ease}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{box-shadow:0 1px 2px rgba(31,78,121,.28)}
+.btn-outline:hover{border-color:#c2cad4;background:#fafbfc}
+.btn-danger-sm,.expand-btn,.btn-dashed{border-radius:8px;transition:background .15s,border-color .15s}
+.btn-danger-sm:hover{background:#fdf3f3}
+.expand-btn{border-color:#c9d1da;color:#5b6270}
+.expand-btn:hover{background:#f2f5f8}
+.btn:focus-visible,.chip:focus-visible,.nav-btn:focus-visible,.expand-btn:focus-visible{outline:2px solid var(--mid);outline-offset:2px}
+/* шапка и навигация */
+.topbar{box-shadow:0 1px 0 rgba(0,0,0,.12)}
+.nav-btn{transition:color .15s,background .15s}
+.nav-btn:hover{color:var(--text);background:#f7f9fb}
+.chip{border-radius:8px;transition:filter .15s,border-color .15s}
+.chip:hover{opacity:1;filter:brightness(.97)}
+/* сводки, таблицы, всплывающие окна */
+.stat-val{letter-spacing:-.02em}
+.totals-block{background:#f7f8fa;border:1px solid #eceff3}
+.modal{box-shadow:0 24px 60px -20px rgba(16,24,40,.45)}
+.ac-list{box-shadow:0 12px 28px -12px rgba(16,24,40,.3)}
+.ac-item:hover{background:#eef3f9}
 /* ── МОБИЛЬНАЯ ВЕРСИЯ ─────────────────────────────────── */
 @media (max-width:700px){
   .topbar{padding:0 8px;gap:6px;height:48px}
@@ -169,7 +228,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.18</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.20</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -184,12 +243,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
   <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" id="chips-row">
-    <span class="chip chip-active" style="background:#f0f4ff;color:#1565C0;border-color:#1565C0" data-chip="all" onclick="setChip('all')">Все</span>
-    <span class="chip" style="background:#FFF3E0;color:#E65100" data-chip="debt" onclick="setChip('debt')">💰 С долгом</span>
-    <span class="chip" style="background:#E3F2FD;color:#1565C0" data-chip="active" onclick="setChip('active')">🔄 В процессе</span>
-    <span class="chip" style="background:#E8F5E9;color:#2E7D32" data-chip="today" onclick="setChip('today')">📅 Сегодня</span>
-    <span class="chip" style="background:#F3E5F5;color:#6A1B9A" data-chip="week" onclick="setChip('week')">🗓 На неделе</span>
-    <span class="chip" style="background:#ECEFF1;color:#546E7A" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
+    <span class="chip chip-active" style="background:#eef1f5;color:#5b6270" data-chip="all" onclick="setChip('all')">Все</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="debt" onclick="setChip('debt')">💰 С долгом</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="active" onclick="setChip('active')">🔄 В процессе</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="today" onclick="setChip('today')">📅 Сегодня</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="week" onclick="setChip('week')">🗓 На неделе</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -638,6 +697,23 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       </div>
     </div>
 
+    <!-- v7.19: спецификация категорий тканей (обновляется владельцем) -->
+    <div class="card">
+      <div class="card-title">🧵 Спецификация тканей (категории)</div>
+      <p style="font-size:12.5px;color:var(--text2);margin-bottom:10px;line-height:1.5">Файл спецификации Некрасовых (листы: Арбен, Вектор, Союз-М и т.д.). По нему при заполнении заказа категория ткани подставляется автоматически. Спецификация иногда обновляется — загрузите новый файл, и категории обновятся сразу на всех устройствах.</p>
+      <div id="fab-spec-info" style="font-size:12px;color:var(--text2);margin-bottom:10px">—</div>
+      <div id="fab-dropzone" onclick="document.getElementById('fab-file').click()"
+        style="border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;color:var(--text2);font-size:13px"
+        ondragover="event.preventDefault();this.style.borderColor='var(--dark)'"
+        ondragleave="this.style.borderColor='var(--border)'"
+        ondrop="event.preventDefault();this.style.borderColor='var(--border)';document.getElementById('fab-file').files=event.dataTransfer.files;onFabricSpecFile(document.getElementById('fab-file'))">
+        📄 Нажмите или перетащите файл «Спецификация ткани ….xlsx»
+        <input type="file" id="fab-file" accept=".xlsx,.xls" style="display:none" onchange="onFabricSpecFile(this)">
+      </div>
+      <div id="fab-file-info" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
+      <button class="btn btn-primary" id="fab-import-btn" onclick="importFabricSpec()" style="display:none;margin-top:10px;justify-content:center">⬆️ Обновить спецификацию тканей</button>
+    </div>
+
     <!-- Список загруженных -->
     <div class="card">
       <div class="card-title">📋 Загруженные прайсы</div>
@@ -1026,7 +1102,7 @@ function showPage(name){
   if(idx>=0)document.querySelectorAll('.nav-btn')[idx].classList.add('active');
   if(name==='stats')renderStats();
   if(name==='clients')renderClients();
-  if(name==='prices'){loadPriceSummary();renderCalc();_ssLoadFactories();}
+  if(name==='prices'){loadPriceSummary();renderCalc();_ssLoadFactories();if(window.loadFabricCats){loadFabricCats().then(function(){if(window._fabSpecInfo)_fabSpecInfo();});}}
   if(name==='cash')renderCash();
   if(name==='pricelabels'){renderPriceLabel();renderLabelQueue();renderRecentLabels();}
 }
@@ -1079,16 +1155,16 @@ function orderCard(o){
   var isPaid=o.status&&o.status.indexOf('Оплачено')>=0&&o.status.indexOf('Не')<0;
   var contactTags='';
   function telHref(p){return'tel:+7'+p.replace(/^[+7]?[78]?/,'').replace(/\D/g,'');}
-  if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span></a>';
-  if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span></a>';
-  if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span style="background:#FFF3E0;color:#E65100;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span></a>';}
+  if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span style="background:#eef1f5;color:#3f5878;font-weight:600;padding:2px 7px;border-radius:6px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span></a>';
+  if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span style="background:#eef1f5;color:#3f5878;font-weight:600;padding:2px 7px;border-radius:6px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span></a>';
+  if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span style="background:#eef1f5;color:#5b6270;font-weight:600;padding:2px 7px;border-radius:6px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span></a>';}
   // v7.8: чип показываем ТОЛЬКО при самовывозе (даже если заполнены адрес и телефон —
   // клиент мог передумать и забирать сам). При доставке ничего не пишем — это по умолчанию.
   var _isPickup=/самовыв/i.test(o.delivery_type||'');
-  var deliveryChip=_isPickup?'<span style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:700;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">🏬 Самовывоз</span>':'';
-  var delivBadge=o.delivery_date?'<span style="background:#E8F5E9;color:#2E7D32;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>':'';
+  var deliveryChip=_isPickup?'<span style="background:#eaf4ec;color:#256b3c;border:1px solid #c3dbc9;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;margin-right:4px;display:inline-block">🏬 Самовывоз</span>':'';
+  var delivBadge=o.delivery_date?'<span style="background:#eaf4ec;color:#256b3c;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>':'';
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
-  var hdrBg=isDone?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
+  var hdrBg=isDone?'background:#f2f8f3':isPaid?'background:#f7fbf8':'background:#f7f8fa';
 
   var itemsHtml='',delivCnt=0,itemsPaid=0;
   for(var i=0;i<items.length;i++){
@@ -1108,18 +1184,18 @@ function orderCard(o){
     if(dlv||isDone)delivCnt++;
     // v6.7: оплата позиции при доставке
     var itPaid=Math.round(it.paid_amount||0);if(itPaid>0)itemsPaid+=itPaid;
-    var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
+    var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#eaf4ec;color:#256b3c;border:1px solid #c3dbc9;border-radius:7px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
     var dlvBtn;
     if(dlv){
       dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Товар у клиента. Нажмите, чтобы снять отметку" '
-        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">'
+        +'style="cursor:pointer;border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#eaf4ec;color:#256b3c;border:1px solid #c3dbc9">'
         +'✅ Отвезено '+fmtDate(it.delivered_at)+'</button>';
     }else if(isDone){
       // заказ выполнен, отметки довоза не было — считаем отвезённым, статичный зелёный бейдж
-      dlvBtn='<span title="Заказ выполнен — товар у клиента" style="border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">✅ Отвезено</span>';
+      dlvBtn='<span title="Заказ выполнен — товар у клиента" style="border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#eaf4ec;color:#256b3c;border:1px solid #c3dbc9">✅ Отвезено</span>';
     }else{
       dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Нажмите, когда товар отвезён клиенту" '
-        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#FFF8E1;color:#B26A00;border:1px dashed #E0B252">'
+        +'style="cursor:pointer;border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#fbf4e6;color:#8a6a1f;border:1px dashed #dcc49a">'
         +'🚚 Не отвезено</button>';
     }
     itemsHtml+='<div class="item-row-compact"'+(dlv?' style="background:#F4FBF4"':'')+'>'+
@@ -1164,18 +1240,18 @@ function orderCard(o){
     if((o.pay_cash||0)>0)pp.push('💵 '+fmt(o.pay_cash));
     if((o.pay_card||0)>0)pp.push('💳 '+fmt(o.pay_card));
     if((o.pay_transfer||0)>0)pp.push('📲 '+fmt(o.pay_transfer));
-    ftrClose='<div class="ftr-col"><div class="ftr-lbl">🏁 Закрыт'+(o.closed_at?fmtDate(o.closed_at):'')+'</div><div class="ftr-val" style="font-size:12px;color:#1B5E20">'+(pp.length?pp.join(' + ')+' ₽':'без доплаты')+'</div></div>';
+    ftrClose='<div class="ftr-col"><div class="ftr-lbl">🏁 Закрыт'+(o.closed_at?fmtDate(o.closed_at):'')+'</div><div class="ftr-val" style="font-size:12px;color:#256b3c">'+(pp.length?pp.join(' + ')+' ₽':'без доплаты')+'</div></div>';
   }
   var cardClass='order-card'+(isDone?' done':'');
 
-  var activeBadge=!isDone?'<span style="font-size:11px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:20px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
+  var activeBadge=!isDone?'<span style="font-size:11px;background:#e9f0f9;color:#1f4e79;padding:3px 8px;border-radius:7px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
 
   // Бейдж «отвезено X из Y» — виден сразу в шапке заказа, если товаров несколько
   var dlvBadge='';
   if(items.length>1&&delivCnt>0){
     var allDlv=delivCnt===items.length;
-    dlvBadge='<span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700;margin-right:6px;flex-shrink:0;'
-      +(allDlv?'background:#E8F5E9;color:#1B5E20':'background:#FFF3E0;color:#E65100')+'">'
+    dlvBadge='<span style="font-size:11px;padding:2px 8px;border-radius:7px;font-weight:600;margin-right:6px;flex-shrink:0;'
+      +(allDlv?'background:#eaf4ec;color:#256b3c':'background:#fbf0e2;color:#8a5a18')+'">'
       +'🚚 '+delivCnt+' из '+items.length+' отвезено</span>';
   }
 
@@ -1184,18 +1260,18 @@ function orderCard(o){
     (isDone?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
     '<div class="order-meta" style="display:block;flex:1">'+
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
-    '<span style="margin:0 6px;color:#ddd">|</span><strong style="cursor:pointer;border-bottom:1px dashed #90A4AE" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
+    '<span style="margin:0 7px;color:#d5dae0">|</span><strong style="cursor:pointer;border-bottom:1px dashed #b6bfc9" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
     ((deliveryChip||contactTags)?'<div style="margin-top:4px">'+deliveryChip+contactTags+'</div>':'')+
-    '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
+    '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#eef1f6;color:#3a4a66;padding:3px 8px;border-radius:7px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
     '<div id="order-body-'+o.id+'" style="'+(isDone?'display:none':'')+'">'+
     (itemsHtml||'')+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
     '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(o.goods_discounted||o.goods_total||0)+' ₽</div></div>'+
     ftrDeliv+ftrPre+ftrItemPaid+ftrDebt+ftrClose+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
-    '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1565C0;border-color:#1565C0">🖨 Наряд</button>'+
-    '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px;color:var(--dark);border-color:var(--dark)">🖨 Договор</button>'+
-    '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px;color:#2e7d32;border-color:#2e7d32">📋 Акт</button>'+
+    '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1f4e79;border-color:#c3d0de">🖨 Наряд</button>'+
+    '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1f4e79;border-color:#c3d0de">🖨 Договор</button>'+
+    '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px;color:#2c6b44;border-color:#c3dbc9">📋 Акт</button>'+
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'+
     doneBtn+closureBtn+
     '<button class="btn-danger-sm" onclick="askDelete('+o.id+')">🗑</button>'+
@@ -2955,6 +3031,132 @@ var _gsTimer=null,_gsLastResults=[],_hasCategoryCol=true,_gsFactoryCol=true,_gsC
 var _gsNormCol=true;
 function _eNorm(s){return String(s).toLowerCase().replace(/ё/g,'е');}
 function _normPat(v){return _ilikePat(_eNorm(v));}
+
+// ═══ v7.19: спецификация категорий тканей (самостоятельное обновление владельцем) ═══
+// Владелец загружает файл «Спецификация ткани ….xlsx» (9 листов текстильных коллекций
+// Некрасовых). Приложение разбирает его в пары «ткань → категория», кладёт в таблицу
+// fabric_categories (Supabase) — и на всех устройствах категория подставляется в заказ
+// автоматически. Встроенная в config спецификация остаётся резервом (оффлайн/до импорта).
+var _fabWB=null,_fabCatsLoaded=false,_fabCatsCount=0;
+var _FAB_SHEET_ALIAS={'Viptextil':'Вип-Текстиль','viptextil':'Вип-Текстиль','Бонлайф1':'Бонлайф','Бонлайф 1':'Бонлайф'};
+function _fabIsCat(v){
+  if(v==null)return null;
+  var s=String(v).trim();
+  if(s==='>12'||s==='˃12')return '>12';
+  if(/^>?\s*(1[0-2]|[1-9])$/.test(s))return s.replace(/\s/g,'');
+  return null;
+}
+var _FAB_TYPE=/^(велюр|рогожка|рогожки|шенилл|шинилл|жаккард|жаккарды|букле|микрофибра|микрофлок|микровелюр|микрошенилл|нубук|принт|замша|кожа|иск|искус|искусственная|искусственный|нанокожа|шерсть|нсс|мех|ткань|обивочная|фэшн|new|тиснением|с|только|сиденье|не)$/i;
+function _fabIsTypeish(s){
+  var t=String(s).toLowerCase().replace(/[().,]/g,' ').split(/\s+/).filter(Boolean);
+  if(!t.length)return true;
+  return t.every(function(w){return _FAB_TYPE.test(w);});
+}
+function _parseFabricSpec(wb){
+  var out=[],seen={};
+  if(!wb||!wb.SheetNames)return out;
+  wb.SheetNames.forEach(function(sn){
+    var coll=_FAB_SHEET_ALIAS[sn]||sn;
+    var ws=wb.Sheets[sn];if(!ws)return;
+    var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:null});
+    var hit={};
+    rows.forEach(function(r){(r||[]).forEach(function(v,j){if(_fabIsCat(v))hit[j]=(hit[j]||0)+1;});});
+    var catcols=Object.keys(hit).map(Number).filter(function(c){return hit[c]>=3;}).sort(function(a,b){return a-b;});
+    if(!catcols.length)return;
+    rows.forEach(function(r){
+      if(!r)return;
+      catcols.forEach(function(ci){
+        var cat=_fabIsCat(r[ci]);if(!cat)return;
+        var prev=catcols.filter(function(c){return c<ci;});
+        var start=prev.length?Math.max.apply(null,prev)+1:0;
+        var name=null;
+        for(var j=start;j<ci;j++){
+          var v=r[j];if(v==null)continue;
+          var s=String(v).trim();
+          if(!s||_fabIsCat(v))continue;
+          if(_fabIsTypeish(s)){if(name===null)continue;else break;}
+          name=s;break;
+        }
+        if(!name)return;
+        var clean=String(name).replace(/\s*\([^)]*\)/g,'').replace(/\s+/g,' ').replace(/^[\s.,\-]+|[\s.,\-]+$/g,'');
+        if(clean.length<2)return;
+        if(/наименование|категор|специфик|фабрика|прайс|курс|производств|^термо$|^группа$|^иск\.?\s*кожа$/i.test(clean))return;
+        var key=coll.toLowerCase()+'|'+clean.toLowerCase().replace(/ё/g,'е');
+        if(seen[key])return;seen[key]=1;
+        out.push({name:clean,category:cat,collection:coll});
+      });
+    });
+  });
+  return out;
+}
+function onFabricSpecFile(input){
+  var file=input.files&&input.files[0];if(!file)return;
+  if(typeof XLSX==='undefined'){toast(window._xlsxFail?'❌ Библиотека Excel не загрузилась — обновите страницу':'⏳ Библиотека Excel ещё загружается — попробуйте через пару секунд','err',5000);return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      _fabWB=XLSX.read(e.target.result,{type:'array'});
+      var rows=_parseFabricSpec(_fabWB);
+      var el=document.getElementById('fab-file-info');
+      if(el)el.textContent='📄 '+file.name+' — распознано тканей: '+rows.length+(rows.length?'. Нажмите «Обновить спецификацию».':'. Категории не найдены — это точно файл спецификации?');
+      var btn=document.getElementById('fab-import-btn');if(btn)btn.style.display=rows.length?'inline-flex':'none';
+    }catch(err){toast('❌ Не удалось прочитать файл: '+err.message,'err');}
+  };
+  reader.readAsArrayBuffer(file);
+}
+async function importFabricSpec(){
+  if(!_fabWB){toast('Сначала выберите файл спецификации','err');return;}
+  var rows=_parseFabricSpec(_fabWB);
+  if(!rows.length){toast('❌ В файле не найдены ткани с категориями','err',5000);return;}
+  if(!confirm('Загрузить '+rows.length+' тканей из спецификации?\nПрошлая спецификация в базе будет полностью заменена.'))return;
+  var btn=document.getElementById('fab-import-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Загрузка...';}
+  try{
+    for(var i=0;i<40;i++){
+      await sbDel('fabric_categories','id=gt.0');
+      var chk=await sbGet('fabric_categories','select=id&limit=1');
+      if(!chk||!chk.length)break;
+    }
+    for(var j=0;j<rows.length;j+=400)await sbPost('fabric_categories',rows.slice(j,j+400));
+    await loadFabricCats(true);
+    toast('✅ Спецификация тканей обновлена: '+rows.length+' тканей',null,5000);
+    _fabWB=null;
+    var fi=document.getElementById('fab-file-info');if(fi)fi.textContent='';
+    if(btn)btn.style.display='none';
+    _fabSpecInfo();
+  }catch(e){
+    var m=(e&&e.message)||'';
+    if(/relation|does not exist|PGRST205|404|fabric_categories/i.test(m))
+      toast('❌ Таблица категорий не создана. Выполните SQL_обновление_7.3 в Supabase и повторите.','err',8000);
+    else toast('❌ Ошибка загрузки: '+m,'err',7000);
+    console.error(e);
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='⬆️ Обновить спецификацию тканей';}
+  }
+}
+async function loadFabricCats(force){
+  if(_fabCatsLoaded&&!force)return;
+  _fabCatsLoaded=true;
+  try{
+    var rows=await sbGet('fabric_categories','select=name,category,collection&limit=6000');
+    if(!rows||!rows.length){_fabSpecInfo(0);return;} // сервер пуст — остаётся встроенная спецификация
+    var coll=FABRIC_CATS_COLL.slice(),map={};
+    rows.forEach(function(r){
+      var ci=coll.indexOf(r.collection);
+      if(ci<0){coll.push(r.collection);ci=coll.length-1;}
+      if(!map[r.name])map[r.name]=[];
+      if(!map[r.name].some(function(x){return x[1]===ci;}))map[r.name].push([r.category,ci]);
+    });
+    FABRIC_CATS_COLL=coll;FABRIC_CATS=map;_fabIdx=null; // сбросить индекс подбора ткани
+    _fabCatsCount=rows.length;_fabSpecInfo(rows.length);
+  }catch(e){_fabSpecInfo(0);/* оффлайн/нет таблицы — встроенная спецификация */}
+}
+function _fabSpecInfo(n){
+  var el=document.getElementById('fab-spec-info');if(!el)return;
+  if(n==null)n=_fabCatsCount;
+  el.textContent=n>0?('✓ В базе загружено тканей: '+n+' (синхронизируется на всех устройствах)')
+    :('Своя спецификация ещё не загружена — используется встроенная ('+Object.keys(FABRIC_CATS).length+' тканей). Загрузите файл, чтобы обновить.');
+}
 function retailFromOpt(opt){return Math.ceil(opt*(1+MARKUP_PCT/100)/100)*100;}
 function globalSearch(){
   clearTimeout(_gsTimer);
@@ -5000,6 +5202,7 @@ function selectClient(c){
 
 function ensureProducts(){
   _loadPriceSuppliers(); // v7.14: чтобы форма не дублировала старый каталог по загруженным прайсам
+  if(window.loadFabricCats)loadFabricCats(); // v7.19: серверная спецификация тканей (если загружена)
   if(allProducts.length)return;
   sbGet('products','select=*&has_fabric_cats=eq.false&limit=2000').then(function(rows){allProducts=rows||[];}).catch(function(e){console.error(e);});
 }
