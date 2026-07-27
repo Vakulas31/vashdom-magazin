@@ -228,7 +228,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.22</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.23</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1298,7 +1298,7 @@ function orderCard(o){
       +'🚚 '+delivCnt+' из '+items.length+' отвезено</span>';
   }
 
-  return '<div class="'+cardClass+'">'+
+  return '<div class="'+cardClass+'" id="order-card-'+o.id+'">'+
     '<div class="order-hdr" style="'+hdrBg+(isDone?';cursor:pointer':'')+'">'+
     (isDone?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
     '<div class="order-meta" style="display:block;flex:1">'+
@@ -1319,6 +1319,36 @@ function orderCard(o){
     doneBtn+closureBtn+
     '<button class="btn-danger-sm" onclick="askDelete('+o.id+')">🗑</button>'+
     '</div></div></div></div>';
+}
+
+// ── ПЕРЕХОД К ЗАКАЗУ ПО НОМЕРУ (v7.23) ──────────────────
+// Используется из «Учёта»: клик по поступлению в кассе открывает вкладку
+// «Заказы», сбрасывает фильтры, разворачивает нужную карточку и подсвечивает её.
+function openOrderByNumber(num){
+  var o=null,i;
+  for(i=0;i<allOrders.length;i++)if(String(allOrders[i].order_number)===String(num)){o=allOrders[i];break;}
+  if(!o){toast('Заказ №'+num+' не найден — возможно, он удалён','err');return;}
+  showPage('orders');
+  var s=document.getElementById('orders-search');if(s)s.value='';
+  var fs=document.getElementById('filter-status');if(fs)fs.value='';
+  var fm=document.getElementById('filter-manager');if(fm)fm.value='';
+  setChip('all'); // сбрасывает фильтр-чип и перерисовывает список
+  // список рисуется порциями по 60 — догружаем до нужной карточки
+  var idx=-1;
+  for(i=0;i<_lastFiltered.length;i++)if(_lastFiltered[i].id===o.id){idx=i;break;}
+  if(idx>=0&&idx>=_ordersShown){_ordersShown=Math.min(idx+1,_lastFiltered.length);_paintOrders();}
+  setTimeout(function(){
+    var card=document.getElementById('order-card-'+o.id);
+    if(!card){toast('Заказ №'+num+' не попал в текущий список','err');return;}
+    var body=document.getElementById('order-body-'+o.id);
+    if(body&&body.style.display==='none')toggleOrderBody(o.id);
+    card.scrollIntoView({behavior:'smooth',block:'center'});
+    card.style.transition='box-shadow .25s ease,border-color .25s ease';
+    var ob=card.style.boxShadow,obc=card.style.borderColor;
+    card.style.boxShadow='0 0 0 3px rgba(46,117,182,.5)';
+    card.style.borderColor='#2E75B6';
+    setTimeout(function(){card.style.boxShadow=ob;card.style.borderColor=obc;},2400);
+  },80);
 }
 
 function toggleOrderBody(id){
@@ -1869,8 +1899,12 @@ function _renderCashUI(orders,withdrawals,itemPays){
 
   // общий помощник: список поступлений (используется и кассой, и каждым забором)
   function _partsRows(arr){return arr.map(function(p){
-    return '<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:12px;border-bottom:1px dashed var(--border)">'
-      +'<span>'+fmt(p.amt)+' ₽'+(p.of?' <span style="color:var(--text2)">(часть из '+fmt(p.of)+' ₽)</span>':'')+' — '+p.kind+' <span style="color:var(--text2)">№'+p.num+' · '+(p.client||'')+'</span></span>'
+    // v7.23: строка поступления — ссылка на заказ (клик открывает карточку в «Заказах»)
+    return '<div onclick="openOrderByNumber(\''+String(p.num).replace(/'/g,"\\'")+'\')" title="Открыть заказ №'+p.num+'"'
+      +' style="display:flex;justify-content:space-between;gap:10px;padding:4px 6px;margin:0 -6px;font-size:12px;border-bottom:1px dashed var(--border);cursor:pointer;border-radius:6px"'
+      +' onmouseover="this.style.background=\'#eef3f9\'" onmouseout="this.style.background=\'\'">'
+      +'<span>'+fmt(p.amt)+' ₽'+(p.of?' <span style="color:var(--text2)">(часть из '+fmt(p.of)+' ₽)</span>':'')+' — '+p.kind
+      +' <span style="color:var(--text2)">№<span style="color:#1565C0;border-bottom:1px dashed #90A4AE">'+p.num+'</span> · '+(p.client||'')+'</span></span>'
       +'<span style="color:var(--text2);white-space:nowrap">'+fmtDate(p.date)+'</span></div>';
   }).join('');}
 
@@ -1930,7 +1964,10 @@ function _renderCashUI(orders,withdrawals,itemPays){
   list.forEach(function(r){
     var rowTot=r.cash+r.card+r.transfer+r.other;
     pRows+='<tr>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">№'+(r.order_number||'—')+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">'
+        +(r.order_number
+          ?'<span onclick="openOrderByNumber(\''+String(r.order_number).replace(/'/g,"\\'")+'\')" title="Открыть заказ №'+r.order_number+'" style="cursor:pointer;color:#1565C0;border-bottom:1px dashed #90A4AE">№'+r.order_number+'</span>'
+          :'—')+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:13px">'+(r.client_name||'—')
       +(r.preNote?'<div style="font-size:10px;color:var(--text2)">'+r.preNote+'</div>':'')
       +(r.delivNote?'<div style="font-size:10px">'+r.delivNote+'</div>':'')+'</td>'
