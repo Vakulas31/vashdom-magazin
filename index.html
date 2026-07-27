@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="ВашДом">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--dark:#1F4E79;--mid:#2E75B6;--lite:#D6E4F0;--alt:#EBF3FB;--gold:#FFFDE7;--green:#E8F5E9;--orange:#FFF3E0;--grey:#F5F5F5;--white:#fff;--text:#1a1a1a;--text2:#666;--border:#e0e0e0;--radius:10px;--radius-sm:6px}
+:root{--dark:#1F4E79;--mid:#2E75B6;--lite:#D6E4F0;--alt:#EBF3FB;--gold:#FFFDE7;--green:#E8F5E9;--orange:#FFF3E0;--grey:#F5F5F5;--white:#fff;--text:#1a1a1a;--text2:#666;--border:#e0e0e0;--primary:#1F4E79;--radius:10px;--radius-sm:6px}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:var(--text);font-size:14px}
 .topbar{background:var(--dark);padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .topbar-logo{height:36px}
@@ -103,6 +103,65 @@ textarea{resize:vertical;min-height:60px}
 .pin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:600;align-items:center;justify-content:center}
 .pin-overlay.open{display:flex}
 .pin-box{background:#fff;border-radius:var(--radius);padding:32px;text-align:center;width:320px}
+/* ══════ v7.20 · ПОЛИРОВКА (без изменения структуры экранов) ══════
+   Тот же синий интерфейс и те же элементы на своих местах — аккуратнее
+   типографика, спокойнее плашки, живые состояния кнопок. */
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;background:#f1f3f6}
+h2{letter-spacing:-.01em}
+/* деньги моноширинными разрядами — колонки цифр перестают «плясать» */
+.ftr-val,.item-price,.stat-val,.bar-val,.tot-row,.order-status,.badge,.ftr-lbl,.stat-label,.item-text{font-variant-numeric:tabular-nums}
+/* карточки: мягкая синеватая тень вместо чёрной, тоньше линии, отклик на наведение */
+.card,.order-card,.stat-card{border-color:#e6e9ee;box-shadow:0 1px 2px rgba(31,78,121,.05)}
+.order-card{transition:box-shadow .18s ease,border-color .18s ease}
+.order-card:hover{border-color:#d5dde6;box-shadow:0 2px 10px -4px rgba(31,78,121,.22)}
+.order-card.done{opacity:1;background:#fff;border-color:#cfe0d4}
+.order-hdr,.item-row-compact,.client-row,.ac-item{border-color:#eceff3}
+.order-hdr{padding:11px 16px;gap:8px}
+.item-row-compact{padding:8px 16px}
+.order-ftr{background:#f7f8fa;border-top:1px solid #eceff3;padding:10px 16px}
+.ftr-lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#7c8593}
+.ftr-val{font-size:13.5px;letter-spacing:-.01em}
+.item-price{color:#9c3b2e}
+/* плашки: одна форма и приглушённые тона вместо ярких заливок */
+.order-status,.badge,.tag-sup{border-radius:7px}
+.order-status{padding:4px 9px;font-weight:600}
+.s-paid{background:#eaf4ec;color:#256b3c}
+.s-part{background:#fbf0e2;color:#8a5a18}
+.s-no{background:#f8eae7;color:#9c3b2e}
+.s-done{background:#2c6b44;color:#fff}
+.badge-yes{background:#eaf4ec;color:#256b3c}
+.badge-order{background:#fbf0e2;color:#8a5a18}
+.tag-sup{background:#eef1f5;color:#5b6270}
+.note-box{background:#fdfaee;border-left-color:#dcb45c;color:#5a5348}
+/* поля ввода */
+input,select,textarea{border-radius:8px;border-color:#dfe3e9;padding:10px 12px;transition:border-color .15s,box-shadow .15s}
+input:hover,select:hover,textarea:hover{border-color:#c9d1da}
+input[type="checkbox"]:hover,input[type="radio"]:hover{border-color:initial}
+.inp-gold{background:#fdfaee}
+.inp-green{background:#eef6ef}
+/* кнопки: наведение, нажатие, видимый фокус с клавиатуры */
+.btn{border-radius:8px;transition:filter .15s ease,transform .1s ease,border-color .15s ease,background .15s ease}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{box-shadow:0 1px 2px rgba(31,78,121,.28)}
+.btn-outline:hover{border-color:#c2cad4;background:#fafbfc}
+.btn-danger-sm,.expand-btn,.btn-dashed{border-radius:8px;transition:background .15s,border-color .15s}
+.btn-danger-sm:hover{background:#fdf3f3}
+.expand-btn{border-color:#c9d1da;color:#5b6270}
+.expand-btn:hover{background:#f2f5f8}
+.btn:focus-visible,.chip:focus-visible,.nav-btn:focus-visible,.expand-btn:focus-visible{outline:2px solid var(--mid);outline-offset:2px}
+/* шапка и навигация */
+.topbar{box-shadow:0 1px 0 rgba(0,0,0,.12)}
+.nav-btn{transition:color .15s,background .15s}
+.nav-btn:hover{color:var(--text);background:#f7f9fb}
+.chip{border-radius:8px;transition:filter .15s,border-color .15s}
+.chip:hover{opacity:1;filter:brightness(.97)}
+/* сводки, таблицы, всплывающие окна */
+.stat-val{letter-spacing:-.02em}
+.totals-block{background:#f7f8fa;border:1px solid #eceff3}
+.modal{box-shadow:0 24px 60px -20px rgba(16,24,40,.45)}
+.ac-list{box-shadow:0 12px 28px -12px rgba(16,24,40,.3)}
+.ac-item:hover{background:#eef3f9}
 /* ── МОБИЛЬНАЯ ВЕРСИЯ ─────────────────────────────────── */
 @media (max-width:700px){
   .topbar{padding:0 8px;gap:6px;height:48px}
@@ -169,7 +228,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.20</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.21</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -184,12 +243,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
   <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" id="chips-row">
-    <span class="chip chip-active" style="background:#f0f4ff;color:#1565C0;border-color:#1565C0" data-chip="all" onclick="setChip('all')">Все</span>
-    <span class="chip" style="background:#FFF3E0;color:#E65100" data-chip="debt" onclick="setChip('debt')">💰 С долгом</span>
-    <span class="chip" style="background:#E3F2FD;color:#1565C0" data-chip="active" onclick="setChip('active')">🔄 В процессе</span>
-    <span class="chip" style="background:#E8F5E9;color:#2E7D32" data-chip="today" onclick="setChip('today')">📅 Сегодня</span>
-    <span class="chip" style="background:#F3E5F5;color:#6A1B9A" data-chip="week" onclick="setChip('week')">🗓 На неделе</span>
-    <span class="chip" style="background:#ECEFF1;color:#546E7A" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
+    <span class="chip chip-active" style="background:#eef1f5;color:#5b6270" data-chip="all" onclick="setChip('all')">Все</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="debt" onclick="setChip('debt')">💰 С долгом</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="active" onclick="setChip('active')">🔄 В процессе</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="today" onclick="setChip('today')">📅 Сегодня</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="week" onclick="setChip('week')">🗓 На неделе</span>
+    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -2117,6 +2176,21 @@ function onPriceSheetChange(){
     tplValid=_plValidCount(_collectRows(_plData,{start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:!!tpl.modular,supplier:'x',sheetName:sn}));
   }
   var detValid=det?_plValidCount(_collectRows(_plData,{start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:det.cascade,supplier:'x',sheetName:sn})):0;
+  // v7.21: прайс модульных систем (Союз, Брянск «Корпусная») колонками не описать —
+  // если такой разбор даёт больше товаров, включаем его и говорим об этом.
+  _plModSys=null;
+  var _ms=_autoDetectModSys(_plData);
+  if(_ms){
+    var _msN=_plValidCount(_collectModSys(_plData,{grpCol:_ms.grpCol,nameCol:_ms.nameCol,artCol:_ms.artCol,noteCol:_ms.noteCol,priceCols:_ms.priceCols,supplier:'x',sheetName:sn}));
+    if(_msN>detValid&&_msN>tplValid){
+      _plModSys=_ms;
+      _buildPriceColSelects();
+      if(se){se.style.cssText='display:block;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';
+        se.innerHTML='🧩 Прайс модульных систем: нашёл '+_ms.banners+' систем и '+_msN+' позиций. Название системы попадёт в название товара («Мегаполис · № 12 Шкаф 2х комби 420»), отделки — отдельными вариантами. Колонки настраивать не нужно — жмите «Импортировать этот лист».';}
+      _renderPricePreview();
+      return;
+    }
+  }
   if(tpl&&(tpl.matrix||tpl.matrix_multi||(tplValid>0&&tplValid>=detValid))){
     _buildPriceColSelects();
     var applied=applyPriceTemplate(sn);
@@ -2392,12 +2466,25 @@ function _collectRows(data,cfg){
   return rows;
 }
 // Автоопределение строки заголовков и колонок (для «Все листы сразу»)
+// v7.21: «чистая» ценовая ячейка — только цифры (плюс пробелы/запятые и хвост «руб/₽»).
+// Ячейки с буквами («длина 186,190,195,200», «Мдф», «кат. II») ценой НЕ считаются:
+// у Асконы такая колонка размеров разворачивалась из merged-ячейки на весь блок,
+// становилась «самой плотной числовой» и побеждала настоящую «Оптовую цену» —
+// в каталог уезжала цена 186 190 ₽ на все размеры матраса.
+function _plIsPlainNumCell(v){
+  var s=String(v==null?'':v).trim();
+  if(!s)return false;
+  var tail=s.replace(/[\d\s.,\-+()%]/g,'');
+  return !tail||/^(р|руб|руб\.|₽|rub|rur|шт)\.?$/i.test(tail);
+}
 // Считает, сколько в колонке c (начиная со строки startRow) ценоподобных чисел
-function _plColNumericCount(data,startRow,c){
+// strict=true — только «чистые» числовые ячейки (для разбора листов без шапки)
+function _plColNumericCount(data,startRow,c,strict){
   var n=0,seen=0;
   for(var r=startRow;r<data.length&&seen<60;r++){
     var v=(data[r]||[])[c];if(v===''||v==null)continue;seen++;
     if(/\d\s*[*x×х\/]\s*\d/.test(String(v)))continue; // размеры 800*800, 1900/2000 — не цена
+    if(strict&&!_plIsPlainNumCell(v))continue;
     var num=_plToNum(v);if(num>=50&&num<=100000000)n++; // цена, а не индекс/год
   }
   return n;
@@ -2423,7 +2510,10 @@ function _plLooksCascade(data,startRow,colName,colOpt){
   return priceNoName>both&&priceNoName>=2;
 }
 function _autoDetectSheet(data){
-  for(var r=0;r<Math.min(15,data.length);r++){
+  // v7.21: шапку ищем в первых 40 строках, а не 15. У Асконы («ЭКОНОМ_PRIME» и др.)
+  // настоящая шапка «Наименование МЦ | Размер | Оптовая цена» стоит в 22-й строке —
+  // до этого её не видели, включался структурный запасной разбор и брал не ту колонку.
+  for(var r=0;r<Math.min(40,data.length);r++){
     var row=data[r]||[];
     var d={name:-1,ret:-1,art:-1};var priceCands=[];var nameCands=[];
     for(var i=0;i<row.length;i++){
@@ -2466,7 +2556,7 @@ function _autoDetectSheet(data){
   // определяем колонки по данным: цены — плотно-числовые колонки, имя — текстовая слева.
   var _ncols=0;for(var _r=0;_r<data.length;_r++){var _rl=(data[_r]||[]).length;if(_rl>_ncols)_ncols=_rl;}
   var _numc=[],_maxNum=0;
-  for(var _c=0;_c<_ncols;_c++){var _n=_plColNumericCount(data,0,_c);_numc[_c]=_n;if(_n>_maxNum)_maxNum=_n;}
+  for(var _c=0;_c<_ncols;_c++){var _n=_plColNumericCount(data,0,_c,true);_numc[_c]=_n;if(_n>_maxNum)_maxNum=_n;}
   if(_maxNum>=3){
     var _thr=_maxNum*0.6,_dense=[];
     for(var _c2=0;_c2<_ncols;_c2++)if(_numc[_c2]>=_thr)_dense.push(_c2);
@@ -2474,11 +2564,28 @@ function _autoDetectSheet(data){
       var _opt=_dense[0],_ret=_dense[_dense.length-1];
       // имя: ЛЕВЕЙШАЯ колонка (до цен), где текста заметно больше, чем чисел — обычно это
       // названия товаров в 1-й колонке (а не разреженные заметки правее).
-      var _nameC=0;
+      // v7.21: «числом» считаем только чистое число — иначе артикул «M343» и название
+      // «Матрас 120*060 Mom\u2019s Love» считались числами (343 / 120), колонка названия
+      // отбрасывалась, и товар назывался брендом («Мир Матрасов / SONTERY»).
+      // Из текстовых колонок берём ту, где текст ДЛИННЫЙ (название), а короткую
+      // (коды-артикулы «M343») отдаём в артикул.
+      var _nameC=0,_artC=-1,_cands=[];
       for(var _c3=0;_c3<_opt;_c3++){
-        var _tc=0,_nn=0,_seen=0;
-        for(var _r3=0;_r3<data.length&&_seen<120;_r3++){var _v=(data[_r3]||[])[_c3];if(_v===''||_v==null)continue;_seen++;if(_plToNum(_v)>=50){_nn++;continue;}if(String(_v).trim().length>=2)_tc++;}
-        if(_tc>=3&&_tc>_nn){_nameC=_c3;break;}
+        var _tc=0,_nn=0,_seen=0,_len=0,_uq=[];
+        for(var _r3=0;_r3<data.length&&_seen<120;_r3++){
+          var _v=(data[_r3]||[])[_c3];if(_v===''||_v==null)continue;_seen++;
+          if(_plIsPlainNumCell(_v)&&_plToNum(_v)>=50){_nn++;continue;}
+          var _sv=String(_v).trim();
+          if(_sv.length>=2){_tc++;_len+=_sv.length;if(_uq.indexOf(_sv)<0)_uq.push(_sv);}
+        }
+        // названия товаров в основном РАЗНЫЕ; одно и то же слово во всех строках
+        // («Длина», «Ширина» в шапках ФСМ) — это подпись, а не колонка названий
+        if(_tc>=3&&_tc>_nn&&_uq.length>_tc*0.5)_cands.push({c:_c3,avg:_len/_tc});
+      }
+      if(_cands.length){
+        var _long=null;for(var _ci=0;_ci<_cands.length;_ci++)if(_cands[_ci].avg>=8){_long=_cands[_ci];break;}
+        _nameC=(_long||_cands[0]).c;
+        for(var _ci2=0;_ci2<_cands.length;_ci2++)if(_cands[_ci2].c<_nameC&&_cands[_ci2].avg<8){_artC=_cands[_ci2].c;break;}
       }
       // первая строка с ценой в опт-колонке → данные начинаются со строки выше (заголовок группы)
       var _firstNum=-1;for(var _r4=0;_r4<data.length;_r4++){if(_plToNum((data[_r4]||[])[_opt])>=50){_firstNum=_r4;break;}}
@@ -2492,11 +2599,177 @@ function _autoDetectSheet(data){
           for(var _dr=Math.max(0,_firstNum-1);_dr<data.length&&_ds<80;_dr++){var _dv=(data[_dr]||[])[_dc];if(_dv===''||_dv==null)continue;_ds++;if(String(_dv).trim().length>=1)_dn++;}
           if(_dn>=3)_desc.push(_dc);
         }
-        return{headerRow:Math.max(0,_firstNum-2),colName:_nameC,colOpt:_opt,colRet:(_ret!==_opt?String(_ret):''),colArt:'',cascade:true,descCols:_desc};
+        return{headerRow:Math.max(0,_firstNum-2),colName:_nameC,colOpt:_opt,colRet:(_ret!==_opt?String(_ret):''),colArt:(_artC>=0?String(_artC):''),cascade:true,descCols:_desc};
       }
     }
   }
   return null;
+}
+// ── МОДУЛЬНЫЕ СИСТЕМЫ (прайс «Союз» и похожие) ───────────────────────────
+// v7.21. Лист устроен секциями:
+//   строка-баннер:  «Мегаполис» | … | «Мдф»        ← название системы + материал
+//   строка(и) отделок: «бланж софт» / «гладкий» | «рифленый»
+//   строки модулей: «Антресоли глубиной 420» | «№ 1* Антресоль 420» | габариты | цены
+// Раньше такой лист разбирался «плоско»: названием товара становилась группа
+// («Антресоли глубиной 420»), сам модуль уезжал в артикул, а система («Мегаполис»)
+// терялась совсем — поиск по системе не находил ничего.
+// Теперь каждый модуль получает имя «Система · № N Название [· отделка]».
+// Ячейка габаритов: «400*520*2150мм», «0,3х0,38х0,42», «(0,87х0,87)х2,1х0,42»
+function _plIsDimCell(v){
+  var s=String(v==null?'':v).trim();
+  if(!/\d\s*[хx*×\/]\s*\d/.test(s))return false;
+  return !/[а-яёa-z]/i.test(s.replace(/мм|см|mm|cm/gi,''));
+}
+function _plModSysHasPrice(row,pc){
+  for(var i=0;i<pc.length;i++)if(_plToNum((row||[])[pc[i]])>=50)return true;
+  return false;
+}
+// Строка-баннер: цен и габаритов нет, в ценовой зоне стоит ТЕКСТ (материал —
+// «Мдф»/«Лдсп»/«Люкс»), а слева — название системы. Название бывает и в колонке
+// группы («Мегаполис»), и в колонке товара («Бостон», «Лидер», «Оникс»), а иногда
+// его нет совсем (подборка только по материалу) — тогда возвращаем пустое имя.
+// Вернём строку-имя (может быть ''), либо null, если это не баннер.
+function _plModSysBanner(data,r,cfg){
+  var row=data[r]||[],pc=cfg.priceCols;
+  if(_plModSysHasPrice(row,pc))return null;
+  var gv=function(c){return c<0?'':String((row||[])[c]==null?'':(row||[])[c]).trim().replace(/\s+/g,' ');};
+  if(gv(cfg.artCol))return null;
+  var g=gv(cfg.grpCol),n=gv(cfg.nameCol);
+  var hasMat=false;
+  for(var i=0;i<pc.length;i++){
+    var v=gv(pc[i]);
+    if(v===g||v===n)continue; // копия названия в правом блоке — это не материал
+    if(v&&v.length<=40&&_plToNum(v)<50&&/[а-яёa-z]/i.test(v)){hasMat=true;break;}
+  }
+  if(!hasMat)return null;
+  if(cfg.grpCol!==cfg.nameCol&&g&&n)return null; // и группа, и название заполнены — это строка данных
+  var t=g||n;
+  if(t.length>60||_plIsNoteRow(t))return null;
+  return t;
+}
+function _autoDetectModSys(data){
+  var ncols=0,r,c;
+  for(r=0;r<data.length;r++){var L=(data[r]||[]).length;if(L>ncols)ncols=L;}
+  if(ncols<4||data.length<20)return null;
+  // 1) ценовые колонки: плотные «чистые» числовые. Зеркальные блоки (у Союза
+  //    правая половина листа дублирует левую) отбрасываем по совпадению значений.
+  var pc=[],sigs=[];
+  for(c=1;c<ncols&&c<60;c++){
+    if(_plColNumericCount(data,0,c,true)<8)continue;
+    var s=[];for(r=0;r<data.length;r++)s.push(_plToNum((data[r]||[])[c])||'');
+    s=s.join(',');
+    if(sigs.indexOf(s)>=0)continue;
+    sigs.push(s);pc.push(c);
+  }
+  // Зеркальный правый блок (у Союза это те же цены со скидкой/наценкой покупателя —
+  //  когда скидка не нулевая, значения уже не совпадают и дубль по значению не ловится):
+  //  колонки идут теми же группами со сдвигом на постоянное число — правую половину убираем.
+  if(pc.length>=4&&pc.length%2===0){
+    var _half=pc.length/2,_d=pc[_half]-pc[0],_mir=_d>0;
+    for(var _i=0;_i<_half&&_mir;_i++)if(pc[_half+_i]-pc[_i]!==_d)_mir=false;
+    if(_mir)pc=pc.slice(0,_half);
+  }
+  if(!pc.length||pc.length>8||pc[0]<1)return null;
+  // 2) слева от цен разбираем текстовые колонки: габариты («400*520*2150мм»,
+  //    «0,3х0,38х0,42») — в артикул, остальные — группа и название.
+  var tc=[],dimC=-1;
+  for(c=0;c<pc[0];c++){
+    var t=0,dm=0;
+    for(r=0;r<data.length;r++){
+      var v=String((data[r]||[])[c]==null?'':(data[r]||[])[c]).trim();
+      if(v.length<2||_plIsPlainNumCell(v))continue;
+      t++;if(_plIsDimCell(v))dm++;
+    }
+    if(t<5)continue;
+    if(dm>=t*0.6){if(dimC<0)dimC=c;}else tc.push(c);
+  }
+  if(!tc.length)return null;
+  // 3) колонка примечаний — текстовая правее цен
+  var noteCol=-1;
+  for(c=pc[pc.length-1]+1;c<ncols&&c<pc[pc.length-1]+12;c++){
+    var nt=0;
+    for(r=0;r<data.length;r++){
+      var nv=String((data[r]||[])[c]==null?'':(data[r]||[])[c]).trim();
+      if(nv.length>=8&&!_plIsPlainNumCell(nv))nt++;
+    }
+    if(nt>=5){noteCol=c;break;}
+  }
+  var cfg={grpCol:tc[0],nameCol:tc.length>1?tc[1]:tc[0],artCol:dimC>=0?dimC:(tc.length>2?tc[2]:-1),noteCol:noteCol,priceCols:pc};
+  // 4) баннеров с ИМЕНЕМ должно быть несколько — иначе это обычный плоский лист
+  var banners=0;
+  for(r=0;r<data.length;r++){var b=_plModSysBanner(data,r,cfg);if(b)banners++;}
+  if(banners<3)return null;
+  cfg.banners=banners;
+  return cfg;
+}
+function _collectModSys(data,cfg){
+  var pc=cfg.priceCols,rows=[],sys='',mat='',grp='',labels={},active=[],r=0,lastBase='',secBase='';
+  var get=function(row,c){return c<0?'':String((row||[])[c]==null?'':(row||[])[c]).trim().replace(/\s+/g,' ');};
+  while(r<data.length){
+    var bn=_plModSysBanner(data,r,cfg);
+    if(bn!==null){
+      var brow=data[r]||[];
+      sys=bn;grp='';mat='';secBase='';lastBase='';
+      for(var i=0;i<pc.length;i++){var mv=get(brow,pc[i]);if(mv&&_plToNum(mv)<50){mat=mv;break;}}
+      // строки-заголовки идут до первой строки с ценой (не больше 4)
+      var hdrRows=[],rr=r+1;
+      while(rr<data.length&&rr<r+5&&!_plModSysHasPrice(data[rr],pc)){hdrRows.push(rr);rr++;}
+      // какие ценовые колонки реально заполнены в ЭТОЙ секции (до следующего баннера)
+      active=[];
+      for(var a=0;a<pc.length;a++){
+        for(var ar=rr;ar<data.length;ar++){
+          if(_plModSysBanner(data,ar,cfg)!==null)break;
+          if(_plToNum((data[ar]||[])[pc[a]])>=50){active.push(pc[a]);break;}
+        }
+      }
+      // подпись варианта: берём ту строку-заголовок, где подписаны ВСЕ активные колонки
+      // порядок поиска: строки под баннером (снизу вверх), затем общая шапка НАД ним
+      // (у «Брянск Мебель» цвета подписаны один раз в первой строке листа)
+      var cand=[];
+      for(var h=hdrRows.length-1;h>=0;h--)cand.push(hdrRows[h]);
+      for(var h2=r-1;h2>=0&&h2>=r-4;h2--)cand.push(h2);
+      labels={};
+      for(var ci=0;ci<cand.length;ci++){
+        var hr=data[cand[ci]]||[],ok=active.length>0;
+        if(_plModSysHasPrice(hr,pc))continue;
+        for(var k=0;k<active.length;k++)if(!get(hr,active[k])){ok=false;break;}
+        if(!ok)continue;
+        for(var k2=0;k2<active.length;k2++)labels[active[k2]]=get(hr,active[k2]);
+        break;
+      }
+      r=rr;continue;
+    }
+    var row=data[r]||[];
+    if(!_plModSysHasPrice(row,pc)){r++;continue;}
+    var nm=get(row,cfg.nameCol),g0=get(row,cfg.grpCol);
+    if(nm){if(g0)grp=g0;}else{nm=g0;} // у части систем название стоит в левой колонке («Альфа 2»)
+    var dims=get(row,cfg.artCol),note=get(row,cfg.noteCol);
+    // Комплект целиком (у «Интер», «Орион»): имени нет, есть только габариты — берём их
+    if(!nm&&sys&&dims){nm=dims;dims='';}
+    if(!nm||_plIsNoteRow(nm)||_plIsDead(nm)){r++;continue;}
+    // Продолжение модели: «Вега - 2», затем просто «-3» → «Вега -3»
+    if(/^[-–—]\s*\d/.test(nm)&&lastBase)nm=lastBase+' '+nm;
+    else{var _bm=nm.match(/^(.+?)\s*[-–—]\s*\d/);lastBase=_bm?_bm[1].trim():'';}
+    // Секция без баннерного имени (у Союза так идут «Вега», «София»): имя системы —
+    // это первый товар секции; остальные модули («Шкаф 2х», «Пенал») получают его в имя.
+    if(!sys&&!secBase)secBase=lastBase||nm;
+    var head=sys||((secBase&&nm.indexOf(secBase)!==0)?secBase:'');
+    var multi=active.length>1;
+    for(var p=0;p<pc.length;p++){
+      var val=_plToNum(row[pc[p]]);
+      if(val<50||val>99999999)continue;
+      if(active.length&&active.indexOf(pc[p])<0)continue;
+      var lab=labels[pc[p]]||'';
+      var pname=(head?head+' · ':'')+nm+(multi&&lab?' · '+lab:'');
+      var art=[dims,(multi?'':lab),mat,(cfg.grpCol===cfg.nameCol?'':grp)].filter(Boolean).join(' · ');
+      var at=_extractAttrs(pname,art,'');
+      rows.push({supplier:cfg.supplier,product_name:pname,price_opt:Math.round(val*100)/100,price_retail:0,
+        article:art,category:sys||secBase||null,sheet_name:cfg.sheetName||'',compatibility:note||null,
+        dim_w:at.dim_w,dim_h:at.dim_h,dim_d:at.dim_d,ptype:at.ptype,color:at.color,doors:at.doors,material:at.material});
+    }
+    r++;
+  }
+  return rows;
 }
 // ── МАТРИЧНЫЙ ПРАЙС (цены по размерам в столбцах: 800/900/1200…) ──
 function _plIsSize(v){var s=String(v==null?'':v).trim();if(!/^\d{2,4}$/.test(s))return false;var n=parseInt(s);return n>=50&&n<=2500;}
@@ -2863,6 +3136,7 @@ function _markImportedSheets(){
   });
 }
 
+var _plModSys=null; // разметка листа «модульные системы» (v7.21)
 async function importPriceList(){
   var supplier=(document.getElementById('pl-sup').value||'').trim();
   var factory=(document.getElementById('pl-factory').value||'').trim();
@@ -2872,7 +3146,11 @@ async function importPriceList(){
   var sheetName=document.getElementById('pl-sheet').value;
   var rows=[],isMatrix=false;
   var isMulti=document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked;
-  if(isMulti){
+  if(_plModSys&&!isMulti){
+    rows=_collectModSys(_plData,{grpCol:_plModSys.grpCol,nameCol:_plModSys.nameCol,artCol:_plModSys.artCol,
+      noteCol:_plModSys.noteCol,priceCols:_plModSys.priceCols,supplier:supplier,sheetName:sheetName});
+    isMatrix=rows.length>0; // колонками такой лист не описать — шаблон помечаем как особый
+  }else if(isMulti){
     // Матрица общего вида: цены вариантов в отмеченных колонках
     if(colName===''){toast('⚠️ Выберите колонку с названием товара','err');return;}
     var vcols=_plMatrixCols();
@@ -2961,6 +3239,9 @@ async function importAllSheets(){
     }
     var m=_autoDetectMatrix(data);
     if(m)cands.push({rows:_collectMatrix(data,m,supplier,sn),src:'таблица размеров',cfg:null,kind:'matrix'});
+    var msA=_autoDetectModSys(data);
+    if(msA)cands.push({rows:_collectModSys(data,{grpCol:msA.grpCol,nameCol:msA.nameCol,artCol:msA.artCol,noteCol:msA.noteCol,priceCols:msA.priceCols,supplier:supplier,sheetName:sn}),
+      src:'модульные системы ('+msA.banners+')',cfg:null,kind:'matrix'});
     // v7.15: авто-матрица КАТЕГОРИЙ (мягкая мебель: цена от категории ткани I…VIII).
     // Признак — ≥3 ценовых колонки, где цены СТРОГО РАСТУТ по строкам (кат. дороже).
     // Так не путаем с опт/розница (там колонки равны/не растут — Браво, Бюрократ).
