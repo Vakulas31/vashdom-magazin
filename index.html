@@ -219,6 +219,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button onclick="openMarkupModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">⚙️ <span id="markup-display">50</span>%</button>
   <button onclick="printOrdersJournal('active')" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">🖨 В работе</button>
   <button onclick="printOrdersJournal('all')" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">🖨 Все</button>
+  <button onclick="authLogout()" title="Выйти из приложения" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">🚪 <span id="tb-user">выход</span></button>
 </div>
 <div class="nav">
   <button class="nav-btn active" onclick="showPage('orders')">📋 Заказы</button>
@@ -228,7 +229,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.24</span>
+  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.26</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1024,9 +1025,83 @@ var deleteOrderId=null;
 </script>
 <script>
 
-function _sbOnce(method,table,data,params){
+// ═══ v7.26: ВХОД ПО ЛОГИНУ ═══════════════════════════════════════════
+// Было: страница ходила в базу анонимным ключом, зашитым в неё же, —
+// кто знал адрес, тот и хозяин данных. Стало: запросы идут с токеном
+// конкретного пользователя, а анонимному ключу в базе прав не оставлено.
+// Ключ SB_KEY остался, но теперь он только «пропуск на вахте» (заголовок
+// apikey) — сам по себе он не даёт прочитать ни строки.
+var _AUTH_KEY='vd_auth', _auth=null, _refreshing=null;
+try{_auth=JSON.parse(localStorage.getItem(_AUTH_KEY)||'null');}catch(e){_auth=null;}
+function _authSave(d){
+  if(!d||!d.access_token){_auth=null;localStorage.removeItem(_AUTH_KEY);return;}
+  _auth={access_token:d.access_token,refresh_token:d.refresh_token,
+    // минуту в запасе, чтобы токен не протух прямо в полёте
+    expires_at:Date.now()+(((d.expires_in||3600)-60)*1000),
+    email:(d.user&&d.user.email)||(_auth&&_auth.email)||''};
+  localStorage.setItem(_AUTH_KEY,JSON.stringify(_auth));
+}
+function _authToken(){return(_auth&&_auth.access_token)||null;}
+function _authValid(){return!!(_auth&&_auth.access_token&&_auth.expires_at>Date.now());}
+function _authCall(body,grant){
+  return fetch(SB_URL+'/auth/v1/token?grant_type='+grant,{method:'POST',
+    headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json().then(function(j){
+      if(!r.ok)throw new Error(j.error_description||j.msg||j.error||('HTTP '+r.status));
+      return j;});});
+}
+function authLogin(email,pass){return _authCall({email:email,password:pass},'password').then(function(j){_authSave(j);return j;});}
+function authRefresh(){
+  if(!_auth||!_auth.refresh_token)return Promise.reject(new Error('нет сессии'));
+  if(_refreshing)return _refreshing;
+  _refreshing=_authCall({refresh_token:_auth.refresh_token},'refresh_token')
+    .then(function(j){_refreshing=null;_authSave(j);return j;})
+    .catch(function(e){_refreshing=null;_authSave(null);throw e;});
+  return _refreshing;
+}
+function authLogout(){
+  if(!confirm('Выйти из приложения? Данные останутся в базе, войти можно будет снова.'))return;
+  _authSave(null);location.reload();
+}
+function _authRequire(msg){
+  var ov=document.getElementById('auth-overlay');if(!ov)return;
+  ov.style.display='flex';
+  var err=document.getElementById('auth-err');
+  if(err){if(msg){err.textContent=msg;err.style.display='block';}else err.style.display='none';}
+  var em=document.getElementById('auth-email'),pw=document.getElementById('auth-pass');
+  var saved=localStorage.getItem('vd_email')||'';
+  if(em&&!em.value&&saved)em.value=saved;
+  setTimeout(function(){var f=(em&&!em.value)?em:pw;if(f)f.focus();},120);
+}
+function doLogin(){
+  var em=((document.getElementById('auth-email')||{}).value||'').trim();
+  var pw=(document.getElementById('auth-pass')||{}).value||'';
+  var err=document.getElementById('auth-err'),btn=document.getElementById('auth-btn');
+  if(!em||!pw){err.textContent='Введите почту и пароль';err.style.display='block';return;}
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Вход...';
+  authLogin(em,pw).then(function(){
+    err.style.display='none';
+    localStorage.setItem('vd_email',em);
+    document.getElementById('auth-pass').value='';
+    document.getElementById('auth-overlay').style.display='none';
+    _authShowUser();
+    if(window._authStartOnce)window._authStartOnce();
+  }).catch(function(e){
+    var m=String(e.message||'');
+    err.textContent=/invalid|credential|grant/i.test(m)?'Неверная почта или пароль':('Не удалось войти: '+m.slice(0,90));
+    err.style.display='block';
+  }).then(function(){btn.disabled=false;btn.textContent='Войти →';});
+}
+function _authShowUser(){
+  var el=document.getElementById('tb-user');
+  if(el&&_auth&&_auth.email)el.textContent=_auth.email.split('@')[0];
+}
+function _sbOnce(method,table,data,params,_retried){
   var url=SB_URL+'/rest/v1/'+table+(params?'?'+params:'');
-  var opts={method:method,headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':method==='POST'?'return=representation':'return=minimal'}};
+  // без входа шлём сам ключ — так приложение продолжает работать в момент
+  // перехода, пока в базе ещё не закрыт анонимный доступ
+  var tok=_authToken()||SB_KEY;
+  var opts={method:method,headers:{'apikey':SB_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json','Prefer':method==='POST'?'return=representation':'return=minimal'}};
   if(data)opts.body=JSON.stringify(data);
   // Таймаут 30 сек — защита от зависания на слабом интернете
   var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
@@ -1034,6 +1109,12 @@ function _sbOnce(method,table,data,params){
   if(ctrl)opts.signal=ctrl.signal;
   return fetch(url,opts).then(function(r){
     if(timer)clearTimeout(timer);
+    // токен протух — обновляем сессию и повторяем ОДИН раз
+    if((r.status===401||r.status===403)&&!_retried&&_auth){
+      return authRefresh().then(function(){return _sbOnce(method,table,data,params,true);},
+        function(){_authRequire('Сессия закончилась — войдите заново');throw new Error('Нужно войти заново');});
+    }
+    if(r.status===401||r.status===403){_authRequire('Войдите, чтобы работать с данными');}
     return r.text().then(function(t){if(!r.ok)throw new Error(t);return t?JSON.parse(t):null;});
   }).catch(function(e){
     if(timer)clearTimeout(timer);
@@ -1082,21 +1163,6 @@ function _saveItemsReliable(orderId,batchItems){
   return attempt(0);
 }
 
-function checkAppPin(){
-  var input=document.getElementById('app-pin-input').value;
-  var err=document.getElementById('app-pin-err');
-  if(input===ANALYTICS_PIN){
-    localStorage.setItem('vd_pin_ok',ANALYTICS_PIN);
-    document.getElementById('app-pin-overlay').style.display='none';
-    err.style.display='none';
-    if(window._startApp)window._startApp();
-  }else{
-    err.style.display='block';
-    document.getElementById('app-pin-input').value='';
-    document.getElementById('app-pin-input').focus();
-  }
-}
-
 window.addEventListener('DOMContentLoaded',function(){
   window._startApp=function startApp(){
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
@@ -1121,14 +1187,16 @@ window.addEventListener('DOMContentLoaded',function(){
   }
   tryInit(1);
   } // end startApp
-  // App-level PIN gate (runs AFTER _startApp is defined)
-  var savedPin=localStorage.getItem('vd_pin_ok');
-  if(savedPin===ANALYTICS_PIN){
-    document.getElementById('app-pin-overlay').style.display='none';
-    window._startApp();
+  // Вход в приложение: есть живая сессия — стартуем, нет — просим войти
+  var _started=false;
+  window._authStartOnce=function(){if(_started)return;_started=true;_authShowUser();window._startApp();};
+  if(_auth&&_auth.refresh_token){
+    (_authValid()?Promise.resolve():authRefresh()).then(function(){
+      var ov=document.getElementById('auth-overlay');if(ov)ov.style.display='none';
+      window._authStartOnce();
+    }).catch(function(){_authRequire('Сессия закончилась — войдите заново');});
   }else{
-    document.getElementById('app-pin-overlay').style.display='flex';
-    setTimeout(function(){document.getElementById('app-pin-input').focus();},100);
+    _authRequire();
   }
 });
 
@@ -5676,8 +5744,8 @@ function checkManagerDay(){
 // Вкладку не закрывали со вчера — спросим при возвращении к экрану в новый день
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState!=='visible')return;
-  var ov=document.getElementById('app-pin-overlay');
-  if(ov&&ov.style.display!=='none')return; // PIN ещё не введён
+  var ov=document.getElementById('auth-overlay');
+  if(ov&&ov.style.display!=='none')return; // v7.26: ещё не вошли в приложение
   var today=new Date().toISOString().slice(0,10);
   if(localStorage.getItem('vd_manager_day')!==today)checkManagerDay();
 });
@@ -6123,32 +6191,63 @@ async function backfillWorkdays(){
     else toast('❌ '+msg,'err',6000);
   }
 }
+// v7.25: полная копия — ВСЕ таблицы базы, двумя файлами:
+//   .json — точная копия для восстановления (типы и пустые значения не портятся),
+//   .xlsx — та же копия, но её можно открыть глазами.
+// На бесплатном тарифе Supabase автоматических бэкапов НЕТ — эта кнопка
+// единственная страховка от «стёрли всё» (своей рукой или чужой).
+var _BK_TABLES=[
+  {t:'orders',           sheet:'Заказы'},
+  {t:'order_items',      sheet:'Позиции заказов'},
+  {t:'clients',          sheet:'Клиенты'},
+  {t:'cash_withdrawals', sheet:'Касса-изъятия'},
+  {t:'manager_days',     sheet:'Дни менеджеров'},
+  {t:'suppliers',        sheet:'Поставщики'},
+  {t:'fabric_categories',sheet:'Категории тканей'},
+  {t:'price_items',      sheet:'Прайсы'},
+  {t:'products',         sheet:'Каталог старый'},
+  {t:'catalog_items',    sheet:'Каталоги фабрик'}
+];
+function _bkSave(text,name,mime){
+  var blob=new Blob([text],{type:mime});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+}
 async function exportBackup(){
-  if(typeof XLSX==='undefined'){_bkJson();return;}
-  toast('⏳ Собираю все данные из базы...','ok',4000);
-  try{
-    var orders=await _bkFetchAll('orders','id');
-    var items=await _bkFetchAll('order_items','id');
-    var clients=await _bkFetchAll('clients','id');
-    var withdrawals=[];try{withdrawals=await _bkFetchAll('cash_withdrawals','id');}catch(e1){}
-    var prices=[];try{prices=await _bkFetchAll('price_items','id');}catch(e2){}
-    var wb=XLSX.utils.book_new();
-    function addSheet(name,rows){
-      var ws=XLSX.utils.json_to_sheet(rows.length?rows:[{'пусто':''}]);
-      XLSX.utils.book_append_sheet(wb,ws,name);
-    }
-    addSheet('Заказы',orders);
-    addSheet('Позиции заказов',items);
-    addSheet('Клиенты',clients);
-    if(withdrawals.length)addSheet('Касса-изъятия',withdrawals);
-    if(prices.length)addSheet('Прайсы',prices);
-    var today=new Date().toISOString().slice(0,10);
-    XLSX.writeFile(wb,'ВашДом_копия_'+today+'.xlsx');
-    toast('💾 Резервная копия: '+orders.length+' заказов, '+items.length+' позиций, '+clients.length+' клиентов'+(prices.length?', '+prices.length+' позиций прайсов':''),'ok',6000);
-  }catch(e){
-    toast('⚠️ Не удалось собрать Excel ('+String(e.message||'').slice(0,80)+') — скачиваю JSON','err',5000);
-    _bkJson();
+  var today=new Date().toISOString().slice(0,10);
+  var dump={exported_at:new Date().toISOString(),tables:{}};
+  var stat=[],missing=[];
+  toast('⏳ Собираю все таблицы из базы — с прайсами это может занять минуту...','ok',8000);
+  for(var i=0;i<_BK_TABLES.length;i++){
+    var d=_BK_TABLES[i];
+    try{
+      var rows=await _bkFetchAll(d.t,'id');
+      dump.tables[d.t]=rows||[];
+      if(rows&&rows.length)stat.push(d.sheet.toLowerCase()+': '+rows.length);
+    }catch(e){missing.push(d.t);}
   }
+  if(!dump.tables.orders){toast('❌ Не удалось прочитать заказы — копия не сделана','err',7000);return;}
+  // 1) JSON — то, из чего реально можно восстановиться
+  _bkSave(JSON.stringify(dump),'ВашДом_копия_'+today+'.json','application/json');
+  // 2) XLSX — через паузу, иначе браузер блокирует вторую загрузку подряд
+  setTimeout(function(){
+    if(typeof XLSX==='undefined')return;
+    try{
+      var wb=XLSX.utils.book_new();
+      _BK_TABLES.forEach(function(d){
+        var rows=dump.tables[d.t];
+        if(!rows||!rows.length)return;
+        XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),d.sheet);
+      });
+      // именно через Blob, а не XLSX.writeFile: вторая загрузка идёт уже без
+      // «жеста пользователя», и встроенный в библиотеку способ браузер блокирует
+      if(wb.SheetNames.length)_bkSave(XLSX.write(wb,{bookType:'xlsx',type:'array'}),
+        'ВашДом_копия_'+today+'.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }catch(e){toast('⚠️ Excel-версия не собралась ('+String(e.message||'').slice(0,60)+'), но JSON-копия скачана','err',6000);}
+  },1200);
+  toast('💾 Копия скачана — '+stat.join(', ')+(missing.length?'. Нет таблиц: '+missing.join(', '):''),'ok',9000);
 }
 
 function printContract(orderId){
@@ -6444,14 +6543,16 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
   });
 })();
 </script>
-<div id="app-pin-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:32px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)">
-    <div style="font-size:40px;margin-bottom:12px">🔒</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:4px">ВашДом CRM</div>
-    <div style="font-size:13px;color:#666;margin-bottom:20px">Введите PIN-код для входа</div>
-    <input type="password" id="app-pin-input" placeholder="PIN" style="width:100%;text-align:center;font-size:24px;letter-spacing:8px;border:2px solid #ddd;border-radius:8px;padding:10px;box-sizing:border-box;margin-bottom:12px" onkeydown="if(event.key==='Enter')checkAppPin()" autocomplete="off" inputmode="numeric">
-    <button class="btn btn-primary" onclick="checkAppPin()" style="width:100%;justify-content:center;font-size:16px">Войти →</button>
-    <div id="app-pin-err" style="color:#c62828;font-size:12px;margin-top:10px;display:none">Неверный PIN-код</div>
+<div id="auth-overlay" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#1F4E79,#2E75B6);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:32px;max-width:360px;width:90%;box-shadow:0 24px 60px -20px rgba(16,24,40,.55)">
+    <div style="text-align:center;font-size:40px;margin-bottom:10px">🔒</div>
+    <div style="text-align:center;font-size:18px;font-weight:700;margin-bottom:4px">ВашДом — Журнал заказов</div>
+    <div style="text-align:center;font-size:13px;color:#666;margin-bottom:20px">Вход в приложение</div>
+    <input type="email" id="auth-email" placeholder="Почта" autocomplete="username" style="width:100%;box-sizing:border-box;margin-bottom:10px" onkeydown="if(event.key==='Enter')document.getElementById('auth-pass').focus()">
+    <input type="password" id="auth-pass" placeholder="Пароль" autocomplete="current-password" style="width:100%;box-sizing:border-box;margin-bottom:14px" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn btn-primary" id="auth-btn" onclick="doLogin()" style="width:100%;justify-content:center;font-size:16px">Войти →</button>
+    <div id="auth-err" style="color:#c62828;font-size:12px;margin-top:12px;display:none;text-align:center"></div>
+    <div style="font-size:11px;color:#9aa3ad;margin-top:16px;text-align:center;line-height:1.5">Заказы и клиенты доступны только после входа</div>
   </div>
 </div>
 </body>
