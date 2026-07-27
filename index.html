@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="ВашДом">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--dark:#1F4E79;--mid:#2E75B6;--lite:#D6E4F0;--alt:#EBF3FB;--gold:#FFFDE7;--green:#E8F5E9;--orange:#FFF3E0;--grey:#F5F5F5;--white:#fff;--text:#1a1a1a;--text2:#666;--border:#e0e0e0;--primary:#1F4E79;--radius:10px;--radius-sm:6px}
+:root{--dark:#1F4E79;--mid:#2E75B6;--lite:#D6E4F0;--alt:#EBF3FB;--gold:#FFFDE7;--green:#E8F5E9;--orange:#FFF3E0;--grey:#F5F5F5;--white:#fff;--text:#1a1a1a;--text2:#666;--border:#e0e0e0;--radius:10px;--radius-sm:6px}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:var(--text);font-size:14px}
 .topbar{background:var(--dark);padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .topbar-logo{height:36px}
@@ -103,65 +103,6 @@ textarea{resize:vertical;min-height:60px}
 .pin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:600;align-items:center;justify-content:center}
 .pin-overlay.open{display:flex}
 .pin-box{background:#fff;border-radius:var(--radius);padding:32px;text-align:center;width:320px}
-/* ══════ v7.20 · ПОЛИРОВКА (без изменения структуры экранов) ══════
-   Тот же синий интерфейс и те же элементы на своих местах — аккуратнее
-   типографика, спокойнее плашки, живые состояния кнопок. */
-body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;background:#f1f3f6}
-h2{letter-spacing:-.01em}
-/* деньги моноширинными разрядами — колонки цифр перестают «плясать» */
-.ftr-val,.item-price,.stat-val,.bar-val,.tot-row,.order-status,.badge,.ftr-lbl,.stat-label,.item-text{font-variant-numeric:tabular-nums}
-/* карточки: мягкая синеватая тень вместо чёрной, тоньше линии, отклик на наведение */
-.card,.order-card,.stat-card{border-color:#e6e9ee;box-shadow:0 1px 2px rgba(31,78,121,.05)}
-.order-card{transition:box-shadow .18s ease,border-color .18s ease}
-.order-card:hover{border-color:#d5dde6;box-shadow:0 2px 10px -4px rgba(31,78,121,.22)}
-.order-card.done{opacity:1;background:#fff;border-color:#cfe0d4}
-.order-hdr,.item-row-compact,.client-row,.ac-item{border-color:#eceff3}
-.order-hdr{padding:11px 16px;gap:8px}
-.item-row-compact{padding:8px 16px}
-.order-ftr{background:#f7f8fa;border-top:1px solid #eceff3;padding:10px 16px}
-.ftr-lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#7c8593}
-.ftr-val{font-size:13.5px;letter-spacing:-.01em}
-.item-price{color:#9c3b2e}
-/* плашки: одна форма и приглушённые тона вместо ярких заливок */
-.order-status,.badge,.tag-sup{border-radius:7px}
-.order-status{padding:4px 9px;font-weight:600}
-.s-paid{background:#eaf4ec;color:#256b3c}
-.s-part{background:#fbf0e2;color:#8a5a18}
-.s-no{background:#f8eae7;color:#9c3b2e}
-.s-done{background:#2c6b44;color:#fff}
-.badge-yes{background:#eaf4ec;color:#256b3c}
-.badge-order{background:#fbf0e2;color:#8a5a18}
-.tag-sup{background:#eef1f5;color:#5b6270}
-.note-box{background:#fdfaee;border-left-color:#dcb45c;color:#5a5348}
-/* поля ввода */
-input,select,textarea{border-radius:8px;border-color:#dfe3e9;padding:10px 12px;transition:border-color .15s,box-shadow .15s}
-input:hover,select:hover,textarea:hover{border-color:#c9d1da}
-input[type="checkbox"]:hover,input[type="radio"]:hover{border-color:initial}
-.inp-gold{background:#fdfaee}
-.inp-green{background:#eef6ef}
-/* кнопки: наведение, нажатие, видимый фокус с клавиатуры */
-.btn{border-radius:8px;transition:filter .15s ease,transform .1s ease,border-color .15s ease,background .15s ease}
-.btn:hover{filter:brightness(1.06)}
-.btn:active{transform:translateY(1px)}
-.btn-primary{box-shadow:0 1px 2px rgba(31,78,121,.28)}
-.btn-outline:hover{border-color:#c2cad4;background:#fafbfc}
-.btn-danger-sm,.expand-btn,.btn-dashed{border-radius:8px;transition:background .15s,border-color .15s}
-.btn-danger-sm:hover{background:#fdf3f3}
-.expand-btn{border-color:#c9d1da;color:#5b6270}
-.expand-btn:hover{background:#f2f5f8}
-.btn:focus-visible,.chip:focus-visible,.nav-btn:focus-visible,.expand-btn:focus-visible{outline:2px solid var(--mid);outline-offset:2px}
-/* шапка и навигация */
-.topbar{box-shadow:0 1px 0 rgba(0,0,0,.12)}
-.nav-btn{transition:color .15s,background .15s}
-.nav-btn:hover{color:var(--text);background:#f7f9fb}
-.chip{border-radius:8px;transition:filter .15s,border-color .15s}
-.chip:hover{opacity:1;filter:brightness(.97)}
-/* сводки, таблицы, всплывающие окна */
-.stat-val{letter-spacing:-.02em}
-.totals-block{background:#f7f8fa;border:1px solid #eceff3}
-.modal{box-shadow:0 24px 60px -20px rgba(16,24,40,.45)}
-.ac-list{box-shadow:0 12px 28px -12px rgba(16,24,40,.3)}
-.ac-item:hover{background:#eef3f9}
 /* ── МОБИЛЬНАЯ ВЕРСИЯ ─────────────────────────────────── */
 @media (max-width:700px){
   .topbar{padding:0 8px;gap:6px;height:48px}
@@ -243,12 +184,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
   <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" id="chips-row">
-    <span class="chip chip-active" style="background:#eef1f5;color:#5b6270" data-chip="all" onclick="setChip('all')">Все</span>
-    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="debt" onclick="setChip('debt')">💰 С долгом</span>
-    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="active" onclick="setChip('active')">🔄 В процессе</span>
-    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="today" onclick="setChip('today')">📅 Сегодня</span>
-    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="week" onclick="setChip('week')">🗓 На неделе</span>
-    <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
+    <span class="chip chip-active" style="background:#f0f4ff;color:#1565C0;border-color:#1565C0" data-chip="all" onclick="setChip('all')">Все</span>
+    <span class="chip" style="background:#FFF3E0;color:#E65100" data-chip="debt" onclick="setChip('debt')">💰 С долгом</span>
+    <span class="chip" style="background:#E3F2FD;color:#1565C0" data-chip="active" onclick="setChip('active')">🔄 В процессе</span>
+    <span class="chip" style="background:#E8F5E9;color:#2E7D32" data-chip="today" onclick="setChip('today')">📅 Сегодня</span>
+    <span class="chip" style="background:#F3E5F5;color:#6A1B9A" data-chip="week" onclick="setChip('week')">🗓 На неделе</span>
+    <span class="chip" style="background:#ECEFF1;color:#546E7A" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -959,6 +900,42 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </div>
 </div>
 
+<div class="modal-bg" id="modal-suppick">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">🏭 Поставщик</div>
+    <input id="sup-pick-search" class="inp-gold" placeholder="Поиск..." oninput="renderSupPicker()" style="margin-bottom:10px">
+    <div id="sup-pick-list" style="max-height:44vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:8px"></div>
+    <div id="sup-pick-hint" style="font-size:11px;color:var(--text2);margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn btn-primary" onclick="addSupplierPrompt()" style="flex:1;justify-content:center">➕ Добавить поставщика</button>
+      <button class="btn btn-outline" id="sup-manage-btn" onclick="supPickToggleManage()">🗑 Удалить из списка</button>
+    </div>
+    <button class="btn btn-outline" id="sup-suggest-btn" onclick="suggestSuppliers()" style="width:100%;justify-content:center;font-size:12px;margin-bottom:12px">↻ Подтянуть из прайсов и заказов</button>
+    <div class="fg" style="margin-bottom:12px;border-top:1px solid var(--border);padding-top:10px">
+      <label>…или вписать вручную (разовый поставщик)</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="sup-pick-free" class="inp-gold" placeholder="Название...">
+        <button class="btn btn-outline" onclick="pickSupplierFree()">Применить</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" onclick="supPickClear()">Очистить</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-suppick')" style="margin-left:auto">Закрыть</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="modal-supitems">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title" id="supitems-title">🏭 Забрать у поставщика</div>
+    <div id="supitems-sum" style="font-size:12px;color:var(--text2);margin:-8px 0 12px"></div>
+    <div style="font-size:11px;color:var(--text2);background:var(--alt);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5">Показаны позиции по всем <strong>невыполненным</strong> заказам, которые ещё не отвезены клиенту — включая те, что уже «Есть»: раз заказ не закрыт, товар у поставщика ещё не забран.</div>
+    <div id="supitems-list" style="max-height:52vh;overflow-y:auto;margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" onclick="copySupplierItems()">📋 Копировать список</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-supitems')" style="margin-left:auto">Закрыть</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="modal-delete">
   <div class="modal" style="max-width:400px">
     <div class="modal-title">🗑 Удалить заказ?</div>
@@ -981,6 +958,8 @@ var FABRIC_CATS_COLL=["Арбен","Эгида","Павлин","Вип-Текс�
 var FABRIC_CATS={"EVEREST":[["7",0]],"DISCOVERY":[["8",0]],"EVITA":[["7",0],["8",7]],"MARVEL":[["8",0]],"FORMA":[["4",0]],"VALENCIA PEARL":[[">12",0]],"FORTE":[["6",0]],"FEDERICA":[["7",0]],"AMSTERDAM":[["2",0]],"GERMES":[["4",0],[">12",3]],"ARCADIA":[["2",0]],"GOYA":[["8",0]],"FILIN":[["2",0]],"GRETA":[["4",0]],"GEOMETRY":[["2",0]],"GRACE":[["8",0]],"MUSIC":[["2",0]],"INFINITY":[["8",0]],"KENGOO":[["4",0]],"ALBA":[["4",0]],"LAVORE":[["12",0]],"ALPINA":[["11",0]],"LEGION":[["7",0]],"ALTAIR":[["2",0]],"MEMORY":[["8",0],["7",5]],"AMIGO":[["3",0]],"MIRAGE":[["5",0]],"ANTONIO":[["4",0]],"MUSTANG":[["9",0]],"AURORA":[[">12",0]],"NEVADA":[["5",0]],"BOUNTY":[["6",0]],"NOEL":[["6",0]],"BARON":[["4",0]],"NORTON":[["4",0]],"BAHAMA":[["4",0]],"OPERA":[["6",0]],"BAHAMA PLUS":[["4",0]],"PALERMO":[["3",0]],"BERGEN NEW WP":[["4",0]],"QUEEN":[["6",0]],"BEVERLY":[["7",0]],"RAVENA":[["7",0]],"BELEZZA":[["5",0]],"RIO":[["2",0],[">12",4],["5",8]],"BINGO":[["2",0]],"SAFARI":[["7",0]],"BJORK":[["6",0]],"SHAPE":[["7",0]],"BRAVO":[["4",0],["9",2],["7",4]],"SAVANA":[["2",0]],"COLUMBIA":[["3",0]],"SAVANA PLUS":[["2",0]],"DREAM":[["4",0]],"STELLA":[["9",0],[">12",7]],"DIVA":[["9",0]],"TESORO":[["5",0]],"ENIGMA":[["9",0]],"ULTRA":[["3",0]],"BRABUS":[["9",1]],"BRASSY":[["7",1]],"LINCOLN":[["9",1]],"DIAMOND":[["9",1]],"GGL":[["7",1]],"Xpoint на Forest / КУПОН":[["8",1]],"GINGER":[["9",1]],"Xpoint на Simple / КУПОН":[["5",1]],"FURRY":[["5",1]],"AMANTI, TROPICS":[["7",1]],"KEYTUR":[["10",1]],"TERRAZZO":[["7",1]],"MABORO":[["9",1]],"JAKLIN , JARDIN":[["7",1]],"MODERNO":[["6",1]],"LEONARDO/AMATO":[["7",1]],"MERINO":[["12",1]],"BURBON":[["7",1]],"NOLA":[["8",1]],"AMATO":[["7",1]],"NESS":[["7",1]],"GIRLS":[["7",1]],"NEBBY":[["6",1]],"KARASIKI":[["7",1]],"JOYA":[["6",1]],"KILT":[["7",1]],"PLUTON":[["9",1]],"KORSA/TERSA":[["7",1]],"SOTBBY":[["4",1]],"KOSMOPUZIKI":[["7",1]],"SILVIA":[["8",1]],"NLO":[["7",1]],"SUN":[["6",1]],"MASHINKI":[["7",1]],"STORM":[["2",1]],"MISHKI":[["7",1]],"TAKOMA":[["10",1]],"PRINCESSKI":[["7",1]],"TEDDY":[["9",1]],"RASER":[["7",1]],"ZIZI":[["10",1]],"Детская печать":[["7",1]],"VERTEX":[["7",1]],"Acapulko":[[">12",2]],"Asya":[["10",2]],"Baddi":[[">12",2]],"Kraun":[["9",2]],"Kraun kvatro":[["7",2]],"Lacosta":[["9",2]],"Neapol":[[">12",2]],"Термопечать на велюре":[["6",2]],"ТЕРМОПЕЧАТЬ на рогожке":[["5",2]],"Arizona":[["5",3]],"Bora":[["3",3]],"Era":[["3",3]],"Fusion":[["7",3],[">12",4]],"Gloria":[["4",3]],"Home":[["2",3]],"Impulse":[["5",3]],"Krona":[["3",3]],"Orion":[["3",3]],"Rola":[["4",3]],"Uno":[["3",3]],"Viva":[["6",3]],"Wool":[["2",3]],"Astor":[["3",3]],"Floransa plain":[["11",3]],"Inka":[["12",3]],"Iris":[["1",3]],"Markiza":[["8",3]],"Marta":[["4",3]],"Medea":[["8",3]],"Medea com":[["7",3]],"Medea stripe":[["8",3]],"Nikki":[["12",3]],"Nota":[["3",3]],"Remi":[["3",3]],"Rhomb":[["3",3]],"Silva":[["6",3]],"Valley":[["10",3]],"Paris":[["6",3]],"Retro":[["6",3]],"Scarlett":[["3",3]],"Sport":[["3",3]],"Vogue":[["3",3]],"Jeneva":[["9",3]],"Alex":[["3",3]],"Arboreal":[["3",3]],"Arboreal eco":[["3",3]],"Argo":[["3",3]],"Argo eco":[["3",3]],"Cambridge":[["6",3]],"Grand":[["11",3]],"Indi":[["8",3]],"Latina":[["3",3]],"Laura":[["3",3]],"leon":[["3",3]],"London":[["4",3]],"Maks":[["3",3]],"Mramor":[["5",3]],"Nick":[["3",3]],"Print":[["3",3]],"Print eco":[["3",3]],"Sahara":[["8",3]],"Smile":[["11",3]],"Triumf":[["9",3]],"Aspendos":[["3",3]],"Candy":[["3",3]],"Cordroy":[["5",3]],"Fenix":[["2",3]],"Fernando":[["5",3]],"Hawaii":[["3",3]],"Kolibri":[["3",3]],"Mambo":[["3",3]],"Montana":[["2",3]],"Plaza":[["4",3]],"Pride":[["4",3]],"Puma":[["3",3],["4",8]],"Savanna":[["3",3]],"Solo":[["2",3]],"Vipvelutti":[["9",3]],"Amanda":[["4",3]],"Architecture":[["3",3]],"Azbuka":[["2",3]],"Estel":[["3",3]],"Folk":[["3",3]],"Kapriz":[["3",3]],"Liana":[["4",3],[">12",4]],"Margo":[["3",3]],"Megapolis":[["2",3]],"Oazis":[["4",3]],"Rim":[["3",3]],"Sharm":[["3",3]],"Travel":[["3",3]],"April":[["4",3]],"Emily":[["4",3]],"Extra":[["3",3]],"Flirt":[["4",3]],"Indigo":[["5",3]],"Magma":[["4",3]],"Atlant":[["8",3]],"Fortuna":[["8",3],["3",8]],"Focus":[["6",3]],"Joker":[["6",3],["7",7]],"Mars":[["9",3]],"Arena":[["12",3]],"Bogemia":[["3",3]],"Rich":[["6",3]],"Saturn":[["12",3]],"Reptile":[["6",3]],"Crystal":[[">12",3]],"Soprano":[["8",3]],"Tiffany":[["10",3]],"Versal":[[">12",3],["9",8]],"King":[["3",3]],"Pancho eco":[["2",3]],"Fiore":[["7",3]],"Govanny":[["9",3]],"Grazie":[["6",3]],"Lira":[["5",3]],"Lira Eco":[["3",3]],"Maestro":[["9",3]],"Meteor":[["7",3]],"Morgan":[["3",3]],"Pegas":[["3",3]],"Polo":[["2",3]],"Polo perlamutr":[["3",3]],"Texas NQ":[["3",3]],"BIONICA":[[">12",4]],"KOLIBRY":[["11",4]],"BOSTON Shine":[["10",4]],"KENIYA":[[">12",4]],"BOOM":[[">12",4]],"KONGO":[["6",4]],"BOSTON":[["9",4],["6",8]],"KORN":[["6",4]],"DOMUS":[["12",4]],"LIFE":[["9",4]],"NEO":[[">12",4],["3",8]],"LAMB":[["10",4]],"SPACE":[["11",4]],"LOUNGE":[["10",4]],"LAMAS":[[">12",4]],"ALASKA":[[">12",4]],"MONACO":[[">12",4],["6",8]],"AMAZONIA":[[">12",4]],"NEWTONE":[["5",4]],"ALOBA":[["3",4]],"NIAGARA":[[">12",4]],"BALI":[[">12",4]],"NORMANDYA":[[">12",4]],"ONTARIO":[[">12",4]],"BUCKLE":[[">12",4]],"OKI":[["7",4]],"BRUGGE":[[">12",4]],"POEZIA":[[">12",4]],"BYORK":[[">12",4]],"PORTO":[["6",4]],"CALEDONIA":[[">12",4]],"PRIMAVERA":[[">12",4]],"CARRERA":[["10",4]],"PLAY":[["10",4]],"CHARLIE":[["10",4]],"PRME":[["7",4]],"CHILE_CHILE":[[">12",4]],"ROMANO":[["10",4]],"CELINE":[[">12",4]],"EDINBURG":[["10",4]],"SAGA":[["10",4]],"JENICE":[[">12",4]],"SCANDINAVIA":[["9",4]],"ETERNITY":[[">12",4]],"SHER":[[">12",4]],"JASPER":[["10",4]],"SELEKTA":[[">12",4]],"FLORA":[["9",4]],"SOTA":[["8",4]],"FROST":[[">12",4]],"TAKT":[["9",4]],"FRESH":[["5",4]],"TEMPO":[["5",4]],"FLAME":[["4",4]],"VALENTA":[[">12",4]],"FIORI":[["8",4]],"VIOLA":[[">12",4]],"GARDEN":[["6",4]],"VILLA":[[">12",4]],"INSIDE":[["9",4]],"Alberto":[[">12",5]],"Grain":[["5",5]],"Outline":[["12",5]],"Alliance":[["3",5]],"Hygge":[["12",5]],"Optima":[["8",5]],"Arne":[[">12",5]],"Harris":[["10",5]],"Premier":[["10",5]],"Bond":[["2",5]],"Happy":[["5",5]],"Romeo":[["3",5],["7",7]],"Balance":[["3",5]],"Holiday":[["8",5]],"Sanremo":[["6",5]],"Berns":[["8",5]],"Hush":[["9",5]],"Scale":[["8",5]],"Clarins":[["11",5]],"Kamelia":[["6",5]],"Soul":[["9",5]],"Continent":[["10",5]],"Kashemir":[["4",5]],"Sherlock":[["4",5],["11",7]],"Como":[["7",5]],"Kobayasi":[["8",5]],"Tekla":[["7",5]],"Danko":[["4",5]],"Lambre":[["10",5]],"Time":[["9",5]],"Daily":[["5",5]],"Liberty":[["8",5]],"Twill":[["8",5]],"Diagonal":[["8",5]],"Like":[["8",5]],"Umbra":[["5",5]],"Dyer":[[">12",5]],"Lardaso":[["12",5]],"Vertical slim":[["4",5]],"Ifeel easy clesn":[["12",5]],"Laguna":[["2",5]],"Vertical":[["7",5]],"Inkas":[["8",5]],"Loft":[["12",5],["9",8]],"Ventura":[["6",5]],"Ecostile":[["6",5]],"Malta":[["10",5]],"Velutto":[["3",5]],"Element":[["7",5]],"Marseille":[["9",5]],"VeluttoSoft":[["3",5]],"Eclipse":[["5",5]],"Wellton":[["7",5]],"Fiory":[["8",5]],"Melange":[["10",5]],"Woolly":[["9",5]],"Flex":[["9",5]],"Mist":[["4",5]],"Zodiak":[["2",5]],"Furla waterproof":[["5",5]],"Modul":[["8",5]],"Zoom":[["7",5]],"Formula":[["4",5]],"Musk":[["4",5]],"Forest":[["3",5],["10",7]],"Nappa":[["7",5]],"Forward":[["2",5]],"Neiron":[["8",5]],"Fortis":[["3",5]],"Neroli":[["9",5]],"Fjord":[["7",5]],"Novus Easy Clean":[["12",5]],"MOSSLE":[[">12",5]],"Galo":[["9",5]],"Oregon":[["6",5]],"SINDRI":[[">12",5]],"Gucci":[[">12",5],["10",8]],"Ocean":[["4",5]],"ZIMMY":[[">12",5]],"Велюр Тори":[["6",6]],"Тропикал":[[">12",6]],"Велюр Банни":[["6",6]],"Джангл":[[">12",6]],"Велюр Киви":[["6",6]],"Смальта":[[">12",6]],"Велюр Спайк":[["10",6]],"Мистик":[[">12",6]],"Велюр Мехико":[["6",6]],"Папайя":[[">12",6]],"Велюр Балу":[["9",6]],"Сорго":[[">12",6]],"Велюр Сенс":[["9",6]],"Роузи":[["7",6]],"Велюр Файн":[["9",6]],"Сиена":[["7",6]],"Велюр Виго":[["9",6]],"Твинкли":[["8",6]],"Велюр Гулати":[[">12",6]],"Наска":[["6",6]],"Велюр Кристл":[[">12",6]],"Флорес":[["7",6]],"Велюр Силкшайн":[["9",6]],"Флэми":[["11",6]],"Велюр Тенеро":[[">12",6]],"Колибри":[["11",6]],"Шенилл Мэверик":[["9",6]],"Жаккард Лестер Ф":[["8",6]],"Шенилл ТЭСС":[[">12",6]],"Жаккард Джейми Ф":[["8",6]],"Жаккард Нортон":[[">12",6]],"Жаккард Харди":[[">12",6]],"Шенилл Беверли":[[">12",6]],"Жаккард Харди Страйп":[[">12",6]],"Жаккард Купер":[["6",6]],"Жаккард Бергамо":[[">12",6]],"Жаккард Мальмо":[["6",6]],"Жаккард Тренто":[[">12",6]],"Жаккард Данхилл Ф":[["6",6]],"Жаккард Элниас":[[">12",6]],"Жаккард Данхилл":[["6",6]],"Жаккард Касабланка":[[">12",6]],"Жаккард Лофт":[["7",6]],"Жаккард Фабьен":[[">12",6]],"Жаккард Моне":[[">12",6]],"Alejandro":[["9",7]],"Orlando":[["11",7]],"Buddy":[["11",7]],"Oscar":[["10",7]],"Casper":[["9",7]],"Ophelia":[["9",7]],"Cleopatra":[["10",7]],"Charles":[["8",7]],"Sakura":[["11",7]],"Frida":[["8",7]],"Hamlet":[[">12",7]],"Sigmund":[["7",7]],"Tony":[["8",7]],"Eva":[[">12",7]],"James":[["7",7]],"Leonardo":[["11",7],["5",8]],"Jim":[["7",7]],"Modest":[[">12",7]],"Madonna":[["12",7]],"Joe":[["12",7]],"Amure":[["2",8]],"Anabelle":[["10",8]],"Lotos":[["9",8]],"Aleks":[["11",8]],"Milano":[["5",8]],"Bella":[["6",8]],"Brut":[["8",8]],"Melodi":[["7",8]],"Micki":[["3",8]],"Capri":[["3",8]],"Muza":[["8",8]],"Catalana":[["9",8]],"Napoli":[["4",8]],"Citi":[["6",8]],"Dombai":[["2",8]],"Nitro":[["6",8]],"Ibiza":[["6",8]],"Phantom":[[">12",8]],"Irida":[["9",8]],"Rimini":[["6",8]],"Grifon":[["6",8]],"Rock":[["2",8]],"Gratta":[["9",8]],"Sofa Leather":[[">12",8]],"Joly":[["4",8]],"Scandi":[["5",8]],"Jaguar":[["6",8]],"Tower":[["6",8]],"Kiprus":[["5",8]],"Vivaldi":[["3",8]],"Laim":[["4",8]],"Vendeta":[["4",8]]};
 var _cashBoxNow=0,_cashBoxParts=[],_cashBoxComment='Забор наличных владельцем';
 var allOrders=[],allClients=[],allProducts=[];
+// v7.20: фиксированный справочник поставщиков (таблица suppliers в Supabase)
+var allSuppliers=[],_supLoaded=false,_supTableOk=true,_supPickItem=null,_supManageMode=false;
 var itemCount=0,itemPrices={};
 var deleteOrderId=null;
 </script>
@@ -1070,6 +1049,7 @@ window.addEventListener('DOMContentLoaded',function(){
     Promise.all([loadOrders(),loadClients()]).then(function(){
       el.textContent='● Онлайн';el.style.color='#4CAF50';
       checkManagerDay(); // v6.9: новый день — спросить, кто сегодня работает
+      loadSuppliers(); // v7.20: справочник поставщиков — тихо, в фоне
     }).catch(function(e){
       console.error('Init attempt '+attempt+':',e);
       if(attempt<3){
@@ -1155,16 +1135,16 @@ function orderCard(o){
   var isPaid=o.status&&o.status.indexOf('Оплачено')>=0&&o.status.indexOf('Не')<0;
   var contactTags='';
   function telHref(p){return'tel:+7'+p.replace(/^[+7]?[78]?/,'').replace(/\D/g,'');}
-  if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span style="background:#eef1f5;color:#3f5878;font-weight:600;padding:2px 7px;border-radius:6px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span></a>';
-  if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span style="background:#eef1f5;color:#3f5878;font-weight:600;padding:2px 7px;border-radius:6px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span></a>';
-  if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span style="background:#eef1f5;color:#5b6270;font-weight:600;padding:2px 7px;border-radius:6px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span></a>';}
+  if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span></a>';
+  if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span></a>';
+  if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span style="background:#FFF3E0;color:#E65100;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span></a>';}
   // v7.8: чип показываем ТОЛЬКО при самовывозе (даже если заполнены адрес и телефон —
   // клиент мог передумать и забирать сам). При доставке ничего не пишем — это по умолчанию.
   var _isPickup=/самовыв/i.test(o.delivery_type||'');
-  var deliveryChip=_isPickup?'<span style="background:#eaf4ec;color:#256b3c;border:1px solid #c3dbc9;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;margin-right:4px;display:inline-block">🏬 Самовывоз</span>':'';
-  var delivBadge=o.delivery_date?'<span style="background:#eaf4ec;color:#256b3c;font-weight:600;padding:2px 8px;border-radius:6px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>':'';
+  var deliveryChip=_isPickup?'<span style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:700;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">🏬 Самовывоз</span>':'';
+  var delivBadge=o.delivery_date?'<span style="background:#E8F5E9;color:#2E7D32;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>':'';
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
-  var hdrBg=isDone?'background:#f2f8f3':isPaid?'background:#f7fbf8':'background:#f7f8fa';
+  var hdrBg=isDone?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
 
   var itemsHtml='',delivCnt=0,itemsPaid=0;
   for(var i=0;i<items.length;i++){
@@ -1174,7 +1154,10 @@ function orderCard(o){
     if(it.fabric_category)parts.push('кат.'+it.fabric_category);
     if(it.dims)parts.push(it.dims);
     var price=fmt((it.price_discounted||it.price_retail||0)*it.qty);
-    var supName=it.supplier_manual||it.supplier||'';var supTag=supName?'<span class="tag-sup">'+supName+'</span>':'';
+    // v7.20: пилюля поставщика кликабельна — открывает список того,
+    // что нужно забрать у этого поставщика по всем невыполненным заказам
+    var supName=it.supplier_manual||it.supplier||'';
+    var supTag=supName?'<button class="tag-sup" onclick="event.stopPropagation();openSupplierItems('+JSON.stringify(supName).replace(/"/g,'&quot;')+')" title="Показать всё, что нужно забрать у поставщика «'+supName.replace(/"/g,'&quot;')+'»" style="cursor:pointer;border:1px solid #ddd;font-family:inherit">'+supName+'</button>':'';
     var qtyTag=it.qty>1?'<span class="tag-qty">'+it.qty+' шт.</span>':'';
     var availClass=it.availability==='Есть'?'badge-yes':'badge-order';
     // Отметка «отвезено клиенту» по каждому товару отдельно (частичная доставка заказа).
@@ -1184,18 +1167,18 @@ function orderCard(o){
     if(dlv||isDone)delivCnt++;
     // v6.7: оплата позиции при доставке
     var itPaid=Math.round(it.paid_amount||0);if(itPaid>0)itemsPaid+=itPaid;
-    var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#eaf4ec;color:#256b3c;border:1px solid #c3dbc9;border-radius:7px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
+    var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
     var dlvBtn;
     if(dlv){
       dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Товар у клиента. Нажмите, чтобы снять отметку" '
-        +'style="cursor:pointer;border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#eaf4ec;color:#256b3c;border:1px solid #c3dbc9">'
+        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">'
         +'✅ Отвезено '+fmtDate(it.delivered_at)+'</button>';
     }else if(isDone){
       // заказ выполнен, отметки довоза не было — считаем отвезённым, статичный зелёный бейдж
-      dlvBtn='<span title="Заказ выполнен — товар у клиента" style="border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#eaf4ec;color:#256b3c;border:1px solid #c3dbc9">✅ Отвезено</span>';
+      dlvBtn='<span title="Заказ выполнен — товар у клиента" style="border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">✅ Отвезено</span>';
     }else{
       dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Нажмите, когда товар отвезён клиенту" '
-        +'style="cursor:pointer;border-radius:7px;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#fbf4e6;color:#8a6a1f;border:1px dashed #dcc49a">'
+        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#FFF8E1;color:#B26A00;border:1px dashed #E0B252">'
         +'🚚 Не отвезено</button>';
     }
     itemsHtml+='<div class="item-row-compact"'+(dlv?' style="background:#F4FBF4"':'')+'>'+
@@ -1204,7 +1187,8 @@ function orderCard(o){
       '</div>'+
       '<div class="item-avail">'+paidTag+dlvBtn+
       '<span class="item-price" style="margin-right:8px">'+price+' ₽</span>'+
-      '<span class="badge '+availClass+'">'+it.availability+'</span>'+
+      // v7.20: наличие переключается кликом прямо в карточке, без редактирования заказа
+      '<button class="badge '+availClass+'" onclick="event.stopPropagation();toggleItemAvail('+it.id+','+o.id+')" title="Нажмите, чтобы переключить: «Под заказ» ⇄ «Есть»" style="cursor:pointer;border:none;font-family:inherit;font-size:inherit;font-weight:inherit">'+it.availability+'</button>'+
       supTag+'</div></div>';
   }
 
@@ -1240,18 +1224,18 @@ function orderCard(o){
     if((o.pay_cash||0)>0)pp.push('💵 '+fmt(o.pay_cash));
     if((o.pay_card||0)>0)pp.push('💳 '+fmt(o.pay_card));
     if((o.pay_transfer||0)>0)pp.push('📲 '+fmt(o.pay_transfer));
-    ftrClose='<div class="ftr-col"><div class="ftr-lbl">🏁 Закрыт'+(o.closed_at?fmtDate(o.closed_at):'')+'</div><div class="ftr-val" style="font-size:12px;color:#256b3c">'+(pp.length?pp.join(' + ')+' ₽':'без доплаты')+'</div></div>';
+    ftrClose='<div class="ftr-col"><div class="ftr-lbl">🏁 Закрыт'+(o.closed_at?fmtDate(o.closed_at):'')+'</div><div class="ftr-val" style="font-size:12px;color:#1B5E20">'+(pp.length?pp.join(' + ')+' ₽':'без доплаты')+'</div></div>';
   }
   var cardClass='order-card'+(isDone?' done':'');
 
-  var activeBadge=!isDone?'<span style="font-size:11px;background:#e9f0f9;color:#1f4e79;padding:3px 8px;border-radius:7px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
+  var activeBadge=!isDone?'<span style="font-size:11px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:20px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
 
   // Бейдж «отвезено X из Y» — виден сразу в шапке заказа, если товаров несколько
   var dlvBadge='';
   if(items.length>1&&delivCnt>0){
     var allDlv=delivCnt===items.length;
-    dlvBadge='<span style="font-size:11px;padding:2px 8px;border-radius:7px;font-weight:600;margin-right:6px;flex-shrink:0;'
-      +(allDlv?'background:#eaf4ec;color:#256b3c':'background:#fbf0e2;color:#8a5a18')+'">'
+    dlvBadge='<span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700;margin-right:6px;flex-shrink:0;'
+      +(allDlv?'background:#E8F5E9;color:#1B5E20':'background:#FFF3E0;color:#E65100')+'">'
       +'🚚 '+delivCnt+' из '+items.length+' отвезено</span>';
   }
 
@@ -1260,18 +1244,18 @@ function orderCard(o){
     (isDone?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
     '<div class="order-meta" style="display:block;flex:1">'+
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
-    '<span style="margin:0 7px;color:#d5dae0">|</span><strong style="cursor:pointer;border-bottom:1px dashed #b6bfc9" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
+    '<span style="margin:0 6px;color:#ddd">|</span><strong style="cursor:pointer;border-bottom:1px dashed #90A4AE" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
     ((deliveryChip||contactTags)?'<div style="margin-top:4px">'+deliveryChip+contactTags+'</div>':'')+
-    '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#eef1f6;color:#3a4a66;padding:3px 8px;border-radius:7px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
+    '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
     '<div id="order-body-'+o.id+'" style="'+(isDone?'display:none':'')+'">'+
     (itemsHtml||'')+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
     '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(o.goods_discounted||o.goods_total||0)+' ₽</div></div>'+
     ftrDeliv+ftrPre+ftrItemPaid+ftrDebt+ftrClose+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
-    '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1f4e79;border-color:#c3d0de">🖨 Наряд</button>'+
-    '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1f4e79;border-color:#c3d0de">🖨 Договор</button>'+
-    '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px;color:#2c6b44;border-color:#c3dbc9">📋 Акт</button>'+
+    '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1565C0;border-color:#1565C0">🖨 Наряд</button>'+
+    '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px;color:var(--dark);border-color:var(--dark)">🖨 Договор</button>'+
+    '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px;color:#2e7d32;border-color:#2e7d32">📋 Акт</button>'+
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'+
     doneBtn+closureBtn+
     '<button class="btn-danger-sm" onclick="askDelete('+o.id+')">🗑</button>'+
@@ -1375,6 +1359,96 @@ function ipSavePaid(){
       if(/paid_amount|paid_method|paid_at/i.test(msg))toast('❌ Нужно выполнить SQL_обновление_6.7 в Supabase, затем повторить','err',8000);
       else toast('❌ Не сохранилось: '+msg,'err',6000);
     });
+}
+
+// ═══ v7.20: НАЛИЧИЕ ПЕРЕКЛЮЧАЕТСЯ ПРЯМО В КАРТОЧКЕ ══════════════
+// Клик по пилюле «Под заказ» / «Есть» меняет статус без захода в редактирование.
+function toggleItemAvail(itemId,orderId){
+  var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
+  var it=(o.order_items||[]).find(function(x){return x.id===itemId;});if(!it)return;
+  var next=(it.availability==='Есть')?'Под заказ':'Есть';
+  var prev=it.availability;
+  it.availability=next;_paintOrders(); // мгновенный отклик, ждать сеть не заставляем
+  sbPatch('order_items',{availability:next},'id=eq.'+itemId).then(function(){
+    toast(next==='Есть'?'✅ «'+(it.product_name||'товар')+'» — есть в наличии':'📦 «'+(it.product_name||'товар')+'» — под заказ');
+  }).catch(function(e){
+    it.availability=prev;_paintOrders();
+    toast('❌ Не сохранилось: '+((e&&e.message)||e),'err',6000);
+  });
+}
+
+// ═══ v7.20: ЧТО ЗАБРАТЬ У ПОСТАВЩИКА ═══════════════════════════
+// Клик по пилюле поставщика в карточке → список всех позиций этого
+// поставщика по НЕвыполненным заказам, которые ещё не отвезены клиенту.
+// Позиции со статусом «Есть» тоже входят: раз заказ не выполнен —
+// товар у поставщика ещё лежит, его всё равно надо забрать.
+var _supItemsName='',_supItemsText='';
+function openSupplierItems(name){
+  _supItemsName=String(name||'');
+  var key=_supNorm(_supItemsName);
+  var groups=[],cnt=0,qty=0;
+  (allOrders||[]).slice().sort(function(a,b){
+    return String(a.order_date||'').localeCompare(String(b.order_date||''));
+  }).forEach(function(o){
+    if((o.status||'')==='🏁 Выполнен')return;              // заказ закрыт — забирать нечего
+    var rows=(o.order_items||[]).filter(function(it){
+      if(it.delivered_at)return false;                     // уже у клиента
+      return _supNorm(it.supplier_manual||it.supplier)===key;
+    });
+    if(rows.length)groups.push({o:o,rows:rows});
+    rows.forEach(function(it){cnt++;qty+=(it.qty||1);});
+  });
+  var html='',txt='Забрать у «'+_supItemsName+'»\n\n';
+  if(!groups.length){
+    html='<div style="padding:18px;text-align:center;font-size:14px;color:var(--text2);background:var(--alt);border-radius:8px">'
+      +'✅ У этого поставщика забирать нечего — по всем невыполненным заказам его позиций нет.</div>';
+    txt+='— нечего забирать —\n';
+  }else{
+    html=groups.map(function(g){
+      var o=g.o;
+      var dl=o.delivery_date?' · 📦 доставка '+fmtDate(o.delivery_date):'';
+      txt+='№'+o.order_number+' · '+fmtDate(o.order_date)+' · '+(o.client_name||'')+'\n';
+      var rows=g.rows.map(function(it){
+        var parts=[it.product_name];
+        if(it.color)parts.push(it.color);
+        if(it.fabric_category)parts.push('кат.'+it.fabric_category);
+        if(it.dims)parts.push(it.dims);
+        txt+='   • '+parts.join(' · ')+(it.qty>1?' × '+it.qty+' шт.':'')+' — '+(it.availability||'')+'\n';
+        var cls=it.availability==='Есть'?'badge-yes':'badge-order';
+        return '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-top:1px dashed var(--border)">'
+          +'<div style="flex:1;font-size:13px;line-height:1.45"><strong>'+it.product_name+'</strong>'
+          +(parts.length>1?'<span style="color:var(--text2)"> · '+parts.slice(1).join(' · ')+'</span>':'')
+          +(it.qty>1?' <span class="tag-qty">'+it.qty+' шт.</span>':'')+'</div>'
+          +'<span class="badge '+cls+'" style="flex-shrink:0">'+(it.availability||'')+'</span></div>';
+      }).join('');
+      txt+='\n';
+      return '<div style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;padding:9px 11px">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--text)">№'+o.order_number+' · '+(o.client_name||'')+'</div>'
+        +'<div style="font-size:11px;color:var(--text2);margin-bottom:2px">от '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+dl+'</div>'
+        +rows+'</div>';
+    }).join('');
+  }
+  _supItemsText=txt;
+  document.getElementById('supitems-title').innerHTML='🏭 Забрать у «'+_supItemsName+'»';
+  document.getElementById('supitems-sum').innerHTML=groups.length
+    ?('позиций: <strong>'+cnt+'</strong>'+(qty!==cnt?' (штук: <strong>'+qty+'</strong>)':'')+' · заказов: <strong>'+groups.length+'</strong>')
+    :'';
+  document.getElementById('supitems-list').innerHTML=html;
+  document.getElementById('modal-supitems').classList.add('open');
+}
+function copySupplierItems(){
+  var t=_supItemsText||'';
+  function done(){toast('📋 Список скопирован');}
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done).catch(function(){_copyFallback(t,done);});
+  }else _copyFallback(t,done);
+}
+function _copyFallback(t,cb){
+  var ta=document.createElement('textarea');ta.value=t;
+  ta.style.cssText='position:fixed;left:-9999px;top:0';
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');cb();}catch(e){toast('Не удалось скопировать','err');}
+  document.body.removeChild(ta);
 }
 
 // Универсальный debounce (для живых полей поиска)
@@ -1681,25 +1755,51 @@ function _renderCashUI(orders,withdrawals,itemPays){
   // а в текущей кассе лежат только поступления ПОСЛЕ последнего забора.
   // Сумма любого отрезка сходится с суммой соответствующего забора / остатком
   // кассы, поэтому цифры не смешиваются и легко сверяются при проверке.
+  // v7.20: раскладка стала «умной». Раньше поступления просто набивались в заборы
+  // подряд по дате — из-за этого поступление могло попасть не в тот забор и
+  // подписаться чужим заказом (напр. предоплата №957507 показывалась как
+  // «часть из 29 900 ₽ — остаток при закрытии №180384»). Теперь:
+  //   1) забор не может содержать поступление, которое пришло ПОЗЖЕ него (по дате);
+  //   2) если одно поступление в точности равно сумме забора — берём его целиком,
+  //      не дробя два разных поступления пополам.
   function _mkPart(p,amt,full){var o={num:p.num,client:p.client,kind:p.kind,amt:amt,date:p.date};if(amt<full)o.of=full;return o;}
-  var _partsAsc=cashParts.slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
+  function _pDay(d){return String(d||'').slice(0,10);}
+  function _pHasTime(d){return /\d{2}:\d{2}/.test(String(d||''));}
+  // насколько уверенно поступление лежало в кассе в момент забора:
+  // 2 — точно до забора; 1 — тот же день (у предоплат и закрытий времени нет — неизвестно);
+  // 0 — уже после забора (в этот забор попасть не могло)
+  function _rank(p,wTime){
+    var pd=_pDay(p.src.date), wd=_pDay(wTime);
+    if(!pd||!wd)return 1;
+    if(pd<wd)return 2;
+    if(pd>wd)return 0;
+    if(_pHasTime(p.src.date)&&_pHasTime(wTime))return String(p.src.date)<=String(wTime)?2:0;
+    return 1;
+  }
+  var _pool=cashParts.slice()
+    .sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));})
+    .map(function(p){return {src:p,left:p.amt};});
   var _wdAsc=withdrawals.slice().sort(function(a,b){return String(a.created_at||'').localeCompare(String(b.created_at||''));});
   var _segParts=_wdAsc.map(function(){return [];});
-  var _curParts=[]; // то, что физически лежит в кассе сейчас
-  (function(){
-    var si=0, need=_wdAsc.length?Math.round(_wdAsc[0].amount||0):0;
-    _partsAsc.forEach(function(p){
-      var rem=p.amt;
-      while(rem>0){
-        while(si<_wdAsc.length && need<=0){si++;need=si<_wdAsc.length?Math.round(_wdAsc[si].amount||0):0;}
-        if(si>=_wdAsc.length){_curParts.push(_mkPart(p,rem,p.amt));rem=0;break;}
-        var take=Math.min(rem,need);
-        _segParts[si].push(_mkPart(p,take,p.amt));
-        need-=take;rem-=take;
-      }
+  _wdAsc.forEach(function(w,wi){
+    var need=Math.round(w.amount||0);
+    if(need<=0)return;
+    var seg=_segParts[wi];
+    function take(p,amt){seg.push(_mkPart(p.src,amt,p.src.amt));p.left-=amt;need-=amt;}
+    // сначала берём то, что точно было в кассе, потом «того же дня»,
+    // и лишь в крайнем случае (расхождение в данных) — более поздние поступления
+    [2,1,0].forEach(function(rk){
+      if(need<=0)return;
+      var pool=_pool.filter(function(p){return p.left>0&&_rank(p,w.created_at)===rk;});
+      // 1) поступление, закрывающее забор ровно — без дробления
+      for(var i=0;i<pool.length&&need>0;i++)if(pool[i].left===need)take(pool[i],need);
+      // 2) остальное — по порядку дат
+      for(var j=0;j<pool.length&&need>0;j++)if(pool[j].left>0)take(pool[j],Math.min(pool[j].left,need));
     });
-  })();
+  });
   _wdAsc.forEach(function(w,i){w._parts=_segParts[i];});
+  var _curParts=[]; // то, что физически лежит в кассе сейчас
+  _pool.forEach(function(p){if(p.left>0)_curParts.push(_mkPart(p.src,p.left,p.src.amt));});
 
   // текущая касса — новейшие поступления сверху
   _cashBoxParts=_curParts.slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
@@ -1748,10 +1848,12 @@ function _renderCashUI(orders,withdrawals,itemPays){
     var dtStr=dt?dt.toLocaleDateString('ru-RU')+' '+dt.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):'—';
     var wp=(w._parts||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
     var wpSum=0;wp.forEach(function(p){wpSum+=p.amt;});
-    var wpBlock=wp.length
+    // комментарий записан В МОМЕНТ забора — показываем его как сверку с расчётом
+    var wpNote=w.comment?'<div style="font-size:11px;color:var(--text2);margin-top:4px">🗒 записано при заборе: '+w.comment+'</div>':'';
+    var wpBlock=(wp.length
       ?'<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:#1B5E20;font-weight:600">📋 Состав забора ('+wp.length+' поступл. на '+fmt(wpSum)+' ₽)</summary>'
         +'<div style="margin-top:6px">'+_partsRows(wp)+'</div></details>'
-      :(w.comment?'<div style="font-size:11px;color:var(--text2);margin-top:4px">'+w.comment+'</div>':'');
+      :'')+wpNote;
     wdRows+='<div style="padding:9px 0;border-bottom:1px solid var(--border)">'
       +'<div style="display:flex;justify-content:space-between;gap:10px;align-items:center">'
       +'<span style="font-size:12px;color:var(--text2)">'+dtStr+'</span>'
@@ -3685,6 +3787,164 @@ function searchPriceItems(id,q){
 }
 
 // ── ЦЕННИКИ ─────────────────────────────────────────────
+// ═══ v7.20: СПРАВОЧНИК ПОСТАВЩИКОВ ═══════════════════════════════
+// Фиксированный список, из которого поставщик выбирается при заполнении заказа.
+// Хранится в Supabase (таблица suppliers) — общий для всех устройств.
+// Список ведёт владелец: добавление и удаление прямо во всплывающем окне.
+// Если таблицы ещё нет (SQL_обновление_7.4 не выполнен) — поле поставщика
+// продолжает работать как обычный текстовый ввод, ничего не ломается.
+
+function _supNorm(s){return String(s||'').trim().toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ');}
+
+function loadSuppliers(force){
+  if(_supLoaded&&!force)return Promise.resolve(allSuppliers);
+  return sbGet('suppliers','select=id,name,sort_order&order=sort_order.asc,name.asc&limit=500')
+    .then(function(rows){
+      allSuppliers=rows||[];_supLoaded=true;_supTableOk=true;
+      return allSuppliers;
+    })
+    .catch(function(e){
+      // таблицы нет / нет связи — работаем в режиме свободного ввода
+      _supTableOk=!/suppliers|does not exist|relation|schema cache/i.test((e&&e.message)||'');
+      _supLoaded=true;
+      return allSuppliers;
+    });
+}
+
+// ── Открыть выбор поставщика для позиции формы заказа ───────────
+function openSupPicker(itemId){
+  _supPickItem=itemId;_supManageMode=false;
+  var q=document.getElementById('sup-pick-search');if(q)q.value='';
+  document.getElementById('modal-suppick').classList.add('open');
+  renderSupPicker();
+  loadSuppliers().then(renderSupPicker);
+  setTimeout(function(){var s=document.getElementById('sup-pick-search');if(s)s.focus();},120);
+}
+
+function renderSupPicker(){
+  var box=document.getElementById('sup-pick-list');if(!box)return;
+  var hint=document.getElementById('sup-pick-hint');
+  var cur='';
+  if(_supPickItem){
+    var inp=document.getElementById('fi-supplier-'+_supPickItem);
+    var lbl=document.getElementById('sup-lbl-'+_supPickItem);
+    cur=((inp&&inp.value)||'').trim()||((lbl&&lbl.style.display!=='none'&&lbl.textContent)||'').trim();
+  }
+  if(!_supTableOk){
+    box.innerHTML='<div style="padding:14px;font-size:13px;line-height:1.6;background:#FFF8E1;border:1px solid #FFB74D;border-radius:8px">'
+      +'⚙️ Справочник поставщиков ещё не создан в базе.<br>Откройте <strong>Supabase → SQL Editor</strong> и выполните файл <strong>«SQL_обновление_7.4.sql»</strong>, затем обновите страницу.<br><br>'
+      +'Пока можно вписать поставщика вручную в поле ниже.</div>';
+    if(hint)hint.textContent='';
+    return;
+  }
+  var q=_supNorm((document.getElementById('sup-pick-search')||{}).value||'');
+  var list=allSuppliers.filter(function(s){return !q||_supNorm(s.name).indexOf(q)>=0;});
+  if(!allSuppliers.length){
+    box.innerHTML='<div style="padding:14px;font-size:13px;line-height:1.6;background:var(--alt);border-radius:8px">'
+      +'Список поставщиков пока пуст.<br>Добавьте их кнопкой <strong>«➕ Добавить поставщика»</strong> — '
+      +'или нажмите <strong>«↻ Подтянуть из прайсов и заказов»</strong>, чтобы собрать названия, которые вы уже использовали.</div>';
+  }else if(!list.length){
+    box.innerHTML='<div style="padding:14px;font-size:13px;color:var(--text2)">Ничего не найдено. Можно добавить нового кнопкой ниже.</div>';
+  }else{
+    box.innerHTML=list.map(function(s){
+      var act=_supNorm(s.name)===_supNorm(cur);
+      return '<div style="display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">'
+        +'<button onclick="pickSupplier('+JSON.stringify(s.name).replace(/"/g,'&quot;')+')" '
+        +'style="flex:1;text-align:left;cursor:pointer;background:'+(act?'#E8F5E9':'none')+';border:none;padding:11px 10px;font-size:14px;'
+        +(act?'font-weight:700;color:#1B5E20':'color:var(--text)')+'">'+(act?'✓ ':'')+s.name+'</button>'
+        +(_supManageMode?'<button onclick="deleteSupplier('+s.id+','+JSON.stringify(s.name).replace(/"/g,'&quot;')+')" title="Удалить из списка" style="cursor:pointer;background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;margin-right:4px">🗑</button>':'')
+        +'</div>';
+    }).join('');
+  }
+  if(hint)hint.textContent=allSuppliers.length?('в списке '+allSuppliers.length+' поставщик(ов)'):'';
+  var mb=document.getElementById('sup-manage-btn');
+  if(mb)mb.textContent=_supManageMode?'✔️ Готово':'🗑 Удалить из списка';
+}
+
+function supPickToggleManage(){_supManageMode=!_supManageMode;renderSupPicker();}
+
+// «Применить» из поля ручного ввода: пустое значение не применяем молча
+function pickSupplierFree(){
+  var v=((document.getElementById('sup-pick-free')||{}).value||'').trim();
+  if(!v){toast('⚠️ Впишите название или выберите из списка','err');return;}
+  var f=document.getElementById('sup-pick-free');if(f)f.value='';
+  pickSupplier(v);
+}
+
+function pickSupplier(name){
+  name=String(name||'').trim();
+  if(!name){toast('⚠️ Название пустое','err');return;}
+  if(_supPickItem){
+    var inp=document.getElementById('fi-supplier-'+_supPickItem);
+    if(inp)inp.value=name;
+    // ручной выбор перекрывает автоподстановку из прайса — прячем бейдж,
+    // чтобы в карточке заказа не осталось двух разных поставщиков
+    var lbl=document.getElementById('sup-lbl-'+_supPickItem);
+    if(lbl&&lbl.style.display!=='none'&&_supNorm(lbl.textContent)!==_supNorm(name)){
+      lbl.textContent=name;
+    }
+    if(window._draftSave)_draftSave();
+  }
+  closeModal('modal-suppick');
+}
+
+function supPickClear(){
+  if(_supPickItem){
+    var inp=document.getElementById('fi-supplier-'+_supPickItem);if(inp)inp.value='';
+    if(window._draftSave)_draftSave();
+  }
+  closeModal('modal-suppick');
+}
+
+function addSupplierPrompt(){
+  var pre=((document.getElementById('sup-pick-search')||{}).value||'').trim();
+  var name=prompt('Название поставщика:',pre);
+  if(name===null)return;
+  name=String(name).trim();
+  if(!name)return;
+  if(allSuppliers.some(function(s){return _supNorm(s.name)===_supNorm(name);})){
+    toast('Такой поставщик уже есть в списке','err');return;
+  }
+  sbPost('suppliers',[{name:name,sort_order:allSuppliers.length}])
+    .then(function(){return loadSuppliers(true);})
+    .then(function(){
+      var s=document.getElementById('sup-pick-search');if(s)s.value='';
+      renderSupPicker();toast('✅ Добавлен: '+name);
+    })
+    .catch(function(e){toast('❌ Не сохранилось: '+((e&&e.message)||e),'err',6000);});
+}
+
+function deleteSupplier(id,name){
+  if(!confirm('Удалить «'+name+'» из списка поставщиков?\n\nНа уже сохранённые заказы это не влияет — там поставщик останется как записан.'))return;
+  sbDel('suppliers','id=eq.'+id)
+    .then(function(){return loadSuppliers(true);})
+    .then(function(){renderSupPicker();toast('🗑 Удалён: '+name);})
+    .catch(function(e){toast('❌ '+((e&&e.message)||e),'err',6000);});
+}
+
+// Собрать названия поставщиков, которые уже реально использовались:
+// из прайс-листов и из позиций прошлых заказов. Показываем список на выбор.
+function suggestSuppliers(){
+  var found={};
+  function add(n){n=String(n||'').trim();if(!n)return;var k=_supNorm(n);if(!k)return;if(!found[k])found[k]=n;}
+  (allOrders||[]).forEach(function(o){(o.order_items||[]).forEach(function(it){add(it.supplier_manual);add(it.supplier);});});
+  var btn=document.getElementById('sup-suggest-btn');
+  if(btn){btn.disabled=true;btn.textContent='↻ Ищу…';}
+  sb('POST','rpc/price_summary',null).catch(function(){return null;}).then(function(rows){
+    (rows||[]).forEach(function(r){add(r.supplier);});
+    (allProducts||[]).forEach(function(p){add(p.supplier);});
+    var have={};allSuppliers.forEach(function(s){have[_supNorm(s.name)]=1;});
+    var fresh=Object.keys(found).filter(function(k){return !have[k];}).map(function(k){return found[k];}).sort();
+    if(btn){btn.disabled=false;btn.textContent='↻ Подтянуть из прайсов и заказов';}
+    if(!fresh.length){toast('Новых названий не нашлось — всё уже в списке');return;}
+    if(!confirm('Найдено '+fresh.length+' названий, которых нет в списке:\n\n'+fresh.slice(0,25).join('\n')+(fresh.length>25?'\n…и ещё '+(fresh.length-25):'')+'\n\nДобавить их все в справочник? Лишние потом можно удалить.'))return;
+    var base=allSuppliers.length;
+    sbPost('suppliers',fresh.map(function(n,i){return {name:n,sort_order:base+i};}))
+      .then(function(){return loadSuppliers(true);})
+      .then(function(){renderSupPicker();toast('✅ Добавлено поставщиков: '+fresh.length);})
+      .catch(function(e){toast('❌ '+((e&&e.message)||e),'err',6000);});
+  });
+}
 function qrDataUrl(text,size){
   // QR генерируется ЛОКАЛЬНО встроенной библиотекой (data:URL) — печатается всегда,
   // даже без интернета. Раньше был внешний сервис api.qrserver.com — он не грузился,
@@ -4374,9 +4634,13 @@ function addFormItem(){
       '<div class="fg"><label>Размер</label><input type="text" id="fi-dims-'+id+'" class="inp-gold" placeholder="напр. 2200×950 мм"></div>'+
     '</div>'+
     '<div id="fab-hint-'+id+'" style="display:none"></div>'+
+    // v7.20: поставщик выбирается из фиксированного списка (всплывающее окно)
     '<div class="fg" id="suprow-'+id+'" style="margin-bottom:10px">'+
-      '<label>Поставщик * <small style="color:var(--text2)">(заполняется автоматически при выборе товара, или вручную)</small></label>'+
-      '<input type="text" id="fi-supplier-'+id+'" class="inp-gold" placeholder="Название поставщика...">'+
+      '<label>Поставщик * <small style="color:var(--text2)">(подставляется при выборе товара из прайса, или выберите из списка)</small></label>'+
+      '<div style="display:flex;gap:8px">'+
+        '<input type="text" id="fi-supplier-'+id+'" class="inp-gold" placeholder="Нажмите, чтобы выбрать поставщика..." readonly style="cursor:pointer;background:#fff" onclick="openSupPicker('+id+')" onfocus="this.blur()">'+
+        '<button type="button" onclick="openSupPicker('+id+')" class="btn btn-outline" style="padding:0 14px;white-space:nowrap">📋 Выбрать</button>'+
+      '</div>'+
     '</div>'+
     '<div id="cat-row-'+id+'" style="display:none" class="form-row" style="margin-bottom:10px">'+
       '<div class="fg"><label>Категория ткани</label><select id="fi-cat-'+id+'" class="inp-gold" onchange="calcItemPrice('+id+')"><option value="">— категория —</option></select></div>'+
