@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.28</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.29</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -251,8 +251,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="active" onclick="setChip('active')">🔄 В процессе</span>
     <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="today" onclick="setChip('today')">📅 Сегодня</span>
     <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="week" onclick="setChip('week')">🗓 На неделе</span>
+    <!-- v7.29: просрочка = срок доставки прошёл, а заказ не выполнен. По ст. 23.1
+         закона о защите прав потребителей это пеня 0,5 % предоплаты за каждый день -->
+    <span class="chip" id="chip-late" style="background:#f8eae7;color:#9c3b2e;display:none" data-chip="late" onclick="setChip('late')">⏰ Просрочено</span>
     <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
   </div>
+  <!-- v7.29: честное предупреждение, когда список заказов упёрся в потолок загрузки -->
+  <div id="orders-trunc" style="display:none;font-size:12px;padding:8px 11px;border-radius:7px;background:#fbf0e2;color:#8a5a18;margin-bottom:10px"></div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Поиск по клиенту, товару, статусу..." id="orders-search" oninput="_ordersSearchLive()">
@@ -1204,6 +1209,27 @@ async function _sbDelUntilEmpty(filter){
 }
 // Надёжно сохраняет позиции заказа: пакетная вставка атомарна, поэтому при обрыве
 // связи можно проверить и при необходимости повторить, не задваивая позиции.
+// v7.29: экранирование текста перед вставкой в HTML. Названия товаров, имена и
+// адреса приходят из рук продавца: кавычка или знак «<» в названии ломала вёрстку
+// договора и акта, а иногда и весь документ.
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ═══ v7.29: ОДНА формула долга и ОДНА проверка «выполнен» на всё приложение ═══
+// Раньше долг считался в пяти местах пятью копиями формулы, а в аналитике —
+// шестой, без доставки. Из-за этого KPI «Долг к получению» был меньше суммы
+// долгов, которые продавец видел в карточках, и сходиться они не могли никогда.
+// Признак «выполнен» тоже проверялся тремя способами (строгое равенство и
+// поиск подстроки), поэтому лишний пробел в статусе менял поведение.
+function isDone(o){return !!o&&String((o&&o.status)||'').indexOf('Выполнен')>=0;}
+function orderDebt(o){
+  if(!o)return 0;
+  var goods=Math.max(0,Math.round(o.remainder||0));
+  var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
+  // доставка не создаёт долга, если уже оплачена, если она сторонняя (клиент
+  // платит курьеру мимо кассы) или если заказ закрыт — закрытие собирает всё
+  var delivDebt=(o.delivery_paid==='yes'||o.delivery_our===false||isDone(o))?0:delivCost;
+  return goods+delivDebt;
+}
 function _saveItemsReliable(orderId,batchItems){
   function attempt(n){
     var check=n===0?Promise.resolve(null):sbGet('order_items','select=id&order_id=eq.'+orderId+'&limit=1');
@@ -1303,10 +1329,34 @@ function toast(msg,type,ms){
   setTimeout(function(){t.classList.remove('show');},ms);
 }
 
+// v7.29: было limit=500 без единого предупреждения. При 33 заказах в месяц
+// потолок наступал примерно через 15 месяцев, и дальше самые старые заказы
+// просто переставали существовать для приложения: аналитика «за всё время»
+// врала, история клиента обрывалась, поиск по номеру не находил заказ.
+// Теперь 2000 и честная плашка, когда упёрлись в потолок.
+var _ORDERS_LIMIT=2000, _ordersTruncated=false;
 function loadOrders(){
-  return sbGet('orders','select=*,order_items(*)&order=created_at.desc&limit=500').then(function(rows){
-    allOrders=rows||[];renderOrders(allOrders);updateManagerFilter();
+  return sbGet('orders','select=*,order_items(*)&order=created_at.desc&limit='+_ORDERS_LIMIT).then(function(rows){
+    allOrders=rows||[];
+    _ordersTruncated=allOrders.length>=_ORDERS_LIMIT;
+    renderOrders(allOrders);updateManagerFilter();
+    _showTruncNote();
   });
+}
+function _showTruncNote(){
+  var el=document.getElementById('orders-trunc');if(!el)return;
+  el.style.display=_ordersTruncated?'block':'none';
+  if(_ordersTruncated)el.innerHTML='⚠️ Показаны последние '+_ORDERS_LIMIT+' заказов — более старые в приложение не загружены. '
+    +'Аналитика «за всё время» и история клиентов считаются только по ним. Скажите об этом Claude — нужна постраничная загрузка.';
+}
+
+// v7.29: «1 день / 2 дня / 5 дней» — чтобы плашка просрочки читалась по-человечески
+function _dayWord(n){
+  n=Math.abs(n)%100;var n1=n%10;
+  if(n>10&&n<20)return 'дней';
+  if(n1>1&&n1<5)return 'дня';
+  if(n1===1)return 'день';
+  return 'дней';
 }
 
 function statusClass(s){
@@ -1319,7 +1369,7 @@ function statusClass(s){
 
 function orderCard(o){
   var items=o.order_items||[];
-  var isDone=o.status==='🏁 Выполнен';
+  var _done=isDone(o); // v7.29: общая проверка вместо строгого сравнения со строкой
   var isPaid=o.status&&o.status.indexOf('Оплачено')>=0&&o.status.indexOf('Не')<0;
   var contactTags='';
   function telHref(p){return'tel:+7'+p.replace(/^[+7]?[78]?/,'').replace(/\D/g,'');}
@@ -1330,9 +1380,15 @@ function orderCard(o){
   // клиент мог передумать и забирать сам). При доставке ничего не пишем — это по умолчанию.
   var _isPickup=/самовыв/i.test(o.delivery_type||'');
   var deliveryChip=_isPickup?'<span style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:700;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">🏬 Самовывоз</span>':'';
-  var delivBadge=o.delivery_date?'<span style="background:#E8F5E9;color:#2E7D32;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>':'';
+  // v7.29: если срок доставки прошёл, а заказ не выполнен — плашка красная и с числом дней
+  var _lateDays=isLate(o)?Math.round((new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z')-new Date(o.delivery_date+'T00:00:00Z'))/86400000):0;
+  var delivBadge=o.delivery_date
+    ?(_lateDays>0
+      ?'<span style="background:#f8eae7;color:#9c3b2e;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px" title="Срок передачи прошёл — по закону о защите прав потребителей начисляется пеня">⏰ просрочен на '+_lateDays+' '+_dayWord(_lateDays)+' (срок '+fmtDate(o.delivery_date)+')</span>'
+      :'<span style="background:#E8F5E9;color:#2E7D32;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>')
+    :'';
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
-  var hdrBg=isDone?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
+  var hdrBg=_done?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
 
   var itemsHtml='',delivCnt=0,itemsPaid=0;
   for(var i=0;i<items.length;i++){
@@ -1349,10 +1405,10 @@ function orderCard(o){
     var qtyTag=it.qty>1?'<span class="tag-qty">'+it.qty+' шт.</span>':'';
     var availClass=it.availability==='Есть'?'badge-yes':'badge-order';
     // Отметка «отвезено клиенту» по каждому товару отдельно (частичная доставка заказа).
-    // Выполненный заказ (isDone) = товар у клиента, поэтому НЕ показываем оранжевую
+    // Выполненный заказ (_done) = товар у клиента, поэтому НЕ показываем оранжевую
     // плашку «не отвезено» на закрытых заказах (иначе выглядит как противоречие).
     var dlv=!!it.delivered_at;
-    if(dlv||isDone)delivCnt++;
+    if(dlv||_done)delivCnt++;
     // v6.7: оплата позиции при доставке
     var itPaid=Math.round(it.paid_amount||0);if(itPaid>0)itemsPaid+=itPaid;
     var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
@@ -1361,7 +1417,7 @@ function orderCard(o){
       dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Товар у клиента. Нажмите, чтобы снять отметку" '
         +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">'
         +'✅ Отвезено '+fmtDate(it.delivered_at)+'</button>';
-    }else if(isDone){
+    }else if(_done){
       // заказ выполнен, отметки довоза не было — считаем отвезённым, статичный зелёный бейдж
       dlvBtn='<span title="Заказ выполнен — товар у клиента" style="border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">✅ Отвезено</span>';
     }else{
@@ -1380,19 +1436,25 @@ function orderCard(o){
       supTag+'</div></div>';
   }
 
-  var goodsDebt=o.remainder||0;
+  // v7.29: считает общая функция orderDebt (20_core.js) — та же, что в печати,
+  // истории клиента и аналитике. Разбивка ниже — только для показа.
+  var goodsDebt=Math.max(0,Math.round(o.remainder||0));
   var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
   var delivExternal=o.delivery_our===false; // сторонняя доставка — деньги мимо кассы
   var delivPaid=o.delivery_paid==='yes';
-  var delivDebt=(delivPaid||delivExternal)?0:delivCost; // сторонняя не создаёт долг перед салоном
-  var totalDebt=goodsDebt+delivDebt;
+  var delivDebt=(delivPaid||delivExternal||_done)?0:delivCost;
+  var totalDebt=orderDebt(o);
   var debtParts=[];
   if(goodsDebt>0)debtParts.push(fmt(goodsDebt)+' товар');
   if(delivDebt>0&&(o.delivery_cost||0)>0)debtParts.push(fmt(o.delivery_cost)+' доставка');
   if(delivDebt>0&&(o.lifting_cost||0)>0)debtParts.push(fmt(o.lifting_cost)+' занос');
   var debtBreakdown=debtParts.length>1?debtParts.join(' + ')+' = '+fmt(totalDebt)+' ₽':'';
+  // v7.29: закрытый заказ с ненулевым остатком — след старой ошибки (до 7.28
+  // правка выполненного заказа воскрешала долг). Показываем явно, а не прячем.
+  var doneDebtWarn=(_done&&goodsDebt>0)?
+    '<div style="font-size:10px;color:#8a5a18;margin-top:2px">⚠ заказ закрыт, но числится остаток — проверьте</div>':'';
   var ftrDebt=totalDebt>0?
-    '<div class="ftr-col"><div class="ftr-lbl">Долг клиента</div><div class="ftr-val" style="color:#C62828">'+fmt(totalDebt)+' ₽</div>'+(debtBreakdown?'<div style="font-size:10px;color:#C62828;margin-top:2px">'+debtBreakdown+'</div>':'')+'</div>':
+    '<div class="ftr-col"><div class="ftr-lbl">Долг клиента</div><div class="ftr-val" style="color:#C62828">'+fmt(totalDebt)+' ₽</div>'+(debtBreakdown?'<div style="font-size:10px;color:#C62828;margin-top:2px">'+debtBreakdown+'</div>':'')+doneDebtWarn+'</div>':
     '<div class="ftr-col"><div class="ftr-lbl">Долг</div><div class="ftr-val" style="color:#1B5E20">✅ 0 ₽</div></div>';
   var ftrDeliv=delivCost>0?(delivExternal?
     '<div class="ftr-col" style="opacity:.55"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:#888">сторонняя</span></div><div class="ftr-val" style="color:#888">'+fmt(delivCost)+' ₽</div><div style="font-size:9px;color:#999;margin-top:1px">не наша · мимо кассы</div></div>':
@@ -1403,20 +1465,20 @@ function orderCard(o){
   var ftrItemPaid=itemsPaid>0?
     '<div class="ftr-col"><div class="ftr-lbl">💰 Оплачено при доставке</div><div class="ftr-val" style="color:#1B5E20">'+fmt(itemsPaid)+' ₽</div></div>':'';
   var noteHtml=o.notes?'<div class="note-box">📝 '+o.notes+'</div>':'';
-  if(isDone&&o.close_comment)noteHtml+='<div class="note-box" style="border-left-color:#2e7d32">🏁 '+o.close_comment+'</div>';
-  var doneBtn=!isDone?'<button class="btn btn-success" onclick="markDone('+o.id+')" style="padding:5px 10px;font-size:12px">✅ Выполнен</button>':'';
-  var closureBtn=isDone?'<button class="btn btn-outline" onclick="editClosure('+o.id+')" style="padding:5px 10px;font-size:12px;color:#E65100;border-color:#E65100">🔐 Закрытие</button>':'';
+  if(_done&&o.close_comment)noteHtml+='<div class="note-box" style="border-left-color:#2e7d32">🏁 '+o.close_comment+'</div>';
+  var doneBtn=!_done?'<button class="btn btn-success" onclick="markDone('+o.id+')" style="padding:5px 10px;font-size:12px">✅ Выполнен</button>':'';
+  var closureBtn=_done?'<button class="btn btn-outline" onclick="editClosure('+o.id+')" style="padding:5px 10px;font-size:12px;color:#E65100;border-color:#E65100">🔐 Закрытие</button>':'';
   var ftrClose='';
-  if(isDone&&(o.closed_at||(o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0)>0)){
+  if(_done&&(o.closed_at||(o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0)>0)){
     var pp=[];
     if((o.pay_cash||0)>0)pp.push('💵 '+fmt(o.pay_cash));
     if((o.pay_card||0)>0)pp.push('💳 '+fmt(o.pay_card));
     if((o.pay_transfer||0)>0)pp.push('📲 '+fmt(o.pay_transfer));
     ftrClose='<div class="ftr-col"><div class="ftr-lbl">🏁 Закрыт'+(o.closed_at?fmtDate(o.closed_at):'')+'</div><div class="ftr-val" style="font-size:12px;color:#1B5E20">'+(pp.length?pp.join(' + ')+' ₽':'без доплаты')+'</div></div>';
   }
-  var cardClass='order-card'+(isDone?' done':'');
+  var cardClass='order-card'+(_done?' done':'');
 
-  var activeBadge=!isDone?'<span style="font-size:11px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:20px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
+  var activeBadge=!_done?'<span style="font-size:11px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:20px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
 
   // Бейдж «отвезено X из Y» — виден сразу в шапке заказа, если товаров несколько
   var dlvBadge='';
@@ -1428,14 +1490,14 @@ function orderCard(o){
   }
 
   return '<div class="'+cardClass+'" id="order-card-'+o.id+'">'+
-    '<div class="order-hdr" style="'+hdrBg+(isDone?';cursor:pointer':'')+'">'+
-    (isDone?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
+    '<div class="order-hdr" style="'+hdrBg+(_done?';cursor:pointer':'')+'">'+
+    (_done?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
     '<div class="order-meta" style="display:block;flex:1">'+
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
     '<span style="margin:0 6px;color:#ddd">|</span><strong style="cursor:pointer;border-bottom:1px dashed #90A4AE" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
     ((deliveryChip||contactTags)?'<div style="margin-top:4px">'+deliveryChip+contactTags+'</div>':'')+
     '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
-    '<div id="order-body-'+o.id+'" style="'+(isDone?'display:none':'')+'">'+
+    '<div id="order-body-'+o.id+'" style="'+(_done?'display:none':'')+'">'+
     (itemsHtml||'')+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
     '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(o.goods_discounted||o.goods_total||0)+' ₽</div></div>'+
@@ -1679,7 +1741,10 @@ function renderOrders(orders){
 }
 function _paintOrders(){
   var orders=_lastFiltered;
-  document.getElementById('orders-count').textContent=orders.length+' заказ(ов)';
+  var _lateN=(typeof lateOrders==='function')?lateOrders().length:0;
+  document.getElementById('orders-count').textContent=orders.length+' заказ(ов)'
+    +(_lateN?' · ⏰ просрочено: '+_lateN:'');
+  if(typeof _updateLateChip==='function')_updateLateChip(); // и при первой загрузке тоже
   var list=document.getElementById('orders-list');
   if(!orders.length){list.innerHTML='<div class="empty"><p>Заказов не найдено</p></div>';return;}
   // Рендерим только первые _ordersShown карточек — крупные списки не тормозят ввод
@@ -1715,16 +1780,43 @@ function filterOrders(){
   var f=allOrders.filter(function(o){
     var txt=[o.client_name,o.client_phone,o.client_phone2,o.client_address,o.notes,o.manager,o.order_number,o.status].join(' ').toLowerCase();
     (o.order_items||[]).forEach(function(i){txt+=(' '+(i.product_name||'')+' '+(i.color||'')+' '+(i.supplier||'')+' '+(i.dims||'')).toLowerCase();});
-    var statusMatch=!st||(st==='__active__'?(o.status||'')!=='🏁 Выполнен':o.status===st);
+    var statusMatch=!st||(st==='__active__'?!isDone(o):o.status===st);
     var chipMatch=true;
-    if(_activeChip==='debt')chipMatch=(o.remainder||0)>0||(o.delivery_paid==='no'&&(o.delivery_cost||0)>0&&o.delivery_our!==false);
-    else if(_activeChip==='active')chipMatch=(o.status||'')!=='🏁 Выполнен';
+    // v7.29: «с долгом» — та же формула, что в карточке, а не своя копия
+    if(_activeChip==='debt')chipMatch=orderDebt(o)>0;
+    else if(_activeChip==='active')chipMatch=!isDone(o);
     else if(_activeChip==='today')chipMatch=o.order_date===today;
     else if(_activeChip==='week')chipMatch=o.delivery_date&&o.delivery_date>=today&&o.delivery_date<=weekEnd;
-    else if(_activeChip==='done')chipMatch=(o.status||'')==='🏁 Выполнен';
+    else if(_activeChip==='late')chipMatch=isLate(o);
+    else if(_activeChip==='done')chipMatch=isDone(o);
     return(!q||txt.indexOf(q)>=0)&&statusMatch&&(!mg||o.manager===mg)&&chipMatch;
   });
   renderOrders(f);
+  _updateLateChip();
+}
+
+// ═══ v7.29: ПРОСРОЧЕННЫЕ ЗАКАЗЫ ═══════════════════════════════════════
+// Срок доставки прошёл, а заказ не выполнен. Раньше это нигде не считалось:
+// чип «На неделе» смотрит только вперёд, и просроченный заказ просто исчезал
+// из виду. По ст. 23.1 закона о защите прав потребителей просрочка передачи
+// предоплаченного товара — это пеня 0,5 % от предоплаты за каждый день.
+function isLate(o){
+  if(!o||isDone(o)||!o.delivery_date)return false;
+  return String(o.delivery_date)<new Date().toISOString().split('T')[0];
+}
+function lateOrders(){return (allOrders||[]).filter(isLate);}
+var _lateChipBusy=false;
+function _updateLateChip(){
+  var chip=document.getElementById('chip-late');if(!chip)return;
+  var n=lateOrders().length;
+  chip.style.display=n?'inline-flex':'none';
+  chip.textContent='⏰ Просрочено: '+n;
+  // если просрочек не осталось, а фильтр стоит на них — возвращаем «Все».
+  // Флаг нужен, потому что setChip сам зовёт filterOrders, а тот — эту функцию.
+  if(!n&&_activeChip==='late'&&!_lateChipBusy){
+    _lateChipBusy=true;
+    try{setChip('all');}finally{_lateChipBusy=false;}
+  }
 }
 
 function updateManagerFilter(){
@@ -1794,11 +1886,17 @@ function coDeliveryToggle(){
   var isOur=hasDeliv?_coDeliveryOur():true;
   var delivInTarget=hasDeliv&&isOur?_closeDelivCost:0; // сторонняя не входит в кассу
   _closeTarget=Math.round(_closeGoodsDebt+delivInTarget);
-  document.getElementById('co-cash').value=_closeTarget;
+  var o=allOrders.find(function(x){return x.id===_closeOrderId;})||{};
+  // v7.29: остаток кладём в тот способ, которым клиент вносил предоплату.
+  // Раньше всё всегда падало в «наличные», и при оплате картой продавцу
+  // приходилось стирать одно поле и переносить сумму в другое — 5 лишних действий.
+  var _pm=String(o.payment_method||'');
+  var _dst=/карт/i.test(_pm)?'co-card':(/перевод|счёт|счет/i.test(_pm)?'co-transfer':'co-cash');
+  document.getElementById('co-cash').value=0;
   document.getElementById('co-card').value=0;
   document.getElementById('co-transfer').value=0;
+  document.getElementById(_dst).value=_closeTarget;
   // Сводка
-  var o=allOrders.find(function(x){return x.id===_closeOrderId;})||{};
   var summary='<strong>'+(o.client_name||'')+'</strong><br>Остаток за товары: <strong>'+fmt(_closeGoodsDebt)+' ₽</strong>';
   // v6.7: напоминание, что часть уже получена при доставке позиций
   var _ipSum=0;(o.order_items||[]).forEach(function(it){_ipSum+=Math.round(it.paid_amount||0);});
@@ -2281,7 +2379,7 @@ function _plScopeNote(){
     +(fac?(', фабрика <strong>«'+_esc(fac)+'»</strong>'):', <strong>без фабрики</strong>')
     +'. Товары других фабрик этого поставщика не тронутся.';
 }
-function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function _esc(s){return esc(s);} // v7.29: одна функция экранирования на приложение (20_core.js)
 
 // Подсказка существующих поставщиков и фабрик (чтобы не плодить дубли)
 function _fillDL(id,names){
@@ -4251,7 +4349,9 @@ function _acRank(name,q){
 function searchPriceItems(id,q){
   clearTimeout(_priceSearchTimer);
   _priceSearchTimer=setTimeout(function(){
-    sbGet('price_items','select=product_name,supplier,price_opt,price_retail,article'
+    // v7.29: тянем ещё price_kind и valid_until — раньше их тут не запрашивали,
+    // и акционная цена с истёкшим сроком подставлялась в заказ вообще без пометки
+    sbGet('price_items','select=product_name,supplier,price_opt,price_retail,article,price_kind,valid_until'
       +(_gsNormCol?'&or=(search_name.ilike.'+_normPat(q)+')':'&or=(product_name.ilike.'+_ilikePat(q)+',article.ilike.'+_ilikePat(q)+')')
       +'&limit=40&order=product_name.asc')
     .catch(function(e){
@@ -4282,11 +4382,17 @@ function searchPriceItems(id,q){
         d.className='ac-item';
         var _optN=p.price_opt||0;
         var _retN=_optN?retailFromOpt(_optN):(p.price_retail||0);
+        var _expired=p.price_kind==='promo'&&p.valid_until&&String(p.valid_until)<new Date().toISOString().slice(0,10);
+        it.expired=_expired;it.validUntil=p.valid_until||'';
         d.innerHTML=p.product_name+'<span class="ac-sup">'+(p.supplier||'')+'</span>'
+          +(_expired?'<span style="font-size:10px;font-weight:700;color:#9c3b2e;display:block">⌛ акция закончилась '+p.valid_until+' — цена может быть неактуальна</span>':'')
           +(p.article?'<span style="font-size:10px;color:#333;display:block">'+p.article+'</span>':'')
           +(_retN?'<span style="font-size:12px;font-weight:700;color:#BF360C;display:block">розн.: '+fmt(_retN)+' ₽</span>':'')
           +(_optN?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(_optN)+' ₽</span>':'');
-        d.onmousedown=function(){selectModel(id,it);};
+        d.onmousedown=function(){
+          if(it.expired&&!confirm('У этого товара акционная цена, срок которой истёк '+it.validUntil+'.\n\nВзять её в заказ всё равно?'))return;
+          selectModel(id,it);
+        };
         list.appendChild(d);
       });
       if(list.children.length>0)list.style.display='block';
@@ -4764,9 +4870,9 @@ function printOrdersJournal(mode){
     var items=o.order_items||[];
     var anyDlv=items.some(function(it){return!!it.delivered_at;});
     var itemsStr=items.map(function(it){
-      var parts=[it.product_name];
-      if(it.color)parts.push(it.color);
-      if(it.dims)parts.push(it.dims);
+      var parts=[esc(it.product_name)];
+      if(it.color)parts.push(esc(it.color));
+      if(it.dims)parts.push(esc(it.dims));
       if(it.fabric_category)parts.push('кат.'+it.fabric_category);
       if(it.qty>1)parts.push(it.qty+' шт.');
       // Отметка частичной доставки: ✅ отвезено / ⏳ ещё нет (если в заказе что-то уже отвезли)
@@ -4780,7 +4886,7 @@ function printOrdersJournal(mode){
     var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
     var delivExternal=o.delivery_our===false;
     var delivPaid=o.delivery_paid==='yes';
-    var totalDebt=goodsDebt+((delivPaid||delivExternal)?0:delivCost);
+    var totalDebt=orderDebt(o); // v7.29: общая формула долга (20_core.js)
 
     // Строка доставки/заноса
     var delivParts=[];
@@ -4790,9 +4896,9 @@ function printOrdersJournal(mode){
 
     rows+='<tr class="order-row'+(idx%2===1?' alt':'')+'">'
       +'<td class="date">'+fmtDate(o.order_date)+'</td>'
-      +'<td class="client"><strong>'+( o.client_name||'—')+'</strong>'
+      +'<td class="client"><strong>'+esc(o.client_name||'—')+'</strong>'
         +(o.client_phone?'<br><span class="phone">'+o.client_phone+'</span>':'')
-        +(o.client_address?'<br><span class="addr">'+o.client_address+'</span>':'')
+        +(o.client_address?'<br><span class="addr">'+esc(o.client_address)+'</span>':'')
       +'</td>'
       +'<td class="goods">'+itemsStr+'</td>'
       +'<td class="status"><span class="sbadge">'+( o.status||'—')+'</span></td>'
@@ -4801,7 +4907,7 @@ function printOrdersJournal(mode){
       +'<td class="money">'+(prepay?fmt(prepay)+' ₽':'—')+'</td>'
       +'<td class="deliv">'+delivStr+'</td>'
       +'<td class="debt '+(totalDebt>0?'red':'green')+'">'+(totalDebt>0?fmt(totalDebt)+' ₽':'✅')+'</td>'
-      +'<td class="note">'+(o.notes||'')+'</td>'
+      +'<td class="note">'+esc(o.notes||'')+'</td>'
       +'</tr>';
   });
 
@@ -4856,16 +4962,16 @@ function printOrder(id){
   var o=allOrders.find(function(x){return x.id===id;});
   if(!o){toast('Заказ не найден','err');return;}
   var items=o.order_items||[];
-  var isDone=(o.status||'')==='🏁 Выполнен';
+  var _done=isDone(o); // v7.29: общая проверка
 
   // Таблица товаров: отметка отвезено (✅ с датой) или пустой квадрат — отметить ручкой при доставке
   var itemRows='';
   items.forEach(function(it,i){
     var det=[];
-    if(it.color)det.push('Цвет/ткань: '+it.color);
-    if(it.dims)det.push('Размер: '+it.dims);
+    if(it.color)det.push('Цвет/ткань: '+esc(it.color));
+    if(it.dims)det.push('Размер: '+esc(it.dims));
     if(it.fabric_category)det.push('Категория ткани: '+it.fabric_category);
-    if(it.supplier_manual)det.push('Поставщик: '+it.supplier_manual);
+    if(it.supplier_manual)det.push('Поставщик: '+esc(it.supplier_manual));
     var sum=fmt((it.price_discounted||it.price_retail||0)*(it.qty||1));
     var dlv=it.delivered_at
       ?'<span class="dlv-yes">✅ Отвезено<br>'+fmtDate(it.delivered_at)+'</span>'
@@ -4874,7 +4980,7 @@ function printOrder(id){
     if(Math.round(it.paid_amount||0)>0)dlv+='<br><span style="color:#1B5E20;font-weight:700;font-size:9px">💰 оплачен '+fmt(it.paid_amount)+' ₽</span>';
     itemRows+='<tr'+(it.delivered_at?' class="row-dlv"':'')+'>'
       +'<td class="c">'+(i+1)+'</td>'
-      +'<td><strong>'+(it.product_name||'—')+'</strong>'+(det.length?'<br><span class="det">'+det.join(' · ')+'</span>':'')+'</td>'
+      +'<td><strong>'+esc(it.product_name||'—')+'</strong>'+(det.length?'<br><span class="det">'+det.join(' · ')+'</span>':'')+'</td>'
       +'<td class="c">'+(it.qty||1)+'</td>'
       +'<td class="r">'+sum+' ₽</td>'
       +'<td class="c dlv">'+dlv+'</td></tr>';
@@ -4887,8 +4993,8 @@ function printOrder(id){
   var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
   var delivExternal=o.delivery_our===false;
   var delivPaid=o.delivery_paid==='yes';
-  var delivDebt=(delivPaid||delivExternal)?0:delivCost;
-  var totalDebt=goodsDebt+delivDebt;
+  var delivDebt=(delivPaid||delivExternal||_done)?0:delivCost;
+  var totalDebt=orderDebt(o); // v7.29: общая формула долга (20_core.js)
   var moneyRows='';
   moneyRows+='<div class="mrow"><span>Товары по заказу</span><strong>'+fmt(goodsTotal)+' ₽</strong></div>';
   if(prepay>0)moneyRows+='<div class="mrow"><span>Предоплата'+(o.payment_method?' ('+o.payment_method+')':'')+'</span><strong>− '+fmt(prepay)+' ₽</strong></div>';
@@ -4947,12 +5053,12 @@ function printOrder(id){
     +'<div class="sub">от '+fmtDate(o.order_date)+(o.manager?' · менеджер: '+o.manager:'')+'</div></div></div>'
     +'<div class="status-line">Статус: <span class="sbadge">'+(o.status||'—')+'</span>'
     +(o.delivery_date?' &nbsp; 📦 Доставка: <strong>'+fmtDate(o.delivery_date)+'</strong>':'')
-    +(isDone&&o.closed_at?' &nbsp; 🏁 Закрыт: '+fmtDate(o.closed_at):'')+'</div>'
-    +'<div class="client-box"><div class="nm">'+(o.client_name||'—')+'</div>'
+    +(_done&&o.closed_at?' &nbsp; 🏁 Закрыт: '+fmtDate(o.closed_at):'')+'</div>'
+    +'<div class="client-box"><div class="nm">'+esc(o.client_name||'—')+'</div>'
     +(phones?'<div class="ln">📞 <span class="ph">'+phones+'</span></div>':'')
-    +(o.client_address?'<div class="ln">📍 <span class="ad">'+o.client_address+'</span></div>':'')
+    +(o.client_address?'<div class="ln">📍 <span class="ad">'+esc(o.client_address)+'</span></div>':'')
     +'</div>'
-    +(o.notes?'<div class="note">📝 '+o.notes+'</div>':'')
+    +(o.notes?'<div class="note">📝 '+esc(o.notes)+'</div>':'')
     +'<table><thead><tr><th style="width:24px">№</th><th>Товар</th><th style="width:36px;text-align:center">Кол-во</th><th style="width:80px;text-align:right">Сумма</th><th style="width:76px;text-align:center">Отвезено</th></tr></thead>'
     +'<tbody>'+itemRows+'</tbody></table>'
     +'<div class="money">'+moneyRows+debtHtml+'</div>'
@@ -5025,6 +5131,10 @@ function resetForm(){
   var _dt=document.getElementById('f-delivery-type');if(_dt)_dt.selectedIndex=0;
   document.getElementById('form-items').innerHTML='';
   itemCount=0;itemPrices={};addFormItem();recalcTotals();
+  // v7.29: recalcTotals теперь ставит отложенное сохранение черновика. На пустой
+  // форме оно бы стёрло уже лежащий черновик ровно в тот момент, когда баннер
+  // предлагает его восстановить. Поэтому отложенную запись здесь отменяем.
+  clearTimeout(_draftTimer);
   _draftCheckBanner(); // предложить восстановить незаконченный заказ
 }
 // ═══ v6.8: авточерновик — форма сохраняется по мере набора ═══
@@ -5118,11 +5228,16 @@ function restoreDraft(){
   toast('📝 Черновик восстановлен');
 }
 // слушатель: любое изменение на странице формы пишет черновик (с задержкой)
+// v7.29: раньше ловились только события input/change, то есть РУЧНОЙ набор.
+// Когда продавец выбирал товар из подсказки прайса, поставщик, размер, категория
+// и цена подставлялись программно — событий не возникало, и в черновике
+// оставалось только набранное руками название без цены и поставщика.
+// Кнопка «Восстановить» возвращала полупустую позицию, и это было не видно.
+function _draftArm(ms){clearTimeout(_draftTimer);_draftTimer=setTimeout(_draftSave,ms||400);}
 (function(){
   var pg=document.getElementById('page-new');if(!pg)return;
-  function arm(ms){clearTimeout(_draftTimer);_draftTimer=setTimeout(_draftSave,ms);}
-  pg.addEventListener('input',function(){arm(700);});
-  pg.addEventListener('change',function(){arm(300);});
+  pg.addEventListener('input',function(){_draftArm(700);});
+  pg.addEventListener('change',function(){_draftArm(300);});
 })();
 
 function addFormItem(){
@@ -5168,7 +5283,8 @@ function addFormItem(){
     '<div style="display:flex;gap:14px;margin-top:6px;align-items:center">'+
       '<div style="font-size:13px">Розн.: <strong id="fi-ret-'+id+'" style="color:#BF360C">—</strong></div>'+
       '<a href="#" style="font-size:12px;color:#1565C0" onclick="toggleManual('+id+');return false">✏️ цена вручную</a>'+
-      '<a href="#" style="font-size:12px;color:var(--text2);margin-left:auto" onclick="collapseItem('+id+');return false">⌃ свернуть</a>'+
+      '<a href="#" style="font-size:12px;color:#1565C0;margin-left:auto" onclick="duplicateFormItem('+id+');return false" title="Добавить такой же товар — например, другого цвета">⧉ дублировать</a>'+
+      '<a href="#" style="font-size:12px;color:var(--text2)" onclick="collapseItem('+id+');return false">⌃ свернуть</a>'+
     '</div>'+
     '<div id="manual-wrap-'+id+'" style="display:none;margin-top:8px;padding:8px 10px;background:#FFF8E1;border:1.5px solid #FFB74D;border-radius:6px">'+
       '<div style="font-size:11px;color:#E65100;font-weight:500;margin-bottom:4px">✏️ Ввести розничную цену вручную:</div>'+
@@ -5215,7 +5331,7 @@ function toggleManual(id){
 // v6.8: кнопки предоплаты (проценты от товаров со скидкой)
 function setPrepayPct(pct){
   var goods=Object.values(itemPrices).reduce(function(a,b){return a+b;},0);
-  var disc=Math.min(Math.max(parseFloat(document.getElementById('f-discount').value)||0,0),100);
+  var disc=_discPct(); // v7.29: та же функция, что и везде
   var discounted=Math.round(goods*(1-disc/100));
   document.getElementById('f-prepay').value=pct?Math.round(discounted*pct/100):0;
   recalcTotals();
@@ -5235,6 +5351,73 @@ function phoneMask(el){
 }
 
 function removeFormItem(id){var el=document.getElementById('ib-'+id);if(el)el.remove();delete itemPrices[id];recalcTotals();}
+
+// ═══ v7.29: «такой же, другой цвет» ═══════════════════════════════════
+// Комплект из трёх стульев разного цвета раньше приходилось вбивать трижды:
+// название, поставщик, размер, наличие, количество — всё заново.
+function duplicateFormItem(id){
+  var src=document.getElementById('ib-'+id);
+  if(!src){toast('Не нашёл товар для копирования','err');return;}
+  var v=function(pfx){var e=document.getElementById(pfx+id);return e?e.value:'';};
+  var srcCat=document.getElementById('fi-cat-'+id);
+  var isFabric=!!(srcCat&&srcCat.style&&document.getElementById('cat-row-'+id).style.display!=='none');
+  var data={
+    model:v('fi-model-'),color:v('fi-color-'),dims:v('fi-dims-'),
+    supplierManual:v('fi-supplier-'),
+    supLabel:((document.getElementById('sup-lbl-'+id)||{}).textContent||''),
+    qty:isFabric?v('fi-qty-'):v('fi-qty2-'),
+    avail:isFabric?v('fi-avail-cat-'):v('fi-avail-'),
+    manual:v('fi-manual-'),
+    catOptions:srcCat?srcCat.innerHTML:'',catValue:srcCat?srcCat.value:'',
+    catPrices:srcCat?srcCat.dataset.prices:'',catCats:srcCat?srcCat.dataset.cats:'',
+    optData:src.dataset.opt,retData:src.dataset.ret,manualFlag:src.dataset.manual,
+    isFabric:isFabric,price:itemPrices[id]||0
+  };
+  addFormItem();
+  var n=itemCount,nb=document.getElementById('ib-'+n);
+  var set=function(pfx,val){var e=document.getElementById(pfx+n);if(e&&val!=null)e.value=val;};
+  set('fi-model-',data.model);set('fi-color-',data.color);set('fi-dims-',data.dims);
+  set('fi-supplier-',data.supplierManual);
+  if(data.supLabel){
+    var lbl=document.getElementById('sup-lbl-'+n);
+    if(lbl){lbl.textContent=data.supLabel;lbl.style.display='inline';}
+    var sr=document.getElementById('suprow-'+n);if(sr)sr.style.display='none';
+  }
+  var catRow=document.getElementById('cat-row-'+n),nocatRow=document.getElementById('nocat-row-'+n),availRow=document.getElementById('avail-row-'+n);
+  if(data.isFabric){
+    if(catRow)catRow.style.display='grid';
+    if(nocatRow)nocatRow.style.display='none';
+    if(availRow)availRow.style.display='block';
+    var nc=document.getElementById('fi-cat-'+n);
+    if(nc){
+      nc.innerHTML=data.catOptions;nc.value=data.catValue;
+      if(data.catPrices)nc.dataset.prices=data.catPrices;
+      if(data.catCats)nc.dataset.cats=data.catCats;
+    }
+    set('fi-qty-',data.qty);set('fi-avail-cat-',data.avail);
+  }else{
+    if(catRow)catRow.style.display='none';
+    if(nocatRow)nocatRow.style.display='grid';
+    if(availRow)availRow.style.display='none';
+    set('fi-qty2-',data.qty);set('fi-avail-',data.avail);
+  }
+  if(nb){
+    if(data.optData!=null)nb.dataset.opt=data.optData;
+    if(data.retData!=null)nb.dataset.ret=data.retData;
+    if(data.manualFlag!=null)nb.dataset.manual=data.manualFlag;
+  }
+  if(data.manual){
+    var mw=document.getElementById('manual-wrap-'+n);if(mw)mw.style.display='block';
+    set('fi-manual-',data.manual);
+  }
+  itemPrices[n]=data.price;
+  var retEl=document.getElementById('fi-ret-'+n);
+  if(retEl)retEl.textContent=data.price?fmt(data.price)+' ₽':'—';
+  recalcTotals();
+  if(typeof _draftSave==='function')try{_draftSave();}catch(e){}
+  toast('⧉ Товар скопирован — поменяйте, что нужно','ok',2500);
+  var colorEl=document.getElementById('fi-color-'+n);if(colorEl){colorEl.focus();colorEl.select();}
+}
 
 // ═══ v7.18: автоопределение категории ткани по названию (спецификация Некрасовых) ═══
 // Продавец пишет ткань в поле «Цвет / Ткань» (напр. «Вектор Коллекция: NAPOLI»), а
@@ -5504,6 +5687,9 @@ function recalcTotals(){
   var stView=document.getElementById('f-status-view');if(stView)stView.textContent=st;
   // способ оплаты нужен только когда есть предоплата
   var pw=document.getElementById('f-payment-wrap');if(pw)pw.style.opacity=prepay>0?'1':'0.4';
+  // v7.29: сюда приходят и программные подстановки (выбор из прайса, категория
+  // ткани, пересчёт цены) — значит черновик увидит их тоже
+  if(typeof _draftArm==='function')_draftArm(600);
 }
 
 var _saving=false,_recoverOrderId=null;
@@ -5904,12 +6090,8 @@ function openClientHistory(phone,name){
   var totalGoods=0,totalDebt=0,phones={},addr='';
   list.forEach(function(o){
     totalGoods+=(o.goods_discounted||o.goods_total||0);
-    // Долг как в карточке заказа: remainder (уже за вычетом предоплаты и оплат
-    // при доставке, v6.7) + неоплаченная наша доставка
-    if(o.status!=='🏁 Выполнен'){
-      var delivDebt=(o.delivery_paid==='yes'||o.delivery_our===false)?0:((o.delivery_cost||0)+(o.lifting_cost||0));
-      totalDebt+=Math.max(0,Math.round(o.remainder||0))+delivDebt;
-    }
+    // v7.29: та же функция, что в карточке заказа, печати и аналитике
+    totalDebt+=orderDebt(o);
     [o.client_phone,o.client_phone2].forEach(function(p){if(p)phones[p]=1;});
     if(o.client_address)addr=o.client_address;
   });
@@ -6058,8 +6240,12 @@ function renderStats(){
   function metrics(list){
     var rev=0,cost=0,debt=0,ci=0,ti=0,done=0;
     list.forEach(function(o){
-      rev+=(o.goods_discounted||o.goods_total||0);debt+=(o.remainder||0);
-      if((o.status||'')==='🏁 Выполнен')done++;
+      // v7.29: долг считается той же функцией, что в карточке заказа и в печати.
+      // Раньше здесь было просто `debt+=o.remainder` — без доставки и заноса,
+      // поэтому KPI «Долг к получению» был меньше суммы долгов в карточках,
+      // и сойтись эти две цифры не могли никогда.
+      rev+=(o.goods_discounted||o.goods_total||0);debt+=orderDebt(o);
+      if(isDone(o))done++;
       (o.order_items||[]).forEach(function(it){ti++;if((it.price_opt||0)>0){cost+=itCost(it);ci++;}});
     });
     return {n:list.length,rev:rev,cost:cost,profit:rev-cost,debt:debt,done:done,donePct:list.length?done/list.length*100:0,margin:rev?(rev-cost)/rev*100:0,avg:list.length?rev/list.length:0,cov:ti?ci/ti:0};
@@ -6379,7 +6565,16 @@ function printContract(orderId){
   var d=o.order_date?new Date(o.order_date+'T00:00:00'):new Date();
   var mos=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
   var day=d.getDate();var mon=mos[d.getMonth()];var yr=d.getFullYear();
+  // v7.29: год в строке приёмки берётся из ДАТЫ ПОДПИСАНИЯ (сегодня или дата
+  // закрытия заказа), а не из даты заказа. Раньше декабрьский заказ, который
+  // подписывали в январе, печатал акт с прошлым годом.
+  var _actD=o.closed_at?new Date(o.closed_at):new Date();
+  var actYr=_actD.getFullYear();
   var total=o.goods_discounted||o.goods_total||0;
+  // v7.29: доставка и занос теперь и в акте. Раньше они были только в договоре,
+  // и два документа по одному заказу расходились по сумме.
+  var _dCost=(o.delivery_cost||0)+(o.lifting_cost||0);
+  var _grand=total+_dCost;
   var prepay=o.prepayment||0;
   var remainder=o.remainder||0;
   var delivCost=o.delivery_cost||0;
@@ -6390,7 +6585,7 @@ function printContract(orderId){
   var rows='';
   for(var i=0;i<items.length;i++){
     var it=items[i];
-    var nm=it.product_name+(it.color?', '+it.color:'')+(it.fabric_category?', кат. '+it.fabric_category:'')+(it.dims?', '+it.dims:'');
+    var nm=esc(it.product_name)+(it.color?', '+esc(it.color):'')+(it.fabric_category?', кат. '+esc(it.fabric_category):'')+(it.dims?', '+esc(it.dims):'');
     var priceEach=it.price_discounted||it.price_retail||0;
     var priceTotal=priceEach*(it.qty||1);
     rows+='<tr>'+
@@ -6432,12 +6627,16 @@ function printContract(orderId){
 
 '<div class="hdr">'+
 '<img src="'+LOGO+'" class="logo">'+
-'<div class="hdr-title"><h1>Договор купли-продажи мебели</h1></div>'+
+'<div class="hdr-title"><h1>Договор купли-продажи мебели</h1>'+
+// v7.29: номер договора = номер заказа. Раньше номера не было вовсе, и связать
+// подписанную бумагу с записью в журнале можно было только по фамилии и дате.
+(o.order_number?'<div style="font-size:10pt;font-weight:600">№ '+esc(o.order_number)+'</div>':'')+
+'</div>'+
 '</div>'+
 
 '<div class="dateline"><span>г. Короча</span><span>«'+day+'» '+mon+' '+yr+' г.</span></div>'+
 
-'<div class="intro">ИП Вакуленко С.С., именуемый в дальнейшем «Продавец», в лице Вакуленко С.С., действующий на основании свидетельства с одной стороны, и гр. <strong>'+o.client_name+'</strong>, именуемый в дальнейшем «Покупатель», с другой стороны, вместе именуемые в дальнейшем «Стороны», заключили настоящий Договор о нижеследующем:</div>'+
+'<div class="intro">ИП Вакуленко С.С., именуемый в дальнейшем «Продавец», в лице Вакуленко С.С., действующий на основании свидетельства с одной стороны, и гр. <strong>'+esc(o.client_name)+'</strong>, именуемый в дальнейшем «Покупатель», с другой стороны, вместе именуемые в дальнейшем «Стороны», заключили настоящий Договор о нижеследующем:</div>'+
 
 '<div class="sec">1. ПРЕДМЕТ ДОГОВОРА.</div>'+
 '<div class="cl">1.1. Продавец обязуется передать в собственность Покупателя мебель (далее «Товар») согласно Спецификации, являющейся неотъемлемой частью настоящего Договора, а Покупатель обязуется принять Товар и оплатить его стоимость.</div>'+
@@ -6480,14 +6679,14 @@ function printContract(orderId){
 '<div class="cl">5.7. Дату и время доставки согласовывает сотрудник службы доставки.</div>'+
 '<div class="cl">5.8. При отсутствии клиента во время доставки или по другим причинам, возникшим по вине Покупателя, Покупатель при повторной доставке обязан оплатить её: 500 руб. (по городу) / по району — 50 руб. за 1 км от магазина.</div>'+
 '<div class="cl">5.9. Стоимость заноса одной позиции из Спецификации — 500 руб./этаж: '+(hasLift?'<strong>да</strong> ('+fmt(liftCost)+' руб.)':'нет')+'</div>'+
-'<div class="cl">5.10. Доставка по адресу: <strong>'+(o.client_address||'—')+'</strong>&nbsp;&nbsp;'+
+'<div class="cl">5.10. Доставка по адресу: <strong>'+esc(o.client_address||'—')+'</strong>&nbsp;&nbsp;'+
   (delivCost>0?'Стоимость доставки: <strong>'+fmt(delivCost)+' руб.</strong>':'')+
   '<br>Телефон: <strong>'+(phones||'—')+'</strong></div>'+
 '<div class="cl">5.11. Сборка мебели не входит в стоимость Товара.&nbsp;&nbsp;&nbsp;Номер сборщиков: 8-961-174-66-87 Александр, 8-980-328-21-45 Вадим</div>'+
 
 '<div class="sigs">'+
 '<div class="sb"><div><strong>Продавец:</strong> ИП Вакуленко С.С.</div><div class="sl"></div><div style="font-size:9pt">Подпись</div></div>'+
-'<div class="sb"><div><strong>ПОКУПАТЕЛЬ: Ф.И.О.: '+o.client_name+'</strong></div><div class="sl"></div><div style="font-size:9pt">К составленному договору претензий не имею:</div></div>'+
+'<div class="sb"><div><strong>ПОКУПАТЕЛЬ: Ф.И.О.: '+esc(o.client_name)+'</strong></div><div class="sl"></div><div style="font-size:9pt">К составленному договору претензий не имею:</div></div>'+
 '</div>'+
 
 '</body></html>');
@@ -6501,11 +6700,20 @@ function printAct(orderId){
   var d=o.order_date?new Date(o.order_date+'T00:00:00'):new Date();
   var mos=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
   var day=d.getDate();var mon=mos[d.getMonth()];var yr=d.getFullYear();
+  // v7.29: год в строке приёмки берётся из ДАТЫ ПОДПИСАНИЯ (сегодня или дата
+  // закрытия заказа), а не из даты заказа. Раньше декабрьский заказ, который
+  // подписывали в январе, печатал акт с прошлым годом.
+  var _actD=o.closed_at?new Date(o.closed_at):new Date();
+  var actYr=_actD.getFullYear();
   var total=o.goods_discounted||o.goods_total||0;
+  // v7.29: доставка и занос теперь и в акте. Раньше они были только в договоре,
+  // и два документа по одному заказу расходились по сумме.
+  var _dCost=(o.delivery_cost||0)+(o.lifting_cost||0);
+  var _grand=total+_dCost;
   var rows='';
   for(var i=0;i<items.length;i++){
     var it=items[i];
-    var nm=it.product_name+(it.color?', '+it.color:'')+(it.fabric_category?', кат. '+it.fabric_category:'')+(it.dims?', '+it.dims:'');
+    var nm=esc(it.product_name)+(it.color?', '+esc(it.color):'')+(it.fabric_category?', кат. '+esc(it.fabric_category):'')+(it.dims?', '+esc(it.dims):'');
     var priceEach=it.price_discounted||it.price_retail||0;
     var priceTotal=priceEach*(it.qty||1);
     rows+='<tr>'+
@@ -6545,7 +6753,10 @@ function printAct(orderId){
 
 '<div class="hdr">'+
 '<img src="'+LOGO+'" class="logo">'+
-'<div class="hdr-title"><h1>Акт приёма-передачи товаров</h1></div>'+
+'<div class="hdr-title"><h1>Акт приёма-передачи товаров</h1>'+
+// v7.29: тот же номер, что и в договоре — чтобы бумаги связывались между собой
+(o.order_number?'<div style="font-size:10pt;font-weight:600">к договору № '+esc(o.order_number)+'</div>':'')+
+'</div>'+
 '</div>'+
 
 '<div class="topline">'+
@@ -6554,7 +6765,7 @@ function printAct(orderId){
 '</div>'+
 
 '<div class="intro">'+
-'<strong>'+o.client_name+'</strong>, именуемый(ая) в дальнейшем «Покупатель» и ИП Вакуленко С.С., именуемый в дальнейшем «Продавец», с другой стороны, составили настоящий акт о нижеследующем:'+
+'<strong>'+esc(o.client_name)+'</strong>, именуемый(ая) в дальнейшем «Покупатель» и ИП Вакуленко С.С., именуемый в дальнейшем «Продавец», с другой стороны, составили настоящий акт о нижеследующем:'+
 '</div>'+
 
 '<div class="cl">1. В соответствии с договором купли-продажи заказной мебели, Продавец выполнил все обязательства по договору.</div>'+
@@ -6569,16 +6780,20 @@ function printAct(orderId){
 '<th style="width:13%">Сумма</th>'+
 '</tr></thead>'+
 '<tbody>'+rows+'</tbody>'+
-'<tfoot><tr class="tfoot-row">'+
+'<tfoot>'+
+(_dCost>0?('<tr><td colspan="4" style="text-align:right;padding:3px 5px">'
+  +(o.delivery_cost>0&&o.lifting_cost>0?'Доставка и занос:':(o.lifting_cost>0?'Занос:':'Доставка:'))
+  +'</td><td style="text-align:right;padding:3px 5px">'+fmt(_dCost)+'</td></tr>'):'')+
+'<tr class="tfoot-row">'+
 '<td colspan="4" style="text-align:right;padding:3px 5px">Итого (цифрами):</td>'+
-'<td style="text-align:right;padding:3px 5px">'+fmt(total)+'</td>'+
+'<td style="text-align:right;padding:3px 5px">'+fmt(_grand)+'</td>'+
 '</tr></tfoot>'+
 '</table>'+
 
 '<div class="delivery-line">'+
 'Доставлено Покупателю:&nbsp;&nbsp;'+
-'<span class="underline">'+(o.client_address||'')+'</span>&nbsp;&nbsp;'+
-'«&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;»&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; '+yr+' г.'+
+'<span class="underline">'+esc(o.client_address||'')+'</span>&nbsp;&nbsp;'+
+'«&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;»&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; '+actYr+' г.'+
 '</div>'+
 
 '<div class="cl" style="margin-top:6px">3. Недостатки товара и сопутствующих услуг не выявлены. Покупатель претензий не имеет.</div>'+
@@ -6594,7 +6809,7 @@ function printAct(orderId){
 '<div class="sb">'+
 '<div><strong>Принял:</strong></div>'+
 '<div>Покупатель</div>'+
-'<div>'+o.client_name+'</div>'+
+'<div>'+esc(o.client_name)+'</div>'+
 '<div class="sl"></div>'+
 '<div style="font-size:9pt">(Ф.И.О. / подпись)</div>'+
 '</div>'+
