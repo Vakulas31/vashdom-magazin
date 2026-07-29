@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.27</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.28</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -241,7 +241,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div><h2 style="font-size:18px;font-weight:700">Журнал заказов</h2>
     <p style="font-size:12px;color:var(--text2)" id="orders-count">Загрузка...</p></div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-outline" onclick="exportBackup()">💾 Бэкап</button>
+      <button class="btn btn-outline owner-only" onclick="exportBackup()">💾 Бэкап</button>
       <button class="btn btn-primary" onclick="resetForm();showPage('new')">➕ Новый заказ</button>
     </div>
   </div>
@@ -593,13 +593,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
         <div class="fg" style="margin-bottom:12px">
           <label>Поставщик * <span style="font-weight:400;color:var(--text2)">(выберите существующего или впишите нового)</span></label>
-          <input type="text" id="pl-sup" class="inp-gold" list="pl-sup-list" placeholder="напр. МТК, Добрый дом, БРАВО..." autocomplete="off">
+          <input type="text" id="pl-sup" class="inp-gold" list="pl-sup-list" placeholder="напр. МТК, Добрый дом, БРАВО..." autocomplete="off" oninput="_plScopeNote()">
           <datalist id="pl-sup-list"></datalist>
         </div>
 
         <div class="fg" style="margin-bottom:12px">
           <label>Фабрика <span style="font-weight:400;color:var(--text2)">(если поставщик = сама фабрика, оставьте пустым)</span></label>
-          <input type="text" id="pl-factory" class="inp-gold" list="pl-factory-list" placeholder="напр. Мебелони, БТС, Ангстрем..." autocomplete="off">
+          <input type="text" id="pl-factory" class="inp-gold" list="pl-factory-list" placeholder="напр. Мебелони, БТС, Ангстрем..." autocomplete="off" oninput="_plScopeNote()">
           <datalist id="pl-factory-list"></datalist>
         </div>
 
@@ -690,6 +690,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <!-- Превью первых строк -->
         <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Предпросмотр (первые 5 строк данных):</div>
         <div id="pl-import-preview" style="overflow:auto;max-height:110px;border:1px solid var(--border);border-radius:6px;padding:4px;margin-bottom:12px;font-size:10px"></div>
+
+        <!-- v7.28: видно ДО нажатия, что именно будет заменено в базе -->
+        <div id="pl-scope-note" style="font-size:12px;padding:7px 10px;border-radius:7px;background:#fbf0e2;color:#8a5a18;margin-bottom:10px;display:none"></div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn btn-primary" id="pl-import-btn" onclick="importPriceList()" style="flex:1;justify-content:center;min-width:170px">⬆️ Импортировать этот лист</button>
@@ -1133,7 +1136,14 @@ function _sbOnce(method,table,data,params,_retried){
   // без входа шлём сам ключ — так приложение продолжает работать в момент
   // перехода, пока в базе ещё не закрыт анонимный доступ
   var tok=_authToken()||SB_KEY;
-  var opts={method:method,headers:{'apikey':SB_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json','Prefer':method==='POST'?'return=representation':'return=minimal'}};
+  // v7.28: PATCH тоже просит вернуть изменённые строки. Раньше стоял return=minimal,
+  // и если запись не проходила (например, её не пропускала защита базы), сервер
+  // отвечал «204 без ошибки» — приложение показывало «✅ Сохранено», а в базе
+  // ничего не менялось, и узнать об этом можно было только перезагрузив страницу.
+  // DELETE намеренно оставлен minimal: при импорте он удаляет тысячи строк,
+  // и возвращать их все — лишний трафик.
+  var _wantBack=(method==='POST'||method==='PATCH');
+  var opts={method:method,headers:{'apikey':SB_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json','Prefer':_wantBack?'return=representation':'return=minimal'}};
   if(data)opts.body=JSON.stringify(data);
   // Таймаут 30 сек — защита от зависания на слабом интернете
   var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
@@ -1147,7 +1157,16 @@ function _sbOnce(method,table,data,params,_retried){
         function(){_authRequire('Сессия закончилась — войдите заново');throw new Error('Нужно войти заново');});
     }
     if(r.status===401||r.status===403){_authRequire('Войдите, чтобы работать с данными');}
-    return r.text().then(function(t){if(!r.ok)throw new Error(t);return t?JSON.parse(t):null;});
+    return r.text().then(function(t){
+      if(!r.ok)throw new Error(t);
+      var res=t?JSON.parse(t):null;
+      // v7.28: все PATCH в приложении адресуются по id=eq.N, то есть должны попасть
+      // ровно в одну строку. Пустой ответ = запись НЕ прошла. Молчать нельзя.
+      if(method==='PATCH'&&Array.isArray(res)&&res.length===0){
+        throw new Error('Изменение не сохранено: база не приняла запись (нет прав или строка не найдена). Обновите страницу и проверьте.');
+      }
+      return res;
+    });
   }).catch(function(e){
     if(timer)clearTimeout(timer);
     throw e;
@@ -1178,6 +1197,10 @@ async function _sbDelUntilEmpty(filter){
     var chk=await sbGet('price_items','select=supplier&limit=1&'+filter);
     if(!chk||!chk.length)return;
   }
+  // v7.28: раньше здесь был молчаливый выход. Если старые строки не удалились,
+  // импорт всё равно вставлял новые поверх — в поиске появлялись ДВА одинаковых
+  // товара с разными ценами, и понять причину было невозможно.
+  throw new Error('Не удалось очистить старые цены за 40 попыток — импорт остановлен, чтобы не создать дубли. Проверьте связь и повторите.');
 }
 // Надёжно сохраняет позиции заказа: пакетная вставка атомарна, поэтому при обрыве
 // связи можно проверить и при необходимости повторить, не задваивая позиции.
@@ -2200,6 +2223,13 @@ function onPriceFile(input){
     return;
   }
   document.getElementById('pl-fname').textContent=file.name;
+  // v7.28 ГЛАВНОЕ: чистим поля, оставшиеся от ПРЕДЫДУЩЕГО файла.
+  // Раньше «фабрика» переживала загрузку нового файла, и импорт другого прайса
+  // с оставшимся полем «Миф» удалял все товары Миф (инцидент 18.07.2026).
+  // То же с типом цены: акция от прошлого прайса штамповалась на весь новый.
+  var _pf=document.getElementById('pl-factory');if(_pf)_pf.value='';
+  var _ppk=document.getElementById('pl-pricekind');if(_ppk)_ppk.value='';
+  var _pvu=document.getElementById('pl-validuntil');if(_pvu)_pvu.value='';
   var guess=file.name.replace(/\.xlsx?$/i,'').replace(/прайс[\s_\-]*/i,'').replace(/от[\s_]*[\d\.]+/i,'').replace(/[_\d\.]+/g,' ').trim();
   if(guess)document.getElementById('pl-sup').value=guess;
   var reader=new FileReader();
@@ -2230,11 +2260,28 @@ function onPriceFile(input){
       }
       onPriceSheetChange();
       document.getElementById('pl-mapper').style.display='block';
+      _plScopeNote();
     }catch(err){toast('❌ Не удалось прочитать файл: '+err.message,'err');}
   };
   reader.readAsArrayBuffer(file);
   loadSupplierDatalist();
 }
+
+// v7.28: показываем ДО импорта, какие именно товары в базе будут заменены.
+// Раньше это можно было понять только по полям выше, и оставшаяся от прошлого
+// файла «фабрика» приводила к стиранию чужого прайса.
+function _plScopeNote(){
+  var box=document.getElementById('pl-scope-note');if(!box)return;
+  var sup=(document.getElementById('pl-sup').value||'').trim();
+  var facEl=document.getElementById('pl-factory');
+  var fac=facEl?(facEl.value||'').trim():'';
+  if(!sup){box.style.display='none';return;}
+  box.style.display='block';
+  box.innerHTML='При импорте будут заменены товары: поставщик <strong>«'+_esc(sup)+'»</strong>'
+    +(fac?(', фабрика <strong>«'+_esc(fac)+'»</strong>'):', <strong>без фабрики</strong>')
+    +'. Товары других фабрик этого поставщика не тронутся.';
+}
+function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // Подсказка существующих поставщиков и фабрик (чтобы не плодить дубли)
 function _fillDL(id,names){
@@ -4972,6 +5019,10 @@ function resetForm(){
   var cr=document.getElementById('f-credit');if(cr)cr.value='';
   document.getElementById('f-payment').value='';
   document.getElementById('f-delivery-paid').value='no';
+  // v7.28: тип доставки тоже сбрасываем. Раньше его здесь не было: оформили
+  // самовывоз — и следующий заказ молча оставался самовывозом, в наряде на
+  // доставку он так и выглядел, водитель не ехал.
+  var _dt=document.getElementById('f-delivery-type');if(_dt)_dt.selectedIndex=0;
   document.getElementById('form-items').innerHTML='';
   itemCount=0;itemPrices={};addFormItem();recalcTotals();
   _draftCheckBanner(); // предложить восстановить незаконченный заказ
@@ -5421,9 +5472,18 @@ function onManualPrice(id){
   recalcTotals();
 }
 
+// v7.28: единственное место, где читается скидка. Раньше на экране она зажималась
+// в 0–100 %, а при сохранении бралась «как есть»: опечатка «1000» вместо «10»
+// уходила в базу отрицательной суммой, и на экране это никак не было видно.
+function _discPct(){
+  var el=document.getElementById('f-discount');
+  var v=parseFloat(el?el.value:0)||0;
+  if(!(v>=0))v=0;
+  return Math.min(v,100);
+}
 function recalcTotals(){
   var goods=Object.values(itemPrices).reduce(function(a,b){return a+b;},0);
-  var disc=Math.min(Math.max(parseFloat(document.getElementById('f-discount').value)||0,0),100);
+  var disc=_discPct();
   var save=Math.round(goods*disc/100);var discounted=goods-save;
   var delivery=(parseFloat(document.getElementById('f-delivery').value)||0)+(parseFloat(document.getElementById('f-lifting').value)||0);
   var prepay=parseFloat(document.getElementById('f-prepay').value)||0;
@@ -5494,7 +5554,7 @@ function saveOrder(){
       var baseOpt=parseFloat(ib?ib.dataset.opt:0)||0;
       ret=itemPrices[i]||Math.ceil(baseOpt*(1+MARKUP_PCT/100)*qty/100)*100;opt=baseOpt;
     }
-    var disc=parseFloat(document.getElementById('f-discount').value)||0;
+    var disc=_discPct();
     var availEl=isFabric?document.getElementById('fi-avail-cat-'+i):document.getElementById('fi-avail-'+i);
     var colorVal=document.getElementById('fi-color-'+i)?document.getElementById('fi-color-'+i).value.trim():'';
     var dimsVal=document.getElementById('fi-dims-'+i)?document.getElementById('fi-dims-'+i).value.trim():'';
@@ -5505,6 +5565,10 @@ function saveOrder(){
     var itemMissing=[];
     if(!supplierVal&&!supplierManualVal)itemMissing.push('Поставщик');
     if(qty<1)itemMissing.push('Количество');
+    // v7.28: раньше товар с ценой 0 ₽ сохранялся молча — заказ уезжал клиенту
+    // недосчитанным. Обычно это значит, что модель вписали руками и не выбрали
+    // из прайса, а ручную цену не поставили.
+    if(!(ret>0))itemMissing.push('Цена (выберите товар из прайса или впишите цену вручную)');
     if(itemMissing.length){
       itemErrors.push('Товар '+i+' ('+model+'): не заполнено — '+itemMissing.join(', '));
       expandItem(i);
@@ -5533,7 +5597,7 @@ function saveOrder(){
     _saving=false;btn.disabled=false;return;
   }
   var goods=Object.values(itemPrices).reduce(function(a,b){return a+b;},0);
-  var disc2=parseFloat(document.getElementById('f-discount').value)||0;
+  var disc2=_discPct();
   var goodsDisc=Math.round(goods*(1-disc2/100));
   var prepay=parseFloat(document.getElementById('f-prepay').value)||0;
   var editId=document.getElementById('edit-order-id').value;
@@ -5541,6 +5605,18 @@ function saveOrder(){
   if(!editId&&_recoverOrderId)editId=_recoverOrderId;
   var found=editId?allOrders.find(function(o){return o.id==editId;}):null;
   var orderNum=found?found.order_number:Date.now().toString().slice(-6);
+  // v7.28: правка ВЫПОЛНЕННОГО заказа больше не воскрешает долг.
+  // Раньше при открытии закрытого заказа поле статуса становилось пустым (такого
+  // варианта нет в списке), recalcTotals подставляла «Частичная», а остаток
+  // считался заново — заказ выходил из «Выполнен» с ненулевым долгом, хотя деньги
+  // уже лежали в кассе. Одна и та же сумма считалась дважды.
+  var _wasDone=found&&String(found.status||'').indexOf('Выполнен')>=0;
+  if(_wasDone){
+    var _oldSum=Math.round(found.goods_discounted||found.goods_total||0);
+    if(_oldSum!==goodsDisc&&!confirm('Заказ уже выполнен и закрыт.\n\nСумма товаров меняется: '+fmt(_oldSum)+' → '+fmt(goodsDisc)+' ₽.\n\nСтатус «Выполнен» и долг останутся прежними — деньги в кассе уже посчитаны. Поменяется только состав заказа.\n\nПродолжить?')){
+      _saving=false;btn.disabled=false;return;
+    }
+  }
   var orderData={
     order_number:orderNum,order_date:document.getElementById('f-date').value,
     delivery_date:document.getElementById('f-delivery-date').value||null,
@@ -5554,8 +5630,8 @@ function saveOrder(){
     delivery_paid:document.getElementById('f-delivery-paid').value,
     discount_pct:disc2,prepayment:prepay,
     goods_total:goods,goods_discounted:goodsDisc,
-    remainder:Math.max(0,goodsDisc-prepay),
-    status:document.getElementById('f-status').value,
+    remainder:_wasDone?(found.remainder||0):Math.max(0,goodsDisc-prepay),
+    status:_wasDone?found.status:document.getElementById('f-status').value,
     payment_method:document.getElementById('f-payment').value,
     notes:document.getElementById('f-notes').value.trim()
   };
@@ -6244,7 +6320,8 @@ var _BK_TABLES=[
   {t:'fabric_categories',sheet:'Категории тканей'},
   {t:'price_items',      sheet:'Прайсы'},
   {t:'products',         sheet:'Каталог старый'},
-  {t:'catalog_items',    sheet:'Каталоги фабрик'}
+  {t:'catalog_items',    sheet:'Каталоги фабрик'},
+  {t:'app_roles',        sheet:'Роли'} // v7.28: иначе при восстановлении теряется, кто владелец
 ];
 function _bkSave(text,name,mime){
   var blob=new Blob([text],{type:mime});
@@ -6266,7 +6343,15 @@ async function exportBackup(){
       if(rows&&rows.length)stat.push(d.sheet.toLowerCase()+': '+rows.length);
     }catch(e){missing.push(d.t);}
   }
-  if(!dump.tables.orders){toast('❌ Не удалось прочитать заказы — копия не сделана','err',7000);return;}
+  // v7.28: проверяем именно КОЛИЧЕСТВО. Раньше стояло `if(!dump.tables.orders)`,
+  // а пустой массив эту проверку проходит — копия «на 0 заказов» считалась удачной
+  // и молча уезжала в архив. Ночная автокопия могла месяцами класть пустышки.
+  if(!dump.tables.orders||!dump.tables.orders.length){
+    toast('❌ В копии НЕТ НИ ОДНОГО ЗАКАЗА — копия не сделана. Проверьте связь и права доступа, потом повторите.','err',9000);return;
+  }
+  if(!dump.tables.order_items||!dump.tables.order_items.length){
+    if(!confirm('В копии есть заказы ('+dump.tables.orders.length+'), но НЕТ НИ ОДНОЙ ПОЗИЦИИ товара.\n\nПохоже, база отдала неполные данные. Скачать такую копию всё равно?'))return;
+  }
   // 1) JSON — то, из чего реально можно восстановиться
   _bkSave(JSON.stringify(dump),'ВашДом_копия_'+today+'.json','application/json');
   // 2) XLSX — через паузу, иначе браузер блокирует вторую загрузку подряд
@@ -6562,22 +6647,60 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 // ═══ v6.6: PWA — регистрация service worker ═══
 // Работает только по HTTPS (GitHub Pages) или на localhost; при открытии файла
 // с диска (file://) молча ничего не делает — приложение работает как раньше.
+//
+// v7.28: обновление больше не теряется. Раньше единственным сигналом был тост
+// на 8 секунд: отвернулся — пропустил, и продавец мог неделями работать на
+// старой сборке, не зная об этом (установленное на планшет приложение может не
+// перезагружаться месяцами). Теперь показывается полоса с кнопкой «Обновить»,
+// а наличие новой версии проверяется раз в 30 минут и при возврате к вкладке.
 (function(){
   if(!('serviceWorker' in navigator))return;
   if(location.protocol!=='https:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1')return;
+
+  var shown=false;
+  function showUpdateBar(){
+    if(shown)return; shown=true;
+    var bar=document.createElement('div');
+    bar.id='vd-update-bar';
+    bar.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#1F4E79;color:#fff;'
+      +'padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;'
+      +'font-size:14px;box-shadow:0 -2px 12px rgba(31,78,121,.35)';
+    bar.innerHTML='<span>🔄 Вышла новая версия приложения.</span>'
+      +'<button id="vd-update-go" style="background:#fff;color:#1F4E79;border:0;border-radius:7px;'
+      +'padding:8px 18px;font-size:14px;font-weight:600;cursor:pointer">Обновить</button>'
+      +'<button id="vd-update-later" style="background:transparent;color:#cfe0ee;border:1px solid #4a7ba6;'
+      +'border-radius:7px;padding:8px 14px;font-size:13px;cursor:pointer">Позже</button>';
+    document.body.appendChild(bar);
+    document.getElementById('vd-update-go').onclick=function(){location.reload();};
+    document.getElementById('vd-update-later').onclick=function(){
+      bar.remove();shown=false; // «Позже» — полоса вернётся при следующей проверке
+    };
+  }
+
   window.addEventListener('load',function(){
     navigator.serviceWorker.register('sw.js').then(function(reg){
-      // Новая версия приложения скачана и ждёт — предложим обновиться
+      // Новая версия уже скачана и ждёт (например, страницу открыли повторно)
+      if(reg.waiting&&navigator.serviceWorker.controller)showUpdateBar();
+
       reg.addEventListener('updatefound',function(){
         var nw=reg.installing;
         if(!nw)return;
         nw.addEventListener('statechange',function(){
-          if(nw.state==='installed'&&navigator.serviceWorker.controller){
-            if(typeof toast==='function')toast('🔄 Доступна новая версия — перезагрузите страницу','ok',8000);
-          }
+          if(nw.state==='installed'&&navigator.serviceWorker.controller)showUpdateBar();
         });
       });
-    }).catch(function(){});
+
+      // Периодическая проверка: без неё установленное на планшет приложение,
+      // которое не перезагружают неделями, никогда не узнает о новой версии.
+      function check(){try{reg.update();}catch(e){}}
+      setInterval(check,30*60*1000);
+      document.addEventListener('visibilitychange',function(){
+        if(document.visibilityState==='visible')check();
+      });
+    }).catch(function(e){
+      // раньше ошибка регистрации проглатывалась совсем — теперь хотя бы видна в консоли
+      if(window.console&&console.warn)console.warn('SW не зарегистрирован:',e&&e.message);
+    });
   });
 })();
 </script>
