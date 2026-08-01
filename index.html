@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.32</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.36</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -343,15 +343,28 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </div>
   <div class="card">
     <div class="card-title">Доставка и оплата</div>
+    <!-- v7.35: этаж, квартира и лифт — из них считается занос -->
+    <div class="form-row">
+      <div class="fg"><label>🏢 Этаж</label>
+        <input type="number" id="f-floor" min="0" max="30" class="inp-gold" placeholder="—" oninput="recalcLift()"></div>
+      <div class="fg"><label>🚪 Квартира</label>
+        <input type="text" id="f-apartment" class="inp-gold" placeholder="—" oninput="_draftArm(700)"></div>
+      <div class="fg"><label>🛗 Грузовой лифт</label>
+        <select id="f-lift" class="inp-gold" onchange="recalcLift()">
+          <option value="no">нет</option>
+          <option value="yes">есть</option>
+        </select></div>
+    </div>
     <div class="form-row">
       <div class="fg"><label>🚚 Стоимость доставки (₽)</label>
         <input type="number" id="f-delivery" value="0" min="0" class="inp-gold" oninput="recalcTotals()"></div>
       <div class="fg"><label>🏗 Занос/подъём (₽)</label>
-        <input type="number" id="f-lifting" value="0" min="0" class="inp-gold" oninput="recalcTotals()"></div>
+        <input type="number" id="f-lifting" value="0" min="0" class="inp-gold" oninput="this.dataset.manual='1';recalcTotals()"></div>
     </div>
+    <div id="f-lift-note" style="font-size:11.5px;color:var(--text2);margin:-4px 0 10px"></div>
     <div class="form-row">
       <div class="fg"><label>Тип доставки</label>
-        <select id="f-delivery-type" class="inp-gold">
+        <select id="f-delivery-type" class="inp-gold" onchange="recalcLift()">
           <option>🚚 Доставка + занос</option><option>🚛 Только доставка</option><option>🏃 Самовывоз</option>
         </select></div>
       <div class="fg"><label>Оплата доставки</label>
@@ -753,6 +766,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <span data-p="quarter" onclick="setStatsPeriod('quarter')" style="cursor:pointer;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;background:var(--grey);color:var(--text2)">Квартал</span>
       <span data-p="year" onclick="setStatsPeriod('year')" style="cursor:pointer;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;background:var(--grey);color:var(--text2)">Год</span>
       <span data-p="all" onclick="setStatsPeriod('all')" style="cursor:pointer;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;background:var(--dark);color:#fff">Всё время</span>
+      <!-- v7.34: любой прошедший месяц — например, посмотреть июль, когда уже август -->
+      <input type="month" id="stats-month" class="inp-gold" style="width:auto;padding:3px 8px;font-size:12px" onchange="setStatsMonth(this.value)" title="Выбрать конкретный месяц">
     </div>
   </div>
   <div id="stats-period-note" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
@@ -857,6 +872,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <div class="modal" style="max-width:460px">
     <div class="modal-title">🚚 Товар отвезён клиенту</div>
     <div id="ip-summary" style="background:var(--alt);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;line-height:1.6"></div>
+    <!-- v7.34: частичная отгрузка — сколько штук из позиции увезли сейчас -->
+    <div id="ip-qty-wrap" style="display:none;margin-bottom:12px;padding:10px 12px;background:#fbf0e2;border-radius:7px">
+      <div class="fg" style="margin:0"><label style="color:#8a5a18">Сколько штук отвезли сейчас</label>
+        <input type="number" id="ip-qty" min="1" step="1" inputmode="numeric" value="1" style="max-width:120px">
+        <div id="ip-qty-note" style="font-size:11.5px;color:#8a5a18;margin-top:4px"></div>
+      </div>
+    </div>
     <div class="fg" style="margin-bottom:12px"><label>Получено за этот товар, ₽</label><input type="number" id="ip-amount" min="0" step="1" inputmode="numeric"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div class="fg" style="margin:0"><label>Способ оплаты</label>
@@ -1344,7 +1366,21 @@ function toast(msg,type,ms){
 // врала, история клиента обрывалась, поиск по номеру не находил заказ.
 // Теперь 2000 и честная плашка, когда упёрлись в потолок.
 var _ORDERS_LIMIT=2000, _ordersTruncated=false;
+// v7.35: колонки floor/apartment/has_lift появляются после SQL 7.9.
+// Проверяем ОДИН раз при загрузке: если их нет — приложение работает как раньше,
+// просто занос вводится вручную и в договоре этаж печатается прочерком.
+var _hasFloorCols=true;
+function _probeFloorCols(){
+  // _sbOnce, а не sbGet: у GET три попытки с паузами, и проба отвечала бы
+  // только через две секунды — за это время можно успеть сохранить заказ
+  return _sbOnce('GET','orders',null,'select=floor&limit=1')
+    .then(function(){_hasFloorCols=true;})
+    .catch(function(e){
+      if(/floor|column|does not exist|schema/i.test((e&&e.message)||''))_hasFloorCols=false;
+    });
+}
 function loadOrders(){
+  _probeFloorCols();
   return sbGet('orders','select=*,order_items(*)&order=created_at.desc&limit='+_ORDERS_LIMIT).then(function(rows){
     allOrders=rows||[];
     _ordersTruncated=allOrders.length>=_ORDERS_LIMIT;
@@ -1416,16 +1452,26 @@ function orderCard(o){
     // Отметка «отвезено клиенту» по каждому товару отдельно (частичная доставка заказа).
     // Выполненный заказ (_done) = товар у клиента, поэтому НЕ показываем оранжевую
     // плашку «не отвезено» на закрытых заказах (иначе выглядит как противоречие).
+    // v7.34: частичная отгрузка. Если в позиции несколько штук, можно отвезти
+    // не все: delivered_qty хранит, сколько уже у клиента. Пусто = вся позиция.
+    var _q=Math.max(1,parseInt(it.qty)||1);
+    var _dq=(it.delivered_qty==null)?null:Math.max(0,parseInt(it.delivered_qty)||0);
     var dlv=!!it.delivered_at;
-    if(dlv||_done)delivCnt++;
+    var _part=dlv&&_dq!=null&&_dq>0&&_dq<_q; // отвезена часть
+    if(dlv&&!_part)delivCnt++;else if(_done)delivCnt++;
     // v6.7: оплата позиции при доставке
     var itPaid=Math.round(it.paid_amount||0);if(itPaid>0)itemsPaid+=itPaid;
     var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
     var dlvBtn;
-    if(dlv){
+    if(_part){
+      // отвезена только часть — плашка жёлтая с числами, чтобы это было видно сразу
+      dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Отвезена часть позиции. Нажмите, чтобы изменить или снять отметку" '
+        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px;background:#fbf0e2;color:#8a5a18;border:1px solid #e0b252">'
+        +'📦 Отвезено '+_dq+' из '+_q+' · '+fmtDate(it.delivered_at)+'</button>';
+    }else if(dlv){
       dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Товар у клиента. Нажмите, чтобы снять отметку" '
         +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">'
-        +'✅ Отвезено '+fmtDate(it.delivered_at)+'</button>';
+        +'✅ Отвезено'+(_q>1?' все '+_q+' шт.':'')+' '+fmtDate(it.delivered_at)+'</button>';
     }else if(_done){
       // заказ выполнен, отметки довоза не было — считаем отвезённым, статичный зелёный бейдж
       dlvBtn='<span title="Заказ выполнен — товар у клиента" style="border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">✅ Отвезено</span>';
@@ -1580,7 +1626,7 @@ function toggleItemDelivered(itemId,orderId){
     if(paid>0){
       if(!confirm('У товара «'+(it.product_name||'')+'» записана оплата '+fmt(paid)+' ₽'+(it.paid_method?' ('+it.paid_method+')':'')+'.\n\nСнять отметку «отвезено» И удалить запись об оплате?\nДолг заказа снова увеличится на '+fmt(paid)+' ₽.'))return;
       var backRem=Math.round((o.remainder||0)+paid);
-      sbPatch('order_items',{delivered_at:null,paid_amount:null,paid_method:null,paid_at:null},'id=eq.'+itemId)
+      _patchItemDeliv({delivered_at:null,paid_amount:null,paid_method:null,paid_at:null,delivered_qty:null},itemId)
         .then(function(){return sbPatch('orders',{remainder:backRem},'id=eq.'+o.id);})
         .then(function(){
           it.delivered_at=null;it.paid_amount=null;it.paid_method=null;it.paid_at=null;o.remainder=backRem;
@@ -1590,8 +1636,8 @@ function toggleItemDelivered(itemId,orderId){
         .catch(function(e){toast('❌ Не сохранилось: '+e.message,'err',6000);});
       return;
     }
-    sbPatch('order_items',{delivered_at:null},'id=eq.'+itemId).then(function(){
-      it.delivered_at=null;
+    _patchItemDeliv({delivered_at:null,delivered_qty:null},itemId).then(function(){
+      it.delivered_at=null;it.delivered_qty=null;
       toast('↩️ Отметка «отвезено» снята');
       _paintOrders();
     }).catch(function(e){
@@ -1604,6 +1650,16 @@ function toggleItemDelivered(itemId,orderId){
   var price=Math.round((it.price_discounted||it.price_retail||0)*(it.qty||1));
   var rem=Math.round(o.remainder||0);
   var suggest=Math.min(price,rem);
+  // v7.34: если в позиции несколько штук — спрашиваем, сколько отвезли
+  var _q=Math.max(1,parseInt(it.qty)||1);
+  var _qw=document.getElementById('ip-qty-wrap'),_qi=document.getElementById('ip-qty');
+  if(_qw&&_qi){
+    _qw.style.display=_q>1?'block':'none';
+    _qi.max=_q;
+    _qi.value=(it.delivered_qty!=null&&it.delivered_qty>0&&it.delivered_qty<_q)?it.delivered_qty:_q;
+    var _ql=document.getElementById('ip-qty-note');
+    if(_ql)_ql.textContent='Всего в позиции: '+_q+' шт. Укажите, сколько увезли сейчас.';
+  }
   document.getElementById('ip-summary').innerHTML=
     '<strong>'+(it.product_name||'товар')+'</strong>'+(it.qty>1?' × '+it.qty+' шт.':'')
     +'<br>Цена по заказу: <strong>'+fmt(price)+' ₽</strong> · Текущий долг заказа: <strong style="color:'+(rem>0?'#C62828':'#1B5E20')+'">'+fmt(rem)+' ₽</strong>'
@@ -1612,14 +1668,39 @@ function toggleItemDelivered(itemId,orderId){
   document.getElementById('ip-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('modal-itempay').classList.add('open');
 }
+// v7.34: сколько штук отвезено — из модалки (или вся позиция, если поля нет)
+function _ipQty(it){
+  var q=Math.max(1,parseInt(it&&it.qty)||1);
+  var el=document.getElementById('ip-qty');
+  if(!el||q<=1)return q;
+  var v=parseInt(el.value)||q;
+  return Math.max(1,Math.min(q,v));
+}
+// Колонка delivered_qty появляется после SQL 7.8. Пока её нет — сохраняем без неё,
+// чтобы отметка «отвезено» продолжала работать как раньше.
+var _hasDelivQty=true;
+function _patchItemDeliv(patch,itemId){
+  if(!_hasDelivQty)delete patch.delivered_qty;
+  return sbPatch('order_items',patch,'id=eq.'+itemId).catch(function(e){
+    if(_hasDelivQty&&/delivered_qty/i.test(e&&e.message||'')){
+      _hasDelivQty=false;
+      var p2={};for(var k in patch)if(k!=='delivered_qty')p2[k]=patch[k];
+      return sbPatch('order_items',p2,'id=eq.'+itemId);
+    }
+    throw e;
+  });
+}
 // «Отвезён, оплаты не было» — просто отметка (старое поведение)
 function ipSaveNoPay(){
   var f=_ipFind();if(!f.it){closeModal('modal-itempay');return;}
   var d=document.getElementById('ip-date').value||new Date().toISOString().split('T')[0];
-  sbPatch('order_items',{delivered_at:d},'id=eq.'+_ipItemId).then(function(){
-    f.it.delivered_at=d;
+  var dq=_ipQty(f.it),q=Math.max(1,parseInt(f.it.qty)||1);
+  _patchItemDeliv({delivered_at:d,delivered_qty:dq},_ipItemId).then(function(){
+    f.it.delivered_at=d;if(_hasDelivQty)f.it.delivered_qty=dq;
     closeModal('modal-itempay');
-    toast('🚚 Отмечено: «'+(f.it.product_name||'товар')+'» отвезён клиенту (без оплаты)');
+    toast(dq<q
+      ?'📦 Отмечено: «'+(f.it.product_name||'товар')+'» — отвезено '+dq+' из '+q+' шт.'
+      :'🚚 Отмечено: «'+(f.it.product_name||'товар')+'» отвезён клиенту (без оплаты)');
     _paintOrders();
   }).catch(function(e){
     toast('❌ Не сохранилось: '+e.message+'. Выполните SQL_обновление_5.9 в Supabase','err',6000);
@@ -1635,7 +1716,8 @@ function ipSavePaid(){
   var d=document.getElementById('ip-date').value||new Date().toISOString().split('T')[0];
   var method=(document.getElementById('ip-method').value||'').replace(/^[^А-ЯЁа-яё]*/,'');
   var newRem=Math.max(0,rem-amt);
-  sbPatch('order_items',{delivered_at:d,paid_amount:amt,paid_method:method,paid_at:d},'id=eq.'+_ipItemId)
+  var _dq=_ipQty(f.it);
+  _patchItemDeliv({delivered_at:d,paid_amount:amt,paid_method:method,paid_at:d,delivered_qty:_dq},_ipItemId)
     .then(function(){return sbPatch('orders',{remainder:newRem},'id=eq.'+f.o.id);})
     .then(function(){
       f.it.delivered_at=d;f.it.paid_amount=amt;f.it.paid_method=method;f.it.paid_at=d;f.o.remainder=newRem;
@@ -2047,14 +2129,35 @@ function _payKind(method){
   if(m.indexOf('Перевод')>=0)return 'transfer';
   return 'other';
 }
+// ═══ v7.34: доставка, полученная ПРИ ОФОРМЛЕНИИ ═══════════════════════
+// Отдельного поля «когда оплачена доставка» в базе нет — есть только флаг
+// delivery_paid. Но восстановить это однозначно можно из логики самого
+// приложения: при закрытии заказа в кассу берут «долг за товар + доставка,
+// если она ещё не оплачена». Значит если при закрытии взяли ровно долг за
+// товар, а доставка помечена оплаченной — деньги за неё получили раньше.
+// Возвращает сумму, которую нужно добавить в поступления на дату заказа.
+function delivPrepaidSum(o,itemsPaidSum){
+  if(!o)return 0;
+  if(o.delivery_our===false)return 0;       // сторонняя — мимо кассы
+  if(o.delivery_paid!=='yes')return 0;      // ещё не оплачена
+  var deliv=Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
+  if(deliv<=0)return 0;
+  if(!o.closed_at)return deliv;             // заказ не закрыт — значит взяли при оформлении
+  var payTotal=Math.round((o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0));
+  var goodsDebtAtClose=Math.round((o.goods_discounted||o.goods_total||0)-(o.prepayment||0)-(itemsPaidSum||0));
+  if(goodsDebtAtClose<0)goodsDebtAtClose=0;
+  // рубль допуска на округления
+  return (payTotal<=goodsDebtAtClose+1)?deliv:0;
+}
+
 function renderCash(){
   var el=document.getElementById('cash-content');
   el.innerHTML='<div class="empty"><p>Загрузка данных...</p></div>';
   Promise.all([
-    sbGet('orders','select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,pay_cash,pay_card,pay_transfer,delivery_cost,lifting_cost,delivery_our&or=(prepayment.gt.0,closed_at.not.is.null)&order=order_date.desc,id.desc&limit=2000'),
+    sbGet('orders','select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,pay_cash,pay_card,pay_transfer,delivery_cost,lifting_cost,delivery_our,delivery_paid,goods_total,goods_discounted&or=(prepayment.gt.0,closed_at.not.is.null,delivery_paid.eq.yes)&order=order_date.desc,id.desc&limit=2000'),
     sbGet('cash_withdrawals','select=*&order=created_at.desc&limit=300'),
     // v6.7: оплаты позиций при доставке; если SQL 6.7 ещё не выполнен — тихо пропускаем
-    sbGet('order_items','select=paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc&limit=2000').catch(function(){return[];})
+    sbGet('order_items','select=order_id,paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc&limit=2000').catch(function(){return[];})
   ]).then(function(res){
     _renderCashUI(res[0]||[],res[1]||[],res[2]||[]);
   }).catch(function(e){
@@ -2087,6 +2190,14 @@ function _plParseWdComment(cmt){
 }
 function _renderCashUI(orders,withdrawals,itemPays){
   var el=document.getElementById('cash-content');
+  // v7.34: сумма оплат по позициям для каждого заказа — нужна, чтобы понять,
+  // вошла ли доставка в оплату при закрытии
+  var _itemPaidByOrder={};
+  (itemPays||[]).forEach(function(p){
+    var oid=(p.orders&&p.orders.id)||p.order_id;
+    if(oid==null)return;
+    _itemPaidByOrder[oid]=(_itemPaidByOrder[oid]||0)+Math.round(p.paid_amount||0);
+  });
   // По каждому заказу: предоплата (по способу оплаты заказа) + финальные оплаты при закрытии
   var tot={cash:0,card:0,transfer:0,other:0};
   var list=[];
@@ -2118,11 +2229,25 @@ function _renderCashUI(orders,withdrawals,itemPays){
     if(Math.round(o.pay_cash||0)>0)cashParts.push({num:o.order_number,client:o.client_name,kind:'остаток при закрытии',amt:Math.round(o.pay_cash),date:o.closed_at||o.order_date});
     // Расшифровка доставки: наша (в кассе) / сторонняя (мимо кассы, справочно)
     var delivSum=Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
+    // v7.34 ГЛАВНОЕ: доставка, оплаченная ПРИ ОФОРМЛЕНИИ, раньше нигде не
+    // учитывалась как поступление. Деньги лежали в кассе, а приложение их не
+    // видело: предоплата содержит только товар, а при закрытии такую доставку
+    // повторно не спрашивают (openCloseModal обнуляет её при delivery_paid='yes').
+    var delivPre=delivPrepaidSum(o,_itemPaidByOrder[o.id]||0);
+    if(delivPre>0){
+      var dKind=_payKind(o.payment_method);
+      r[dKind==='other'?'other':dKind]+=delivPre;
+      if(dKind==='cash')cashParts.push({num:o.order_number,client:o.client_name,kind:'доставка при оформлении',amt:delivPre,date:o.order_date});
+    }
     if(delivSum>0){
       if(o.delivery_our===false){
         r.delivNote='<span style="color:#999">🚚 сторонняя доставка '+fmt(delivSum)+' ₽ — мимо кассы (справочно)</span>';
+      }else if(delivPre>0){
+        r.delivNote='<span style="color:var(--text2)">+ доставка '+fmt(delivPre)+' ₽ получена при оформлении</span>';
+      }else if(o.delivery_paid==='yes'){
+        r.delivNote='<span style="color:var(--text2)">в т.ч. доставка (наша) '+fmt(delivSum)+' ₽ — получена при закрытии</span>';
       }else{
-        r.delivNote='<span style="color:var(--text2)">в т.ч. доставка (наша) '+fmt(delivSum)+' ₽</span>';
+        r.delivNote='<span style="color:#8a5a18">доставка (наша) '+fmt(delivSum)+' ₽ — ещё не оплачена</span>';
       }
     }
     var sum=r.cash+r.card+r.transfer+r.other;
@@ -4652,6 +4777,7 @@ function _labelCss(s){
     +'.lbl .disc-tag{background:#c62828;color:#fff;border-radius:50%;width:'+s.discMm+';height:'+s.discMm+';display:flex;align-items:center;justify-content:center;font-size:'+s.discFont+';font-weight:700;flex-shrink:0}'
     +'.lbl .pname{font-weight:700;color:#111;line-height:1.15;flex:1;display:flex;align-items:center;margin:'+s.gap+' 0;word-break:break-word}'
     +'.lbl .pinfo{color:#444;margin-bottom:'+s.gap+';flex-shrink:0;line-height:1.3}'
+    +'.lbl .lbl-date{position:absolute;right:'+s.pad+';bottom:1.5mm;font-size:5.5pt;color:#b0b0b0;line-height:1;letter-spacing:.2px}'
     +'.lbl .pdim{font-weight:700;color:#111}'
     +'.lbl .pcol{color:#555}'
     +'.lbl .pfeat{color:#1B5E20;line-height:1.35;margin-bottom:'+s.gap+';flex-shrink:0;font-weight:600}'
@@ -4683,8 +4809,18 @@ function _labelData(){
     qr:document.getElementById('pl-qr').value.trim(),
     supplier:(document.getElementById('pl-supplier').value||'').trim(),
     promo:(document.getElementById('pl-promo')?document.getElementById('pl-promo').value:'').trim(),
-    style:(document.getElementById('pl-style')?document.getElementById('pl-style').value:'A')
+    style:(document.getElementById('pl-style')?document.getElementById('pl-style').value:'A'),
+    // v7.34: количество копий раньше жило только в printPriceLabel и терялось
+    // при добавлении в лист печати — «Печать листа» всегда выдавала по одному
+    copies:Math.max(1,Math.min(20,parseInt((document.getElementById('pl-copies')||{}).value)||1))
   };
+}
+// v7.34: дата печати ценника — мелко в правом нижнем углу.
+// Нужна, чтобы в зале было видно, когда ценник напечатан и не устарела ли цена.
+function _printedStamp(){
+  var d=new Date();
+  var p=function(n){return(n<10?'0':'')+n;};
+  return '<div class="lbl-date">'+p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear()+'</div>';
 }
 function _labelHtml(s,d){
   d=d||_labelData();
@@ -4731,6 +4867,7 @@ function _labelHtml(s,d){
       +'<div class="newprice'+(price?'':' nodata')+'" style="font-size:'+(priceSize*0.85)+'pt">'+priceStr+'</div>'
       +(discount>0?'<div class="disc-tag">-'+discount+'%</div>':'')+'</div>'
       +(d.promo?'<div class="bpromo">'+d.promo+'</div>':'')
+      +_printedStamp()
       +'</div>';
   }
   // Стиль A «Акцент на цене» (по умолчанию)
@@ -4747,6 +4884,7 @@ function _labelHtml(s,d){
     +'</div>'
     +qrHtml
     +'</div>'
+    +_printedStamp()
     +'</div>';
 }
 function renderPriceLabel(){
@@ -4834,6 +4972,10 @@ function _fillLabelForm(d){
   document.getElementById('pl-supplier').value=d.supplier||'';
   if(document.getElementById('pl-promo'))document.getElementById('pl-promo').value=d.promo||'';
   if(document.getElementById('pl-style')&&d.style)document.getElementById('pl-style').value=d.style;
+  // v7.34: количество копий тоже восстанавливаем — иначе загрузка из листа печати
+  // или из «последних» молча сбрасывала его на 1
+  var _c=document.getElementById('pl-copies');
+  if(_c)_c.value=Math.max(1,Math.min(20,parseInt(d.copies)||1));
   renderPriceLabel();
 }
 function loadLabelQ(i){var d=_labelQ[i];if(d)_fillLabelForm(d);}
@@ -4843,10 +4985,12 @@ function renderLabelQueue(){
   var cnt=document.getElementById('pl-queue-count');
   if(!_labelQ.length){card.style.display='none';return;}
   card.style.display='block';
-  cnt.textContent='· '+_labelQ.length+' шт.';
+  var _tot=0;_labelQ.forEach(function(d){_tot+=Math.max(1,parseInt(d.copies)||1);});
+  cnt.textContent='· '+_labelQ.length+' назв., '+_tot+' шт. на печать';
   list.innerHTML=_labelQ.map(function(d,i){
     return '<div style="display:flex;align-items:center;gap:6px;background:var(--alt);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">'
-      +'<span style="cursor:pointer" onclick="loadLabelQ('+i+')" title="Загрузить в форму">'+(i+1)+'. '+_labelTitle(d).replace(/</g,'&lt;')+'</span>'
+      +'<span style="cursor:pointer" onclick="loadLabelQ('+i+')" title="Загрузить в форму">'+(i+1)+'. '+_labelTitle(d).replace(/</g,'&lt;')
+      +((parseInt(d.copies)||1)>1?' <strong style="color:#1F4E79">× '+(parseInt(d.copies)||1)+'</strong>':'')+'</span>'
       +'<button onclick="removeLabelQ('+i+')" style="background:none;border:none;cursor:pointer;color:#c62828;font-size:14px;line-height:1">✕</button></div>';
   }).join('');
 }
@@ -4887,7 +5031,13 @@ function printLabelSheet(){
   if(!arr.length){toast('⚠️ Лист пуст — добавьте ценники кнопкой «В лист печати»','err',4000);return;}
   var per=parseInt(document.getElementById('pl-persheet').value)||2;
   var s=per>=4?_labelSpec4():_labelSpec2();
-  var labelHtml=arr.map(function(d){return _labelHtml(s,d);}).join('');
+  // v7.34: каждый ценник печатается столько раз, сколько указано в его «кол-ве копий»
+  var labelHtml=arr.map(function(d){
+    var n=Math.max(1,Math.min(20,parseInt(d.copies)||1));
+    var one=_labelHtml(s,d),out='';
+    for(var k=0;k<n;k++)out+=one;
+    return out;
+  }).join('');
   var pageRules='@page{size:A4 portrait;margin:8mm}';
   var layoutCss;
   if(per>=4){
@@ -5182,6 +5332,11 @@ function resetForm(){
   // самовывоз — и следующий заказ молча оставался самовывозом, в наряде на
   // доставку он так и выглядел, водитель не ехал.
   var _dt=document.getElementById('f-delivery-type');if(_dt)_dt.selectedIndex=0;
+  // v7.35: этаж, квартира, лифт и признак «занос вписан руками»
+  ['f-floor','f-apartment'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+  var _lf=document.getElementById('f-lift');if(_lf)_lf.value='no';
+  var _lc=document.getElementById('f-lifting');if(_lc)delete _lc.dataset.manual;
+  var _ln=document.getElementById('f-lift-note');if(_ln)_ln.innerHTML='';
   document.getElementById('form-items').innerHTML='';
   itemCount=0;itemPrices={};addFormItem();recalcTotals();
   // v7.29: recalcTotals теперь ставит отложенное сохранение черновика. На пустой
@@ -5346,6 +5501,57 @@ function addFormItem(){
     '</div>';
   document.getElementById('form-items').appendChild(div);
 }
+// ═══ v7.35: АВТОРАСЧЁТ ЗАНОСА ПО ЭТАЖУ ═══════════════════════════════
+// По договору занос стоит 500 ₽ за этаж за одну позицию; при исправном
+// грузовом лифте — 500 ₽ за позицию независимо от этажа.
+// Считаем по ШТУКАМ: два одинаковых пенала несут дважды.
+// Вписали сумму руками — расчёт больше её не трогает (dataset.manual).
+function _liftRate(){return (typeof VD_SHOP!=='undefined'&&VD_SHOP.liftPerFloor)||500;}
+function _liftPieces(){
+  var n=0;
+  for(var i=1;i<=itemCount;i++){
+    var m=document.getElementById('fi-model-'+i);
+    if(!m||!m.value.trim())continue;
+    var catSel=document.getElementById('fi-cat-'+i);
+    var isFab=!!(catSel&&catSel.value);
+    var qEl=isFab?document.getElementById('fi-qty-'+i):document.getElementById('fi-qty2-'+i);
+    n+=Math.max(1,parseInt(qEl&&qEl.value)||1);
+  }
+  return n;
+}
+function recalcLift(force){
+  var el=document.getElementById('f-lifting');if(!el)return;
+  var note=document.getElementById('f-lift-note');
+  if(!force&&el.dataset.manual==='1'){
+    if(note)note.innerHTML='✏️ Сумма заноса вписана вручную. <a href="#" onclick="resetLift();return false" style="color:#1565C0">Посчитать по этажу</a>';
+    return;
+  }
+  var type=((document.getElementById('f-delivery-type')||{}).value||'');
+  var fl=parseInt((document.getElementById('f-floor')||{}).value)||0;
+  var lift=((document.getElementById('f-lift')||{}).value||'')==='yes';
+  var pieces=_liftPieces();
+  var rate=_liftRate(),sum=0,txt='';
+  if(/самовыв/i.test(type)){
+    sum=0;txt='Самовывоз — занос не считается.';
+  }else if(fl>0&&pieces>0){
+    sum=lift?rate*pieces:rate*fl*pieces;
+    txt=lift
+      ?'Лифт есть: '+rate+' ₽ × '+pieces+' шт. = <strong>'+fmt(sum)+' ₽</strong>'
+      :rate+' ₽ × '+fl+' эт. × '+pieces+' шт. = <strong>'+fmt(sum)+' ₽</strong>';
+    txt+=' <span style="color:var(--text2)">— можно переписать сумму вручную</span>';
+  }else{
+    txt=fl>0?'Добавьте товары — занос посчитается сам.':'Укажите этаж — занос посчитается сам.';
+  }
+  el.value=sum;
+  if(note)note.innerHTML=txt;
+  recalcTotals();
+}
+function resetLift(){
+  var el=document.getElementById('f-lifting');
+  if(el)delete el.dataset.manual;
+  recalcLift(true);
+}
+
 // ═══ v6.8: сворачивание товара в одну строку ═══
 function collapseItem(id){
   var body=document.getElementById('ib-body-'+id),sum=document.getElementById('ib-sum-'+id);
@@ -5867,6 +6073,10 @@ function saveOrder(){
     delivery_cost:parseFloat(document.getElementById('f-delivery').value)||0,
     lifting_cost:parseFloat(document.getElementById('f-lifting').value)||0,
     delivery_paid:document.getElementById('f-delivery-paid').value,
+    // v7.35: этаж/квартира/лифт — нужны для расчёта заноса и печатаются в договоре
+    floor:parseInt((document.getElementById('f-floor')||{}).value)||null,
+    apartment:((document.getElementById('f-apartment')||{}).value||'').trim()||null,
+    has_lift:((document.getElementById('f-lift')||{}).value||'')==='yes',
     discount_pct:disc2,prepayment:prepay,
     goods_total:goods,goods_discounted:goodsDisc,
     remainder:_wasDone?(found.remainder||0):Math.max(0,goodsDisc-prepay),
@@ -5874,6 +6084,9 @@ function saveOrder(){
     payment_method:document.getElementById('f-payment').value,
     notes:document.getElementById('f-notes').value.trim()
   };
+  // v7.35: колонки этажа появляются после SQL 7.9. Пока их нет — не отправляем,
+  // иначе база отклонит весь заказ и он не сохранится вообще.
+  if(!_hasFloorCols){delete orderData.floor;delete orderData.apartment;delete orderData.has_lift;}
   // v6.8: способ оплаты обязателен только когда есть предоплата
   if(prepay>0&&!orderData.payment_method){
     document.getElementById('f-payment').style.borderColor='#C62828';
@@ -5881,13 +6094,29 @@ function saveOrder(){
   }
   document.getElementById('f-payment').style.borderColor='';
   btn.innerHTML='<span class="spinner"></span> Сохраняем...';btn.disabled=true;
+  // v7.35: страховка на случай, если проверка колонок не успела отработать
+  // (медленная связь) или SQL 7.9 выполнят прямо во время работы. Если база
+  // ругнулась на новые поля — убираем их и повторяем ОДИН раз, чтобы заказ
+  // всё равно сохранился и работа не встала.
+  function _saveOrderRow(data,eid){
+    var call=function(d){
+      return eid?sbPatch('orders',d,'id=eq.'+eid):sbPost('orders',d);
+    };
+    return call(data).catch(function(e){
+      var msg=(e&&e.message)||'';
+      if(!/floor|apartment|has_lift/i.test(msg))throw e;
+      _hasFloorCols=false;
+      var d2={};for(var k in data)if(k!=='floor'&&k!=='apartment'&&k!=='has_lift')d2[k]=data[k];
+      return call(d2);
+    });
+  }
   var savePromise;
   if(editId){
-    savePromise=sbPatch('orders',orderData,'id=eq.'+editId).then(function(){
+    savePromise=_saveOrderRow(orderData,editId).then(function(){
       return sbDel('order_items','order_id=eq.'+editId).then(function(){return editId;});
     });
   }else{
-    savePromise=sbPost('orders',orderData).then(function(created){return created[0].id;});
+    savePromise=_saveOrderRow(orderData,null).then(function(created){return created[0].id;});
   }
   savePromise.then(function(orderId){
     _recoverOrderId=orderId; // заказ создан/найден — запоминаем на случай обрыва на позициях
@@ -5902,8 +6131,11 @@ function saveOrder(){
     var idx=allOrders.findIndex(function(o){return o.id==orderId;});
     if(idx>=0)allOrders[idx]=local;else allOrders.unshift(local);
     toast('✅ Заказ сохранён!');
-    // v6.8: менеджер запоминается; черновик больше не нужен
-    try{localStorage.setItem('vd_manager',manager);}catch(e){}
+    // v7.34: РАНЬШЕ здесь стояло localStorage.setItem('vd_manager',manager) —
+    // сохранение заказа перезаписывало «менеджера дня» тем, что оказалось в поле
+    // формы. Из-за этого выбранный утром Серёжа молча превращался в Наташу, и
+    // дальше все новые заказы подставляли не того. Менеджер дня меняется ТОЛЬКО
+    // через кнопку 👤 в шапке (_mgrApply) — это единственный источник правды.
     _draftClear();
     resetForm();updateManagerFilter();filterOrders();showPage('orders');
     // Клиент в базу — в фоне, не задерживает сохранение
@@ -5948,6 +6180,14 @@ function editOrder(id){
   document.getElementById('f-payment').value=o.payment_method||'';
   document.getElementById('f-delivery-paid').value=o.delivery_paid||'no';
   document.getElementById('f-delivery-type').value=o.delivery_type||'🚚 Доставка + занос';
+  // v7.35: этаж/квартира/лифт. Сумма заноса уже сохранена в заказе, поэтому
+  // помечаем её как «вписанную вручную» — иначе пересчёт затрёт согласованную с клиентом цифру.
+  var _ef=document.getElementById('f-floor');if(_ef)_ef.value=(o.floor!=null?o.floor:'');
+  var _ea=document.getElementById('f-apartment');if(_ea)_ea.value=o.apartment||'';
+  var _el=document.getElementById('f-lift');if(_el)_el.value=o.has_lift?'yes':'no';
+  var _elc=document.getElementById('f-lifting');if(_elc)_elc.dataset.manual='1';
+  var _eln=document.getElementById('f-lift-note');
+  if(_eln)_eln.innerHTML='✏️ Сумма заноса взята из заказа. <a href="#" onclick="resetLift();return false" style="color:#1565C0">Посчитать заново по этажу</a>';
   // v6.8: при редактировании дата заказа видна, баннер черновика прячем
   var _dr=document.getElementById('f-date-row');if(_dr)_dr.style.display='grid';
   var _db=document.getElementById('draft-banner');if(_db)_db.style.display='none';
@@ -6248,8 +6488,16 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 
 var _statsPeriod='all';
+// v7.34: выбор конкретного месяца. Раньше «Месяц» означал только ТЕКУЩИЙ месяц,
+// и посмотреть июль, когда уже наступил август, было нельзя вообще никак.
+var _statsMonth=''; // 'ГГГГ-ММ', пусто = режим не выбран
 function _statsRange(p){
   var now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  if(p==='pickmonth'&&_statsMonth){
+    var mp=_statsMonth.split('-');
+    var my=parseInt(mp[0],10),mm=parseInt(mp[1],10)-1;
+    if(!isNaN(my)&&!isNaN(mm))return{from:new Date(my,mm,1),to:new Date(my,mm+1,1),len:'m'};
+  }
   if(p==='month')return{from:new Date(y,m,1),to:new Date(y,m+1,1),len:'m'};
   if(p==='quarter'){var q=Math.floor(m/3);return{from:new Date(y,q*3,1),to:new Date(y,q*3+3,1),len:'q'};}
   if(p==='year')return{from:new Date(y,0,1),to:new Date(y+1,0,1),len:'y'};
@@ -6269,8 +6517,19 @@ function _cityOf(a){
   s=s.split(/\s*ул\.|\s*улица|\s*пер\.|,/i)[0].trim().replace(/\s+/g,' ');
   return s||'—';
 }
+// v7.34: выбран месяц в поле — включаем режим «конкретный месяц»
+function setStatsMonth(v){
+  _statsMonth=v||'';
+  if(_statsMonth)setStatsPeriod('pickmonth');
+  else setStatsPeriod('month');
+}
 function setStatsPeriod(p){
   _statsPeriod=p;
+  // уходим с режима месяца — чистим поле, чтобы не путало
+  if(p!=='pickmonth'){
+    _statsMonth='';
+    var _mi=document.getElementById('stats-month');if(_mi)_mi.value='';
+  }
   var box=document.getElementById('stats-period');
   if(box)Array.prototype.forEach.call(box.children,function(c){
     var on=c.getAttribute('data-p')===p;
@@ -6287,6 +6546,7 @@ function renderStats(){
   var prevOrders=prevR?all.filter(function(o){return _statsIn(o,prevR);}):[];
   var noteEl=document.getElementById('stats-period-note');
   if(noteEl){var lbl={month:'текущий месяц',quarter:'текущий квартал',year:'текущий год',all:'всё время'}[_statsPeriod];
+    if(_statsPeriod==='pickmonth')lbl=_statsMonth?fmtMonth(_statsMonth):'выберите месяц';
     noteEl.textContent='Период: '+lbl+' · заказов: '+orders.length+(prevR?' · пред. период: '+prevOrders.length:'');}
   function itSell(it){return (it.price_discounted||it.price_retail||0)*(it.qty||1);}
   function itCost(it){return (it.price_opt||0)*(it.qty||1);}
@@ -6612,265 +6872,272 @@ async function exportBackup(){
   toast('💾 Копия скачана — '+stat.join(', ')+(missing.length?'. Нет таблиц: '+missing.join(', '):''),'ok',9000);
 }
 
+// ═══ v7.33: пометка оплаты доставки и заноса в печатных документах ═══
+// В базе один флаг delivery_paid на доставку И занос вместе — отдельного признака
+// для заноса нет, поэтому у обеих строк договора статус одинаковый.
+// Сторонняя доставка (delivery_our===false) деньгами через кассу не проходит:
+// клиент платит курьеру напрямую, поэтому «оплачено/не оплачено» к ней неприменимо.
+// Печатается чёрно-белым, поэтому статус несёт не цвет, а слово и значок.
+function _delivPayMark(o,cost){
+  if(!(cost>0))return '';
+  if(o.delivery_our===false)
+    return ' &nbsp;<strong>[ оплачивается службе доставки напрямую ]</strong>';
+  if(o.delivery_paid==='yes')
+    return ' &nbsp;<strong>[ ✔ ОПЛАЧЕНО ]</strong>';
+  return ' &nbsp;<strong>[ ☐ НЕ ОПЛАЧЕНО — оплата при получении ]</strong>';
+}
+
+// ═══ v7.34: ДОГОВОР И АКТ В НОВОЙ РЕДАКЦИИ ════════════════════════════
+// Текст согласован с владельцем 29.07.2026 после юридического разбора
+// (файлы «Договор_разбор.md» и «Договор_новая_редакция.html» в проекте).
+// Убраны ничтожные условия, доставка и занос вынесены в блок с ПУСТЫМИ
+// галочками — заранее проставленная галочка это навязанная услуга,
+// с 09.01.2026 штраф ИП 50–150 тыс. ₽ (ч. 2.1 ст. 14.8 КоАП).
+//
+// Реквизиты и условия — одним местом, чтобы менять без поиска по коду:
+var VD_SHOP={
+  name:'Вакуленко Сергей Сергеевич',
+  ogrnip:'322310000038359',
+  inn:'312335846562',
+  addr:'ул. Дорошенко, д. 55',
+  phone:'8-952-427-12-45',
+  city:'г. Короча',
+  termDays:60,          // срок передачи, рабочих дней
+  warrantyMonths:12,    // гарантия, если её не установил изготовитель
+  tolerance:'±5 мм',
+  liftPerFloor:500,     // занос: руб. за этаж за одну позицию
+  reDeliveryCity:700,   // повторная доставка по городу
+  reDeliveryKm:50,      // и за 1 км по району
+  zone:'г. Короча, с. Бехтеевка, с. Погореловка, с. Казанка, с. Подкопаевка',
+  assemblers:'8-961-174-66-87 Александр, 8-980-328-21-45 Вадим'
+};
+// v7.36: в печатном документе эмодзи из способа оплаты выглядят инородно —
+// на бумаге нужен обычный текст: «Наличные», а не «💵 Наличные»
+function _vdPlain(v){return String(v==null?'':v).replace(/[^\u0400-\u04FFA-Za-z0-9 .,\-№()/]/g,'').trim();}
+function _vdBlank(v,w){return v?esc(v):'<span style="display:inline-block;border-bottom:1px solid #000;min-width:'+(w||90)+'px">&nbsp;</span>';}
+function _vdDocCss(){
+  return '@page{size:A4;margin:13mm 14mm}'
+    +'body{font-family:"Times New Roman",Georgia,serif;font-size:10.5pt;line-height:1.32;color:#000;margin:0}'
+    +'h1{font-size:14pt;text-align:center;margin:0 0 2px}'
+    +'.num{text-align:center;font-size:11pt;font-weight:bold;margin-bottom:6px}'
+    +'.dateline{display:flex;justify-content:space-between;margin:8px 0 10px}'
+    +'.sec{font-weight:bold;margin:10px 0 4px}'
+    +'.cl{margin-bottom:3px;text-align:justify}'
+    +'table{width:100%;border-collapse:collapse;margin:5px 0;font-size:9.5pt}'
+    +'th,td{border:1px solid #000;padding:3px 5px;vertical-align:top}'
+    +'th{background:#eceff3;font-weight:bold;text-align:center}'
+    +'.r{text-align:right}.c{text-align:center}'
+    +'.tfoot td{font-weight:bold}'
+    +'.opt{border:1.5px solid #000;padding:8px 11px;margin:7px 0}'
+    +'.opt .row{margin:4px 0}'
+    +'.box{display:inline-block;width:12px;height:12px;border:1.5px solid #000;vertical-align:-1px;margin-right:6px}'
+    +'.fill{display:inline-block;border-bottom:1px solid #000;min-width:60px}'
+    +'.sigs{display:flex;gap:24px;margin-top:14px}'
+    +'.sb{flex:1;font-size:10pt}'
+    +'.sl{border-bottom:1px solid #000;height:20px;margin:12px 0 3px}'
+    +'.small{font-size:8.5pt;color:#333}'
+    // v7.36: фирменная шапка с логотипом и заметный телефон магазина
+    +'.hdr{display:flex;align-items:center;gap:10px;border-bottom:2px solid #1F4E79;padding-bottom:6px;margin-bottom:6px}'
+    +'.hdr .logo{height:15mm;object-fit:contain;flex-shrink:0}'
+    +'.hdr .htxt{flex:1;text-align:center}'
+    +'.hdr .hcont{font-size:8.5pt;color:#333;text-align:right;line-height:1.35;white-space:nowrap}'
+    +'.tel{font-weight:bold;font-size:11pt;color:#1F4E79;white-space:nowrap}';
+}
+// v7.36: единая шапка документа — логотип слева, название по центру,
+// контакты магазина справа. Телефон выделен: по нему звонят чаще всего.
+function _vdHeader(title){
+  return '<div class="hdr">'
+    +'<img src="'+LOGO+'" class="logo" alt="">'
+    +'<div class="htxt"><h1>'+title+'</h1></div>'
+    +'<div class="hcont">'+VD_SHOP.city+(VD_SHOP.addr?', '+esc(VD_SHOP.addr):'')
+    +(VD_SHOP.phone?'<br><span class="tel">☎ '+esc(VD_SHOP.phone)+'</span>':'')
+    +'</div></div>';
+}
+function _vdOpenPrint(html){
+  var w=window.open('','_blank');
+  if(!w){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4500);return;}
+  w.document.write(html);w.document.close();
+  setTimeout(function(){w.print();},500);
+}
+function _vdSpecRows(items){
+  var rows='',n=0;
+  (items||[]).forEach(function(it){
+    n++;
+    var nm=esc(it.product_name)
+      +(it.color?', '+esc(it.color):'')
+      +(it.fabric_category?', кат. '+esc(it.fabric_category):'')
+      +(it.dims?', '+esc(it.dims):'');
+    var each=it.price_discounted||it.price_retail||0;
+    var q=it.qty||1;
+    rows+='<tr><td class="c">'+n+'</td><td>'+nm+'</td><td class="c">'+q+'</td>'
+      +'<td class="r">'+fmt(each)+'</td><td class="r">'+fmt(each*q)+'</td></tr>';
+  });
+  if(!rows)rows='<tr><td class="c">1</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>';
+  return rows;
+}
+
 function printContract(orderId){
   var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
   var items=o.order_items||[];
   var d=o.order_date?new Date(o.order_date+'T00:00:00'):new Date();
   var mos=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
-  var day=d.getDate();var mon=mos[d.getMonth()];var yr=d.getFullYear();
-  // v7.29: год в строке приёмки берётся из ДАТЫ ПОДПИСАНИЯ (сегодня или дата
-  // закрытия заказа), а не из даты заказа. Раньше декабрьский заказ, который
-  // подписывали в январе, печатал акт с прошлым годом.
-  var _actD=o.closed_at?new Date(o.closed_at):new Date();
-  var actYr=_actD.getFullYear();
+  var day=d.getDate(),mon=mos[d.getMonth()],yr=d.getFullYear();
   var total=o.goods_discounted||o.goods_total||0;
-  // v7.29: доставка и занос теперь и в акте. Раньше они были только в договоре,
-  // и два документа по одному заказу расходились по сумме.
-  var _dCost=(o.delivery_cost||0)+(o.lifting_cost||0);
-  var _grand=total+_dCost;
   var prepay=o.prepayment||0;
-  var remainder=o.remainder||0;
-  var delivCost=o.delivery_cost||0;
-  var liftCost=o.lifting_cost||0;
+  var goodsLeft=Math.max(0,Math.round(total-prepay));
+  var delivCost=o.delivery_cost||0, liftCost=o.lifting_cost||0;
+  var delivTotal=delivCost+liftCost;
+  var delivUnpaid=(delivTotal>0&&o.delivery_paid!=='yes'&&o.delivery_our!==false)?delivTotal:0;
   var phones=[o.client_phone,o.client_phone2].filter(Boolean).join(', ');
-  var hasLift=liftCost>0;
-  var liftYesNo=hasLift?'да':'нет';
-  var rows='';
-  for(var i=0;i<items.length;i++){
-    var it=items[i];
-    var nm=esc(it.product_name)+(it.color?', '+esc(it.color):'')+(it.fabric_category?', кат. '+esc(it.fabric_category):'')+(it.dims?', '+esc(it.dims):'');
-    var priceEach=it.price_discounted||it.price_retail||0;
-    var priceTotal=priceEach*(it.qty||1);
-    rows+='<tr>'+
-      '<td class="tc bc">'+  (i+1)+'</td>'+
-      '<td class="bc pl">'+nm+'</td>'+
-      '<td class="tc bc">'+(it.qty||1)+'</td>'+
-      '<td class="tr bc">'+fmt(priceEach)+'</td>'+
-      '<td class="tr bc">'+fmt(priceTotal)+'</td>'+
-      '</tr>';
-  }
-  var win=window.open('','_blank');
-  if(!win){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4000);return;}
-  win.document.write('<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>Договор</title>'+
-'<style>'+
-'*{box-sizing:border-box}'+
-'body{font-family:"Times New Roman",Times,serif;font-size:10pt;margin:0;padding:15mm 15mm 10mm 20mm;color:#000}'+
-'h1{font-size:12pt;font-weight:bold;text-align:center;margin:0 0 4px 0}'+
-'.hdr{display:flex;align-items:center;gap:12px;margin-bottom:4px}'+
-'.logo{height:44px;flex-shrink:0}'+
-'.hdr-title{flex:1;text-align:center}'+
-'.dateline{display:flex;justify-content:space-between;margin-bottom:6px;font-size:10pt}'+
-'.intro{text-align:justify;margin-bottom:5px;line-height:1.35}'+
-'.sec{font-weight:bold;margin:5px 0 2px;font-size:10pt}'+
-'.cl{margin:0 0 3px 0;line-height:1.35;text-align:justify}'+
-'table{width:100%;border-collapse:collapse;margin:4px 0 5px 0;font-size:9.5pt}'+
-'th{border:1px solid #000;padding:3px 4px;text-align:center;background:#f0f0f0;font-weight:bold}'+
-'td{border:1px solid #000;padding:3px 4px;font-size:9.5pt}'+
-'.tc{text-align:center}.tr{text-align:right}.pl{padding-left:5px}'+
-'.bc{border:1px solid #000}'+
-'.tfoot-row td{font-weight:bold}'+
-'.sigs{display:flex;justify-content:space-between;margin-top:12px;gap:20px}'+
-'.sb{flex:1}'+
-'.sl{border-bottom:1px solid #000;margin-top:20px;margin-bottom:2px}'+
-'@media print{'+
-'  body{padding:10mm 10mm 8mm 15mm}'+
-'  @page{margin:0}'+
-'}'+
-'</style></head><body>'+
+  var isPickup=/самовыв/i.test(o.delivery_type||'');
 
-'<div class="hdr">'+
-'<img src="'+LOGO+'" class="logo">'+
-'<div class="hdr-title"><h1>Договор купли-продажи мебели</h1>'+
-// v7.29: номер договора = номер заказа. Раньше номера не было вовсе, и связать
-// подписанную бумагу с записью в журнале можно было только по фамилии и дате.
-(o.order_number?'<div style="font-size:10pt;font-weight:600">№ '+esc(o.order_number)+'</div>':'')+
-'</div>'+
-'</div>'+
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Договор №'+esc(o.order_number)+'</title>'
+    +'<style>'+_vdDocCss()+'</style></head><body>'
 
-'<div class="dateline"><span>г. Короча</span><span>«'+day+'» '+mon+' '+yr+' г.</span></div>'+
+    +_vdHeader('ДОГОВОР КУПЛИ-ПРОДАЖИ МЕБЕЛИ')
+    +'<div class="num">№ '+esc(o.order_number)+'</div>'
+    +'<div class="dateline"><span>'+VD_SHOP.city+'</span><span>«'+day+'» '+mon+' '+yr+' г.</span></div>'
 
-'<div class="intro">ИП Вакуленко С.С., именуемый в дальнейшем «Продавец», в лице Вакуленко С.С., действующий на основании свидетельства с одной стороны, и гр. <strong>'+esc(o.client_name)+'</strong>, именуемый в дальнейшем «Покупатель», с другой стороны, вместе именуемые в дальнейшем «Стороны», заключили настоящий Договор о нижеследующем:</div>'+
+    +'<div class="cl">Индивидуальный предприниматель <strong>'+esc(VD_SHOP.name)+'</strong> (ОГРНИП '+_vdBlank(VD_SHOP.ogrnip)+', ИНН '+_vdBlank(VD_SHOP.inn)+'), именуемый далее «Продавец», с одной стороны, и гр. <strong>'+esc(o.client_name||'')+'</strong>, именуемый далее «Покупатель», с другой стороны, заключили настоящий Договор о нижеследующем.</div>'
 
-'<div class="sec">1. ПРЕДМЕТ ДОГОВОРА.</div>'+
-'<div class="cl">1.1. Продавец обязуется передать в собственность Покупателя мебель (далее «Товар») согласно Спецификации, являющейся неотъемлемой частью настоящего Договора, а Покупатель обязуется принять Товар и оплатить его стоимость.</div>'+
-'<div class="cl">Спецификация:</div>'+
-'<table>'+
-'<thead><tr><th style="width:5%">№</th><th>Наименование</th><th style="width:9%">Кол-во</th><th style="width:13%">Цена</th><th style="width:13%">Сумма</th></tr></thead>'+
-'<tbody>'+rows+'</tbody>'+
-'<tfoot><tr class="tfoot-row"><td colspan="4" style="text-align:right;border:1px solid #000;padding:3px 4px">Итого (цифрами):</td><td style="text-align:right;border:1px solid #000;padding:3px 4px;font-weight:bold">'+fmt(total)+'</td></tr></tfoot>'+
-'</table>'+
+    +'<div class="sec">1. ПРЕДМЕТ ДОГОВОРА</div>'
+    +'<div class="cl">1.1. Продавец обязуется передать в собственность Покупателя мебель (далее — Товар) согласно Спецификации (раздел 2), а Покупатель — принять Товар и оплатить его стоимость.</div>'
+    +'<div class="cl">1.2. Товар изготовлен фабриками-изготовителями; Продавец изготовителем Товара не является и осуществляет его продажу по образцам и каталогам.</div>'
+    +'<div class="cl">1.3. Наименование, цвет (ткань, декор), размеры, комплектность и цена каждой позиции согласованы Сторонами в Спецификации. Покупатель подтверждает, что до заключения Договора ему предоставлена полная информация о Товаре, показан образец либо выкрас (артикул) выбранного декора и он согласен с выбором.</div>'
 
-'<div class="sec">2. ОБЯЗАННОСТИ ПРОДАВЦА.</div>'+
-'<div class="cl">2.1. Продавец обязуется осуществить доставку Товара, согласно Спецификации, в течение 40 рабочих дней с момента утверждения Заказа и внесения Покупателем предоплаты, установленной п. 3.1. Договора. Датой исполнения Заказа считается дата извещения Продавцом Покупателя о готовности Продавца отгрузить товар Покупателю.</div>'+
-'<div class="cl">В случае задержки исполнения Заказа Продавец оплачивает Покупателю пеню в размере 0,1% от суммы предоплаты за каждый день задержки, путем уменьшения стоимости заказа.</div>'+
-'<div class="cl">2.2. В случае невозможности выполнения Продавцом своих обязательств перед Покупателем, Продавец возвращает Покупателю внесённую ранее предоплату в течение 10 дней с даты отказа от поставки Товара.</div>'+
-'<div class="cl">2.3. Извещение о готовности Продавца передать Товар Покупателю производится по телефонному номеру, оставленному Покупателем, в рабочие дни с 09 до 20 часов. Ответственность за правильность оставленного телефонного номера несёт Покупатель.</div>'+
+    +'<div class="sec">2. СПЕЦИФИКАЦИЯ</div>'
+    +'<table><thead><tr><th style="width:5%">№</th><th>Наименование, цвет (ткань), размеры</th>'
+    +'<th style="width:9%">Кол-во</th><th style="width:14%">Цена, руб.</th><th style="width:14%">Сумма, руб.</th></tr></thead>'
+    +'<tbody>'+_vdSpecRows(items)+'</tbody>'
+    +'<tfoot><tr class="tfoot"><td colspan="4" class="r">Итого за Товар:</td><td class="r">'+fmt(total)+'</td></tr></tfoot></table>'
 
-'<div class="sec">3. ОБЯЗАННОСТИ ПОКУПАТЕЛЯ.</div>'+
-'<div class="cl">3.1. В момент подписания настоящего Договора Покупатель вносит Продавцу предоплату в размере: <strong>'+fmt(prepay)+' руб.</strong></div>'+
-'<div class="cl">3.2. Оставшуюся сумму Покупатель вносит после получения Товара, в момент подписания акта приёма-передачи, что составляет: <strong>'+fmt(remainder)+' руб.</strong></div>'+
-'<div class="cl">3.3. В случае если Покупатель не вносит в срок, оговоренный в п. 3.2. Договора, сумму оплаты за Товар, он оплачивает Продавцу пеню в размере 1,5% от стоимости Товара в день.</div>'+
-'<div class="cl">3.4. В случае расторжения настоящего Договора Покупателем в одностороннем порядке до момента фактической передачи Товара при отсутствии претензий о качестве, Продавец удерживает с Покупателя в счёт понесённых издержек по поставке товара 20% от суммы Заказа надлежащего качества. Предоплата за товар не возвращается.</div>'+
-'<div class="cl">3.5. Если Товар по Заказу Покупателя изготавливается на основании замеров помещения, то указанные замеры производятся в присутствии Покупателя. Факт подписания Покупателем Схемы замеров означает его согласие с размерами выбранной мебели. После подписания Схемы замеров Покупатель несёт ответственность за предоставленные размеры помещения и связанные с этим последствия.</div>'+
+    +'<div class="sec">3. ЦЕНА И ПОРЯДОК ОПЛАТЫ</div>'
+    +'<div class="cl">3.1. Стоимость Товара составляет <strong>'+fmt(total)+' руб.</strong></div>'
+    +'<div class="cl">3.2. В момент подписания Договора Покупатель вносит предоплату: <strong>'+fmt(prepay)+' руб.</strong>'+(o.payment_method?' Способ оплаты: '+esc(_vdPlain(o.payment_method))+'.':'')+'</div>'
+    +'<div class="cl">3.3. Оставшаяся сумма за Товар — <strong>'+fmt(goodsLeft)+' руб.</strong> — вносится при получении Товара, в момент подписания акта приёма-передачи.</div>'
+    +'<div class="cl">3.4. Дополнительные услуги (раздел 7) оплачиваются отдельно и в стоимость Товара не входят.'
+    +(delivUnpaid>0?' Дополнительно при получении оплачиваются доставка и занос: <strong>'+fmt(delivUnpaid)+' руб.</strong> Итого к оплате при получении: <strong>'+fmt(goodsLeft+delivUnpaid)+' руб.</strong>':'')
+    +'</div>'
+    +'<div class="cl">3.5. Цена Товара, согласованная в Спецификации, изменению в одностороннем порядке не подлежит.</div>'
 
-'<div class="sec">4. ПОРЯДОК ПЕРЕДАЧИ-ПРИЁМКИ МЕБЕЛИ.</div>'+
-'<div class="cl">4.1. Продавец передаёт Товар непосредственно Покупателю или его представителю, с надлежащим образом оформленными полномочиями.</div>'+
-'<div class="cl">4.2. Покупатель приобретает право собственности на Товар и несёт все связанные с этим риски с момента его получения от Продавца.</div>'+
-'<div class="cl">4.3. Товар передаётся Покупателю в упаковке фабрики-изготовителя. Продавец не несёт ответственности за качество упаковки. Приёмка Товара осуществляется Покупателем на складе Продавца «при самовывозе Товара» либо в помещении по «адресу доставки». Претензии к недостаткам, видимым невооружённым глазом, обнаруженным при первичном осмотре, могут быть предъявлены клиентом в момент получения товара. В последующем претензии не принимаются. Товар надлежащего качества возврату и обмену не подлежит.</div>'+
-'<div class="cl">4.4. Платная доставка ко входу в здание (подъезду), указанному Покупателем, в пределах г. Короча, с. Бехтеевка, с. Погореловка, с. Казанка, с. Подкопаевка, осуществляется силами Продавца при условии беспрепятственного проезда к нему автотранспорта. В другие населённые пункты доставка осуществляется за счёт Покупателя согласно тарификации Продавца.</div>'+
-'<div class="cl">4.5. В момент согласования даты доставки Покупатель обязан сообщить о возможных препятствиях для проезда транспорта Продавца к месту передачи товара, или самостоятельно доставить товар от места остановки машины до подъезда. В противном случае доставка будет перенесена на неопределённый срок.</div>'+
-'<div class="cl">4.6. Подъём мебели в квартиру (частный дом) является платной услугой. Стоимость подъёма мебели определяется в соответствии с действующим на предприятии Продавца прейскурантом. Покупатель обязан обеспечить свободный проход для заноса мебели. В случае если конструктивные особенности планировки квартиры или наличие предметов домашней обстановки создают препятствия для заноса мебели либо риск повреждения товара, услуга по доставке мебели считается выполненной до первого препятствия.</div>'+
-'<div class="cl">4.7. При самостоятельном вывозе Товар проверяется и принимается Покупателем на складе Продавца. Погрузочно-разгрузочные работы осуществляются Покупателем самостоятельно. За качество проводимых погрузочно-разгрузочных работ Продавец ответственности не несёт.</div>'+
+    +'<div class="sec">4. СРОК ПЕРЕДАЧИ ТОВАРА</div>'
+    +'<div class="cl">4.1. Продавец передаёт Товар Покупателю <strong>не позднее '+VD_SHOP.termDays+' рабочих дней</strong>, исчисляемых со дня, следующего за днём внесения Покупателем предоплаты, установленной п. 3.2 Договора.</div>'
+    +'<div class="cl">4.2. Если Покупатель не совершил действий, без которых Продавец не может исполнить обязательство (не согласовал цвет, декор или комплектацию; не сообщил сведения, необходимые для доставки; не обеспечил доступ в помещение), течение срока по п. 4.1 приостанавливается со дня направления Продавцом соответствующего запроса и возобновляется со дня совершения Покупателем требуемого действия (ст. 328, п. 2 ст. 406 ГК РФ).</div>'
+    +'<div class="cl">4.3. Изменение срока допускается только по соглашению Сторон.</div>'
+    +'<div class="cl">4.4. За нарушение срока передачи Товара Продавец уплачивает Покупателю неустойку в размере <strong>0,5 % суммы предоплаты за каждый день просрочки</strong>; сумма неустойки не может превышать сумму предоплаты. Покупатель по своему выбору вправе потребовать передачи Товара в новый срок либо возврата суммы предоплаты; требование удовлетворяется в течение 10 дней (ст. 23.1 Закона РФ «О защите прав потребителей»).</div>'
+    +'<div class="cl">4.5. Нарушение обязательств поставщиками Продавца, отсутствие Товара на рынке и отсутствие у Продавца денежных средств не являются обстоятельствами непреодолимой силы и не освобождают Продавца от ответственности (п. 3 ст. 401 ГК РФ).</div>'
 
-'<div class="sec">5. ПРОЧИЕ УСЛОВИЯ.</div>'+
-'<div class="cl">5.1. Любые изменения и дополнения к настоящему Договору будут действительны только в том случае, если они совершены в письменной форме и подписаны представителями обеих Сторон.</div>'+
-'<div class="cl">5.2. В случаях, не предусмотренных настоящим Договором, Стороны руководствуются действующим гражданским законодательством.</div>'+
-'<div class="cl">5.3. При возникновении спора, который Стороны не смогут урегулировать путём переговоров, спор будет разрешаться в суде по месту нахождения Продавца.</div>'+
-'<div class="cl">5.4. Настоящий договор вступает в силу с момента его подписания и действует до полного исполнения Сторонами своих обязательств.</div>'+
-'<div class="cl">5.5. Настоящий договор составлен в двух экземплярах, по одному для каждой из Сторон.</div>'+
-'<div class="cl">5.6. В праздничные дни доставка мебели не осуществляется.</div>'+
-'<div class="cl">5.7. Дату и время доставки согласовывает сотрудник службы доставки.</div>'+
-'<div class="cl">5.8. При отсутствии клиента во время доставки или по другим причинам, возникшим по вине Покупателя, Покупатель при повторной доставке обязан оплатить её: 500 руб. (по городу) / по району — 50 руб. за 1 км от магазина.</div>'+
-'<div class="cl">5.9. Стоимость заноса одной позиции из Спецификации — 500 руб./этаж: '+(hasLift?'<strong>да</strong> ('+fmt(liftCost)+' руб.)':'нет')+'</div>'+
-'<div class="cl">5.10. Доставка по адресу: <strong>'+esc(o.client_address||'—')+'</strong>&nbsp;&nbsp;'+
-  (delivCost>0?'Стоимость доставки: <strong>'+fmt(delivCost)+' руб.</strong>':'')+
-  '<br>Телефон: <strong>'+(phones||'—')+'</strong></div>'+
-'<div class="cl">5.11. Сборка мебели не входит в стоимость Товара.&nbsp;&nbsp;&nbsp;Номер сборщиков: 8-961-174-66-87 Александр, 8-980-328-21-45 Вадим</div>'+
+    +'<div class="sec">5. УВЕДОМЛЕНИЯ, ПЕРЕДАЧА И ПРИЁМКА</div>'
+    +'<div class="cl">5.1. Уведомление о готовности Товара и иные сообщения по Договору направляются Покупателю SMS-сообщением и (или) сообщением в мессенджере МАКС либо Telegram на номер <strong>'+_vdBlank(o.client_phone,120)+'</strong>, указанный Покупателем, с номера Продавца <span class="tel">'+esc(VD_SHOP.phone)+'</span>. Сообщение считается доставленным с момента поступления на указанный номер, в том числе если Покупатель с ним не ознакомился по зависящим от него обстоятельствам (ст. 165.1 ГК РФ).</div>'
+    +'<div class="cl">5.2. Покупатель обязан в течение 3 рабочих дней сообщить Продавцу об изменении номера телефона. До получения такого сообщения Продавец направляет уведомления по прежнему номеру.</div>'
+    +'<div class="cl">5.3. Передача Товара оформляется <strong>актом приёма-передачи</strong>. Покупатель осматривает Товар в присутствии представителя Продавца: проверяет комплектность, количество мест, габариты, цвет и текстуру, целостность поверхностей, работу фурнитуры и механизмов, и вправе вскрыть упаковку.</div>'
+    +'<div class="cl">5.4. Обнаруженные при осмотре недостатки указываются в акте и подтверждаются фотографиями. Подписание акта без замечаний <strong>не лишает Покупателя права</strong> предъявить требования в отношении недостатков, которые не могли быть обнаружены при обычном осмотре, в сроки, установленные ст. 19 Закона РФ «О защите прав потребителей».</div>'
+    +'<div class="cl">5.5. Покупатель принимает Товар в течение <strong>10 календарных дней</strong> со дня доставки уведомления о готовности. Хранение Товара в течение этих 10 дней осуществляется безвозмездно. По их истечении Покупатель считается просрочившим принятие, риск случайной гибели или повреждения Товара переходит на Покупателя, а Продавец вправе требовать возмещения документально подтверждённых расходов на хранение (ст. 406, 458, 459 ГК РФ).</div>'
 
-'<div class="sigs">'+
-'<div class="sb"><div><strong>Продавец:</strong> ИП Вакуленко С.С.</div><div class="sl"></div><div style="font-size:9pt">Подпись</div></div>'+
-'<div class="sb"><div><strong>ПОКУПАТЕЛЬ: Ф.И.О.: '+esc(o.client_name)+'</strong></div><div class="sl"></div><div style="font-size:9pt">К составленному договору претензий не имею:</div></div>'+
-'</div>'+
+    +'<div class="sec">6. КАЧЕСТВО И ГАРАНТИЯ</div>'
+    +'<div class="cl">6.1. Гарантийный срок на Товар — установленный изготовителем; если изготовителем гарантийный срок не установлен, Продавец устанавливает гарантийный срок <strong>'+VD_SHOP.warrantyMonths+' месяцев</strong> со дня передачи Товара.</div>'
+    +'<div class="cl">6.2. Допустимое отклонение линейных размеров изделий — <strong>'+VD_SHOP.tolerance+'</strong>. Отличия оттенка, текстуры и рисунка изделий из массива древесины, шпона, ЛДСП, натуральной кожи и ткани в пределах, характерных для этих материалов и для разных партий, не являются недостатком; Покупатель уведомлён об этом до заключения Договора.</div>'
+    +'<div class="cl">6.3. Гарантия не распространяется на недостатки, возникшие вследствие: нарушения переданных Покупателю правил эксплуатации; самостоятельной переделки, доработки или переустановки изделия; эксплуатации при относительной влажности вне диапазона 45–70 % или температуре вне диапазона +10…+35 °C; механических повреждений после передачи; воздействия воды, агрессивных или абразивных средств; естественного износа. Настоящий пункт не ограничивает ответственность Продавца за недостатки, возникшие до передачи Товара или по причинам, возникшим до этого момента.</div>'
+    +'<div class="cl">6.4. Обмен и возврат Товара надлежащего качества производятся в порядке ст. 25 Закона РФ «О защите прав потребителей». Мебельные гарнитуры бытового назначения обмену и возврату не подлежат (п. 8 Перечня, утв. постановлением Правительства РФ от 31.12.2020 № 2463).</div>'
 
-'</body></html>');
-  win.document.close();
-  setTimeout(function(){win.print();},600);
+    +'<div class="sec">7. ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ</div>'
+    +'<div class="cl">7.1. Доставка и подъём (занос) — <strong>дополнительные возмездные услуги</strong>. Они оказываются только при наличии волеизъявления Покупателя, выраженного отметкой и подписью ниже. <strong>Отказ от дополнительных услуг не влияет на заключение и исполнение настоящего Договора.</strong></div>'
+    +'<div class="opt">'
+    +'<div class="row"><span class="box"></span> Доставка по адресу: '+_vdBlank(o.client_address,230)+' — стоимость '+(delivCost>0?'<strong>'+fmt(delivCost)+'</strong>':'<span class="fill">&nbsp;</span>')+' руб.</div>'
+    +'<div class="row"><span class="box"></span> Подъём (занос) на '+(o.floor?('<strong>'+esc(String(o.floor))+'</strong>'):'<span class="fill" style="min-width:34px">&nbsp;</span>')+' этаж, кв. '+(o.apartment?('<strong>'+esc(o.apartment)+'</strong>'):'<span class="fill" style="min-width:34px">&nbsp;</span>')+', грузовой лифт: '+(o.has_lift===true?'<strong>есть</strong>':(o.has_lift===false?'<strong>нет</strong>':'есть / нет'))+' — итого '+(liftCost>0?'<strong>'+fmt(liftCost)+'</strong>':'<span class="fill">&nbsp;</span>')+' руб.</div>'
+    +'<div class="row small">Подпись Покупателя о заказе указанных услуг: <span class="fill" style="min-width:150px">&nbsp;</span></div>'
+    +'</div>'
+    +'<div class="cl">7.2. Стоимость подъёма (заноса) — <strong>'+VD_SHOP.liftPerFloor+' руб. за этаж за одну позицию Спецификации</strong>. При наличии в доме исправного грузового лифта — '+VD_SHOP.liftPerFloor+' руб. за одну позицию независимо от этажа.</div>'
+    +'<div class="cl">7.3. Доставка осуществляется силами Продавца до входа в здание (подъезда) в пределах '+VD_SHOP.zone+' при условии беспрепятственного проезда автотранспорта. В иные населённые пункты доставка осуществляется по действующему прейскуранту Продавца.</div>'
+    +'<div class="cl">7.4. Покупатель до согласования даты доставки сообщает Продавцу: этаж, наличие и габариты лифта, ширину дверных проёмов, лестничных маршей и площадок, ограничения на въезд. Продавец не позднее чем за 1 рабочий день до доставки сообщает Покупателю габариты упакованных мест.</div>'
+    +'<div class="cl">7.5. Если доставка произведена в согласованные дату и интервал, но передача Товара не состоялась по обстоятельствам, зависящим от Покупателя (отсутствие Покупателя или уполномоченного им лица, непредоставление доступа, недостоверность сведений по п. 7.4), услуга доставки считается оказанной. Последующая доставка производится в согласованные Сторонами сроки за отдельную плату: '+VD_SHOP.reDeliveryCity+' руб. в пределах города, '+VD_SHOP.reDeliveryKm+' руб. за 1 км от магазина по району.</div>'
+    +'<div class="cl">7.6. Если подъём оказался невозможен из-за несоответствия фактических параметров сведениям, сообщённым Покупателем по п. 7.4, услуга считается оказанной, Товар передаётся у подъезда с составлением акта. Если несоответствие вызвано обстоятельствами, за которые Покупатель не отвечает, стоимость услуги подъёма возвращается Покупателю полностью.</div>'
+    +'<div class="cl">7.7. Сборка мебели Продавцом не оказывается и в стоимость Товара не входит. По вопросам сборки Покупатель вправе обратиться к сборщикам напрямую и самостоятельно согласовать с ними объём и стоимость работ: '+VD_SHOP.assemblers+'. Продавец стороной этих отношений не является.</div>'
+    +(isPickup?'<div class="cl">7.8. По настоящему Договору выбран <strong>самовывоз со склада Продавца</strong>; доставка и подъём не заказаны.</div>':'')
+
+    +'<div class="sec">8. ОТВЕТСТВЕННОСТЬ. ОТКАЗ ОТ ДОГОВОРА</div>'
+    +'<div class="cl">8.1. За нарушение срока оплаты, установленного п. 3.3, Покупатель уплачивает Продавцу неустойку в размере <strong>0,1 % неоплаченной суммы за каждый день просрочки</strong>; общий размер неустойки не может превышать неоплаченную сумму.</div>'
+    +'<div class="cl">8.2. При отказе Покупателя от Договора до передачи Товара Продавец возвращает внесённую предоплату <strong>за вычетом фактически понесённых и документально подтверждённых расходов</strong>, связанных с исполнением обязательств по настоящему Договору. Возврат производится в течение 10 дней со дня получения требования.</div>'
+    +'<div class="cl">8.3. В остальном Стороны несут ответственность в соответствии с законодательством Российской Федерации.</div>'
+
+    +'<div class="sec">9. ПРОЧИЕ УСЛОВИЯ</div>'
+    +'<div class="cl">9.1. Персональные данные Покупателя (фамилия, имя, отчество, телефон, адрес) обрабатываются Продавцом исключительно в целях исполнения настоящего Договора на основании п. 5 ч. 1 ст. 6 Федерального закона от 27.07.2006 № 152-ФЗ и третьим лицам не передаются, за исключением случаев, предусмотренных законом.</div>'
+    +'<div class="cl">9.2. Изменения и дополнения к Договору совершаются в письменной форме. Согласование Сторонами дат и интервалов доставки, декоров и иных рабочих вопросов посредством переписки в мессенджере с указанных в Договоре номеров признаётся соблюдением письменной формы.</div>'
+    +'<div class="cl">9.3. Договор вступает в силу с момента подписания и действует до полного исполнения Сторонами обязательств. Составлен в двух экземплярах, по одному для каждой Стороны.</div>'
+
+    +'<div class="sigs">'
+    +'<div class="sb"><strong>ПРОДАВЕЦ</strong><br>ИП '+esc(VD_SHOP.name)+'<br>'
+    +'ОГРНИП '+_vdBlank(VD_SHOP.ogrnip)+' · ИНН '+_vdBlank(VD_SHOP.inn)+'<br>'
+    +VD_SHOP.city+', '+_vdBlank(VD_SHOP.addr,140)
+    +'<br>тел. '+(VD_SHOP.phone?'<span class="tel">'+esc(VD_SHOP.phone)+'</span>':'<span class="fill" style="min-width:110px">&nbsp;</span>')
+    +'<div class="sl"></div><div class="small">подпись</div></div>'
+    +'<div class="sb"><strong>ПОКУПАТЕЛЬ</strong><br>'+esc(o.client_name||'')+'<br>'
+    +'тел. '+(phones?esc(phones):'<span class="fill">&nbsp;</span>')+'<br>'
+    +'адрес: '+_vdBlank(o.client_address,180)+'<br>'
+    +'<span class="small">Экземпляр Договора получил, с условиями ознакомлен и согласен:</span>'
+    +'<div class="sl"></div><div class="small">подпись</div></div>'
+    +'</div>'
+
+    +'</body></html>';
+  _vdOpenPrint(html);
 }
 
 function printAct(orderId){
   var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
   var items=o.order_items||[];
-  var d=o.order_date?new Date(o.order_date+'T00:00:00'):new Date();
-  var mos=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
-  var day=d.getDate();var mon=mos[d.getMonth()];var yr=d.getFullYear();
-  // v7.29: год в строке приёмки берётся из ДАТЫ ПОДПИСАНИЯ (сегодня или дата
-  // закрытия заказа), а не из даты заказа. Раньше декабрьский заказ, который
-  // подписывали в январе, печатал акт с прошлым годом.
-  var _actD=o.closed_at?new Date(o.closed_at):new Date();
-  var actYr=_actD.getFullYear();
   var total=o.goods_discounted||o.goods_total||0;
-  // v7.29: доставка и занос теперь и в акте. Раньше они были только в договоре,
-  // и два документа по одному заказу расходились по сумме.
-  var _dCost=(o.delivery_cost||0)+(o.lifting_cost||0);
-  var _grand=total+_dCost;
-  var rows='';
-  for(var i=0;i<items.length;i++){
-    var it=items[i];
-    var nm=esc(it.product_name)+(it.color?', '+esc(it.color):'')+(it.fabric_category?', кат. '+esc(it.fabric_category):'')+(it.dims?', '+esc(it.dims):'');
-    var priceEach=it.price_discounted||it.price_retail||0;
-    var priceTotal=priceEach*(it.qty||1);
-    rows+='<tr>'+
-      '<td class="tc">'+  (i+1)+'</td>'+
-      '<td class="pl">'+nm+'</td>'+
-      '<td class="tc">'+(it.qty||1)+'</td>'+
-      '<td class="tr">'+fmt(priceEach)+'</td>'+
-      '<td class="tr">'+fmt(priceTotal)+'</td>'+
-      '</tr>';
-  }
-  var win=window.open('','_blank');
-  if(!win){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4000);return;}
-  win.document.write('<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>Акт</title>'+
-'<style>'+
-'*{box-sizing:border-box}'+
-'body{font-family:"Times New Roman",Times,serif;font-size:10pt;margin:0;padding:15mm 15mm 10mm 20mm;color:#000}'+
-'h1{font-size:12pt;font-weight:bold;text-align:center;margin:0 0 8px 0}'+
-'.hdr{display:flex;align-items:center;gap:12px;margin-bottom:6px}'+
-'.logo{height:44px;flex-shrink:0}'+
-'.hdr-title{flex:1;text-align:center}'+
-'.topline{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;font-size:10pt}'+
-'.intro{margin-bottom:6px;line-height:1.4}'+
-'.cl{margin:0 0 4px 0;line-height:1.4;text-align:justify}'+
-'.sec{font-weight:bold;margin:8px 0 4px}'+
-'table{width:100%;border-collapse:collapse;margin:4px 0 6px 0;font-size:9.5pt}'+
-'th{border:1px solid #000;padding:3px 5px;text-align:center;background:#f0f0f0;font-weight:bold}'+
-'td{border:1px solid #000;padding:3px 5px;font-size:9.5pt}'+
-'.tc{text-align:center}.tr{text-align:right}.pl{padding-left:5px}'+
-'.tfoot-row td{font-weight:bold}'+
-'.delivery-line{margin:6px 0;font-size:10pt}'+
-'.underline{border-bottom:1px solid #000;display:inline-block;min-width:200px}'+
-'.sigs{display:flex;justify-content:space-between;margin-top:20px;gap:20px}'+
-'.sb{flex:1}'+
-'.sl{border-bottom:1px solid #000;margin-top:22px;margin-bottom:2px}'+
-'@media print{body{padding:10mm 10mm 8mm 15mm}@page{margin:0}}'+
-'</style></head><body>'+
+  var delivCost=o.delivery_cost||0, liftCost=o.lifting_cost||0, dTotal=delivCost+liftCost;
+  var mos=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  // v7.29: дата акта — день подписания (закрытия), а не день заказа
+  var ad=o.closed_at?new Date(o.closed_at):new Date();
+  var aday=ad.getDate(),amon=mos[ad.getMonth()],ayr=ad.getFullYear();
 
-'<div class="hdr">'+
-'<img src="'+LOGO+'" class="logo">'+
-'<div class="hdr-title"><h1>Акт приёма-передачи товаров</h1>'+
-// v7.29: тот же номер, что и в договоре — чтобы бумаги связывались между собой
-(o.order_number?'<div style="font-size:10pt;font-weight:600">к договору № '+esc(o.order_number)+'</div>':'')+
-'</div>'+
-'</div>'+
+  var rows='',n=0;
+  items.forEach(function(it){
+    n++;
+    var nm=esc(it.product_name)
+      +(it.color?', '+esc(it.color):'')
+      +(it.fabric_category?', кат. '+esc(it.fabric_category):'')
+      +(it.dims?', '+esc(it.dims):'');
+    var q=it.qty||1;
+    // v7.34: если отвезена часть позиции — видно прямо в акте
+    var dq=(it.delivered_qty==null)?null:parseInt(it.delivered_qty);
+    var qCell=(dq!=null&&dq>0&&dq<q)?('<strong>'+dq+'</strong> из '+q):String(q);
+    rows+='<tr><td class="c">'+n+'</td><td>'+nm+'</td><td class="c">'+qCell+'</td><td>&nbsp;</td></tr>';
+  });
+  if(!rows)rows='<tr><td class="c">1</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>';
 
-'<div class="topline">'+
-'<span>г. Короча</span>'+
-'<span>Договор от «'+day+'» '+mon+' '+yr+' г.</span>'+
-'</div>'+
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Акт к договору №'+esc(o.order_number)+'</title>'
+    +'<style>'+_vdDocCss()+'</style></head><body>'
+    +_vdHeader('АКТ ПРИЁМА-ПЕРЕДАЧИ')
+    +'<div class="num">к Договору купли-продажи мебели № '+esc(o.order_number)+'</div>'
+    +'<div class="dateline"><span>'+VD_SHOP.city+'</span><span>«'+aday+'» '+amon+' '+ayr+' г.</span></div>'
 
-'<div class="intro">'+
-'<strong>'+esc(o.client_name)+'</strong>, именуемый(ая) в дальнейшем «Покупатель» и ИП Вакуленко С.С., именуемый в дальнейшем «Продавец», с другой стороны, составили настоящий акт о нижеследующем:'+
-'</div>'+
+    +'<div class="cl">ИП '+esc(VD_SHOP.name)+' (Продавец) передал, а гр. <strong>'+esc(o.client_name||'')+'</strong> (Покупатель) принял следующий Товар:</div>'
 
-'<div class="cl">1. В соответствии с договором купли-продажи заказной мебели, Продавец выполнил все обязательства по договору.</div>'+
-'<div class="cl">2. Спецификация:</div>'+
+    +'<table><thead><tr><th style="width:5%">№</th><th>Наименование, цвет (ткань), размеры</th>'
+    +'<th style="width:12%">Кол-во</th><th style="width:32%">Отметка о видимых недостатках</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table>'
 
-'<table>'+
-'<thead><tr>'+
-'<th style="width:5%">№</th>'+
-'<th>Наименование (торговая марка, цвет, размер)</th>'+
-'<th style="width:9%">Кол-во</th>'+
-'<th style="width:13%">Цена</th>'+
-'<th style="width:13%">Сумма</th>'+
-'</tr></thead>'+
-'<tbody>'+rows+'</tbody>'+
-'<tfoot>'+
-(_dCost>0?('<tr><td colspan="4" style="text-align:right;padding:3px 5px">'
-  +(o.delivery_cost>0&&o.lifting_cost>0?'Доставка и занос:':(o.lifting_cost>0?'Занос:':'Доставка:'))
-  +'</td><td style="text-align:right;padding:3px 5px">'+fmt(_dCost)+'</td></tr>'):'')+
-'<tr class="tfoot-row">'+
-'<td colspan="4" style="text-align:right;padding:3px 5px">Итого (цифрами):</td>'+
-'<td style="text-align:right;padding:3px 5px">'+fmt(_grand)+'</td>'+
-'</tr></tfoot>'+
-'</table>'+
+    +'<div class="cl">Товар осмотрен Покупателем: проверены комплектность, количество мест, габариты, цвет и текстура, целостность поверхностей, работа фурнитуры и механизмов.</div>'
+    +'<div class="cl small">Настоящий акт не ограничивает права Покупателя в отношении недостатков, которые не могли быть обнаружены при обычном осмотре. Сроки предъявления требований — ст. 19 Закона РФ «О защите прав потребителей».</div>'
 
-'<div class="delivery-line">'+
-'Доставлено Покупателю:&nbsp;&nbsp;'+
-'<span class="underline">'+esc(o.client_address||'')+'</span>&nbsp;&nbsp;'+
-'«&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;»&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; '+actYr+' г.'+
-'</div>'+
+    +'<div class="sec">Расчёты</div>'
+    +'<table>'
+    +'<tr><td>Стоимость Товара по Договору</td><td class="r" style="width:22%">'+fmt(total)+' руб.</td></tr>'
+    +((o.prepayment||0)>0?'<tr><td>Внесено предоплаты'+(o.payment_method?' ('+esc(_vdPlain(o.payment_method))+')':'')+'</td><td class="r">− '+fmt(o.prepayment)+' руб.</td></tr>':'')
+    +(dTotal>0?'<tr><td>'+(delivCost>0&&liftCost>0?'Доставка и занос':(liftCost>0?'Занос':'Доставка'))+_delivPayMark(o,dTotal)+'</td><td class="r">'+fmt(dTotal)+' руб.</td></tr>':'')
+    +'<tr class="tfoot"><td>Получено при передаче Товара</td><td class="r"><span class="fill" style="min-width:90px">&nbsp;</span> руб.</td></tr>'
+    +'</table>'
+    +'<div class="cl">Способ оплаты при передаче: <span class="fill" style="min-width:150px">&nbsp;</span></div>'
+    +'<div class="cl">Недостатки Товара и сопутствующих услуг, кроме указанных в таблице, не выявлены. Взаимных претензий по расчётам Стороны не имеют.</div>'
 
-'<div class="cl" style="margin-top:6px">3. Недостатки товара и сопутствующих услуг не выявлены. Покупатель претензий не имеет.</div>'+
-
-'<div class="sigs">'+
-'<div class="sb">'+
-'<div><strong>Сдал:</strong></div>'+
-'<div>Продавец</div>'+
-'<div>ИП Вакуленко С.С.</div>'+
-'<div class="sl"></div>'+
-'<div style="font-size:9pt">подпись</div>'+
-'</div>'+
-'<div class="sb">'+
-'<div><strong>Принял:</strong></div>'+
-'<div>Покупатель</div>'+
-'<div>'+esc(o.client_name)+'</div>'+
-'<div class="sl"></div>'+
-'<div style="font-size:9pt">(Ф.И.О. / подпись)</div>'+
-'</div>'+
-'</div>'+
-
-'</body></html>');
-  win.document.close();
-  setTimeout(function(){win.print();},600);
+    +'<div class="sigs">'
+    +'<div class="sb"><strong>Передал:</strong><br>Продавец, ИП '+esc(VD_SHOP.name)+' / представитель<div class="sl"></div><div class="small">подпись, расшифровка</div></div>'
+    +'<div class="sb"><strong>Принял:</strong><br>Покупатель, '+esc(o.client_name||'')+'<div class="sl"></div><div class="small">подпись, расшифровка</div></div>'
+    +'</div>'
+    +'</body></html>';
+  _vdOpenPrint(html);
 }
 
 function openMarkupModal(){
