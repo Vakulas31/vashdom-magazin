@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.39</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.40</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -786,6 +786,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="card"><div class="card-title">Эффективность менеджеров</div><div id="chart-managers"></div></div>
     <div class="card"><div class="card-title">📅 Отработанные дни — по месяцам</div><div id="chart-workdays"></div></div>
   </div>
+  <!-- v7.40: расчёт зарплаты. Смены берутся из «Отработанных дней»,
+       оборот — товар со скидкой по заказам продавца, по дате оформления. -->
+  <div class="card" style="margin-top:16px"><div class="card-title">💵 Зарплата продавцов — за выбранный период</div><div id="chart-salary"></div></div>
   </details>
 
   <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🏆 Товары и клиенты <span style="font-weight:400;font-size:11px">(нажмите, чтобы развернуть)</span></summary>
@@ -6577,6 +6580,7 @@ function renderStats(){
   document.getElementById('stats-kpis').innerHTML=kpis.map(function(k){
     return '<div class="stat-card"><div class="stat-label">'+k.l+'</div><div class="stat-val" style="font-size:18px;'+(k.c?'color:'+k.c:'')+'">'+k.v+'</div>'+(k.s?'<div style="font-size:11px;color:var(--text2)">'+k.s+'</div>':'')+(k.d||'')+'</div>';
   }).join('');
+  _renderSalary(orders,range); // v7.40: зарплата — до раннего выхода «нет данных»
   // ── ПО МЕСЯЦАМ: таблица за последние 12 месяцев (НЕ зависит от выбранного периода) ──
   (function(){
     var el=document.getElementById('chart-months');if(!el)return;
@@ -6804,6 +6808,127 @@ async function backfillWorkdays(){
     else toast('❌ '+msg,'err',6000);
   }
 }
+// ═══ v7.40: ЗАРПЛАТА ПРОДАВЦОВ ═══════════════════════════════════════
+// Формула, согласованная с владельцем 01.08.2026:
+//     зарплата = смены × ставка за смену  +  процент от оборота
+// Оборот — сумма товаров СО СКИДКОЙ по заказам этого продавца, БЕЗ доставки
+// и заноса: это расходы на машину, а не его заработок.
+// Заказ относится к периоду по ДАТЕ ОФОРМЛЕНИЯ — зарплата за месяц считается
+// сразу и потом не переписывается задним числом.
+// Смены берутся из manager_days (утренний выбор «кто сегодня работает»).
+var VD_RATE_DAY=1650;   // ставка за смену по умолчанию для нового продавца
+var VD_RATE_PCT=1;      // процент от оборота по умолчанию
+var _rates=null;        // {имя:{d:ставка,p:процент}}
+var _ratesInDb=false;   // true — настройки лежат в базе и видны на всех устройствах
+var _mdCache=null;      // строки manager_days, чтобы не дёргать базу при каждой перерисовке
+
+function _ratesLocal(){try{return JSON.parse(localStorage.getItem('vd_rates')||'{}')||{};}catch(e){return{};}}
+function _rateOf(n){
+  var r=(_rates||{})[n]||{};
+  return {d:(r.d==null||isNaN(r.d))?VD_RATE_DAY:+r.d, p:(r.p==null||isNaN(r.p))?VD_RATE_PCT:+r.p};
+}
+// Настройки живут в таблице staff_rates. Если SQL 7.10 ещё не выполнен —
+// работаем на этом устройстве через localStorage, приложение не ломается.
+function _loadRates(){
+  return _sbOnce('GET','staff_rates',null,'select=manager,rate_day,bonus_pct&limit=200')
+    .then(function(rows){
+      var m={};(rows||[]).forEach(function(r){
+        var n=(r.manager||'').trim();if(n)m[n]={d:+r.rate_day,p:+r.bonus_pct};
+      });
+      _rates=m;_ratesInDb=true;return m;
+    })
+    .catch(function(){_rates=_ratesLocal();_ratesInDb=false;return _rates;});
+}
+function _mdLoad(){
+  if(_mdCache)return Promise.resolve(_mdCache);
+  return sbGet('manager_days','select=work_date,manager&limit=20000')
+    .then(function(r){_mdCache=r||[];return _mdCache;})
+    .catch(function(){_mdCache=[];return _mdCache;});
+}
+// Сохранение ставок. В базе строки на продавца может ещё не быть — тогда
+// PATCH вернёт пусто (v7.28 бросает на это ошибку) и мы вставляем POST'ом.
+function saveSalaryRates(){
+  var box=document.getElementById('chart-salary');if(!box)return;
+  var inputs=box.querySelectorAll('input[data-mgr]');
+  var next={};
+  Array.prototype.forEach.call(inputs,function(el){
+    var n=el.getAttribute('data-mgr'),k=el.getAttribute('data-k');
+    var v=parseFloat(String(el.value).replace(',','.'));
+    if(isNaN(v)||v<0)v=(k==='d'?VD_RATE_DAY:VD_RATE_PCT);
+    if(k==='p'&&v>100)v=100;
+    (next[n]=next[n]||{})[k]=v;
+  });
+  _rates=next;
+  localStorage.setItem('vd_rates',JSON.stringify(next));   // копия на устройстве в любом случае
+  if(!_ratesInDb){toast('💾 Ставки сохранены на этом устройстве. Выполните SQL 7.10 — и они будут общими','ok',6000);renderStats();return;}
+  var names=Object.keys(next);
+  Promise.all(names.map(function(n){
+    var body={rate_day:next[n].d,bonus_pct:next[n].p};
+    return sbPatch('staff_rates',body,'manager=eq.'+encodeURIComponent(n))
+      .catch(function(){return sbPost('staff_rates',{manager:n,rate_day:next[n].d,bonus_pct:next[n].p});});
+  }))
+  .then(function(){toast('💾 Ставки сохранены');renderStats();})
+  .catch(function(e){toast('❌ Не сохранилось: '+((e&&e.message)||''),'err',6000);});
+}
+function _renderSalary(orders,range){
+  var el=document.getElementById('chart-salary');if(!el)return;
+  el.innerHTML='<p style="color:var(--text2);font-size:13px">Загрузка...</p>';
+  Promise.all([_rates?Promise.resolve(_rates):_loadRates(),_mdLoad()]).then(function(res){
+    var md=res[1],by={};
+    function row(n){if(!by[n])by[n]={rev:0,n:0,days:0};return by[n];}
+    (orders||[]).forEach(function(o){
+      var n=(o.manager||'').trim();if(!n)return;
+      var g=row(n);g.rev+=(o.goods_discounted||o.goods_total||0);g.n++;
+    });
+    var seen={};
+    (md||[]).forEach(function(r){
+      var n=(r.manager||'').trim(),d=r.work_date;
+      if(!n||!d)return;
+      if(range){var dt=new Date(d+'T00:00:00');if(dt<range.from||dt>=range.to)return;}
+      var k=n+'|'+d;if(seen[k])return;seen[k]=1;
+      row(n).days++;
+    });
+    var names=Object.keys(by).sort();
+    if(!names.length){el.innerHTML='<p style="color:var(--text2);font-size:13px">За этот период смен и продаж нет.</p>';return;}
+    var td='padding:7px 8px;border-bottom:1px solid var(--border);';
+    var th='text-align:right;'+td+'font-size:11px;color:var(--text2);font-weight:600';
+    var h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;min-width:620px">'
+      +'<tr><th style="text-align:left;'+td+'font-size:11px;color:var(--text2);font-weight:600">Продавец</th>'
+      +'<th style="'+th+'">Смен</th><th style="'+th+'">Ставка</th><th style="'+th+'">Оклад</th>'
+      +'<th style="'+th+'">Оборот</th><th style="'+th+'">%</th><th style="'+th+'">Премия</th>'
+      +'<th style="'+th+'">К выплате</th></tr>';
+    var tot={days:0,base:0,rev:0,bonus:0,sum:0};
+    var inp='width:62px;padding:3px 5px;font-size:12.5px;text-align:right;border:1px solid var(--border);border-radius:5px';
+    names.forEach(function(n){
+      var d=by[n],r=_rateOf(n);
+      var base=Math.round(d.days*r.d), bonus=Math.round(d.rev*r.p/100), sum=base+bonus;
+      tot.days+=d.days;tot.base+=base;tot.rev+=d.rev;tot.bonus+=bonus;tot.sum+=sum;
+      h+='<tr><td style="'+td+'font-weight:700">'+esc(n)+'<div style="font-size:11px;color:var(--text2);font-weight:400">заказов '+d.n+'</div></td>'
+        +'<td style="text-align:right;'+td+'">'+d.days+'</td>'
+        +'<td style="text-align:right;'+td+'"><input type="number" min="0" step="50" style="'+inp+'" data-mgr="'+esc(n)+'" data-k="d" value="'+r.d+'"></td>'
+        +'<td style="text-align:right;'+td+'">'+fmt(base)+'</td>'
+        +'<td style="text-align:right;'+td+'">'+fmt(Math.round(d.rev))+'</td>'
+        +'<td style="text-align:right;'+td+'"><input type="number" min="0" max="100" step="0.5" style="'+inp+';width:52px" data-mgr="'+esc(n)+'" data-k="p" value="'+r.p+'"></td>'
+        +'<td style="text-align:right;'+td+'">'+fmt(bonus)+'</td>'
+        +'<td style="text-align:right;'+td+'font-weight:700">'+fmt(sum)+' ₽</td></tr>';
+    });
+    if(names.length>1){
+      h+='<tr style="background:var(--alt)"><td style="'+td+'font-weight:700">Итого</td>'
+        +'<td style="text-align:right;'+td+'font-weight:700">'+tot.days+'</td><td style="'+td+'"></td>'
+        +'<td style="text-align:right;'+td+'font-weight:700">'+fmt(tot.base)+'</td>'
+        +'<td style="text-align:right;'+td+'font-weight:700">'+fmt(Math.round(tot.rev))+'</td><td style="'+td+'"></td>'
+        +'<td style="text-align:right;'+td+'font-weight:700">'+fmt(tot.bonus)+'</td>'
+        +'<td style="text-align:right;'+td+'font-weight:700">'+fmt(tot.sum)+' ₽</td></tr>';
+    }
+    h+='</table></div>'
+      +'<div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      +'<button class="btn btn-outline" style="padding:6px 12px;font-size:12px" onclick="saveSalaryRates()">💾 Сохранить ставки</button>'
+      +'<span style="font-size:11px;color:var(--text2)">Оборот — товар со скидкой, без доставки и заноса. Заказ считается за тем месяцем, в котором оформлен. Смены — из «Отработанных дней».</span>'
+      +'</div>'
+      +(_ratesInDb?'':'<div style="margin-top:6px;font-size:11px;color:#C62828">Ставки пока хранятся только на этом устройстве. Выполните <strong>SQL_обновление_7.10</strong> — и они станут общими.</div>');
+    el.innerHTML=h;
+  });
+}
 // v7.25: полная копия — ВСЕ таблицы базы, двумя файлами:
 //   .json — точная копия для восстановления (типы и пустые значения не портятся),
 //   .xlsx — та же копия, но её можно открыть глазами.
@@ -6820,7 +6945,8 @@ var _BK_TABLES=[
   {t:'price_items',      sheet:'Прайсы'},
   {t:'products',         sheet:'Каталог старый'},
   {t:'catalog_items',    sheet:'Каталоги фабрик'},
-  {t:'app_roles',        sheet:'Роли'} // v7.28: иначе при восстановлении теряется, кто владелец
+  {t:'app_roles',        sheet:'Роли'}, // v7.28: иначе при восстановлении теряется, кто владелец
+  {t:'staff_rates',      sheet:'Ставки продавцов'} // v7.40
 ];
 function _bkSave(text,name,mime){
   var blob=new Blob([text],{type:mime});
