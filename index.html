@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.44</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.45</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -2243,7 +2243,8 @@ function renderCash(){
     // v6.7: оплаты позиций при доставке; если SQL 6.7 ещё не выполнен — тихо пропускаем
     sbGet('order_items','select=order_id,paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc&limit=2000').catch(function(){return[];})
   ]).then(function(res){
-    _renderCashUI(res[0]||[],res[1]||[],res[2]||[]);
+    _cashRaw={orders:res[0]||[],wd:res[1]||[],pays:res[2]||[]};
+    _renderCashUI(_cashRaw.orders,_cashRaw.wd,_cashRaw.pays);
   }).catch(function(e){
     var msg=e.message||'';
     if(/cash_withdrawals|closed_at|pay_cash|does not exist|column|relation/i.test(msg)){
@@ -2272,6 +2273,46 @@ function _plParseWdComment(cmt){
   });
   return out;
 }
+// ═══ v7.45: ПОСТУПЛЕНИЯ ПО ПЕРИОДАМ ═════════════════════════════════
+// Раньше «Учёт» показывал одну общую копилку за всё время: нельзя было
+// посмотреть, сколько денег пришло за конкретный месяц и каким способом.
+// Главная тонкость — ДАТА. Деньги приходят в три разных момента:
+//   • предоплата и оплаченная сразу доставка — в день оформления заказа;
+//   • доплата при закрытии — в день закрытия;
+//   • оплата за позицию при доставке — в день доставки.
+// Раньше всё это лежало в одной строке с датой заказа. Для общей суммы
+// неважно, а для разбивки по месяцам — критично: апрельский заказ, закрытый
+// в июле, отдал бы июльские деньги в апрель. Поэтому каждое поступление
+// теперь отдельная запись со СВОЕЙ датой.
+var _cashRaw=null, _cashPeriod='all';
+function setCashPeriod(p){
+  _cashPeriod=p;
+  if(_cashRaw)_renderCashUI(_cashRaw.orders,_cashRaw.wd,_cashRaw.pays);
+}
+function _cashPeriodName(){
+  if(_cashPeriod==='all')return 'за всё время';
+  if(/^\d{4}-\d{2}$/.test(_cashPeriod))return 'за '+fmtMonth(_cashPeriod);
+  if(_cashPeriod==='month')return 'за текущий месяц';
+  if(_cashPeriod==='quarter')return 'за последние 3 месяца';
+  return 'за текущий год';
+}
+function _cashFrom(){
+  var n=new Date();
+  if(_cashPeriod==='month')return new Date(n.getFullYear(),n.getMonth(),1);
+  if(_cashPeriod==='quarter')return new Date(n.getFullYear(),n.getMonth()-2,1);
+  if(_cashPeriod==='year')return new Date(n.getFullYear(),0,1);
+  return null;
+}
+function _cashInPeriod(dateStr){
+  if(_cashPeriod==='all')return true;
+  var d=String(dateStr||'').slice(0,10);
+  if(!d)return false;
+  if(/^\d{4}-\d{2}$/.test(_cashPeriod))return d.slice(0,7)===_cashPeriod;
+  var f=_cashFrom();
+  if(!f)return true;
+  var fs=f.getFullYear()+'-'+String(f.getMonth()+1).padStart(2,'0')+'-'+String(f.getDate()).padStart(2,'0');
+  return d>=fs;
+}
 function _renderCashUI(orders,withdrawals,itemPays){
   var el=document.getElementById('cash-content');
   // v7.34: сумма оплат по позициям для каждого заказа — нужна, чтобы понять,
@@ -2286,6 +2327,13 @@ function _renderCashUI(orders,withdrawals,itemPays){
   var tot={cash:0,card:0,transfer:0,other:0};
   var list=[];
   var cashParts=[]; // отдельные наличные поступления для расшифровки кассы
+  // v7.45: каждое поступление отдельно — со своей датой прихода денег
+  var flows=[];
+  function _flow(date,kind,amt,num,client,what){
+    if(!(amt>0))return;
+    flows.push({date:String(date||'').slice(0,10),kind:(kind==='other'?'other':kind),
+      amt:Math.round(amt),num:num||'',client:client||'',what:what||''});
+  }
   // v6.7: оплаты позиций при доставке — отдельные строки поступлений
   (itemPays||[]).forEach(function(p){
     var amt=Math.round(p.paid_amount||0);if(amt<=0)return;
@@ -2297,6 +2345,7 @@ function _renderCashUI(orders,withdrawals,itemPays){
     r[kind==='other'?'other':kind]+=amt;
     tot[kind==='other'?'other':kind]+=amt;
     if(kind==='cash')cashParts.push({num:ord.order_number,client:ord.client_name,kind:'оплата при доставке',amt:amt,date:p.paid_at||ord.order_date});
+    _flow(p.paid_at||ord.order_date,kind,amt,ord.order_number,ord.client_name,'оплата при доставке: '+(p.product_name||'товар'));
     list.push(r);
   });
   orders.forEach(function(o){
@@ -2309,7 +2358,13 @@ function _renderCashUI(orders,withdrawals,itemPays){
       if(preKind==='other'){r.other+=pre;r.preNote='предоплата '+fmt(pre)+' ₽ — способ не указан';}
       else{r[preKind]+=pre;r.preNote='в т.ч. предоплата '+fmt(pre)+' ₽';}
       if(preKind==='cash')cashParts.push({num:o.order_number,client:o.client_name,kind:'предоплата',amt:pre,date:o.order_date});
+      _flow(o.order_date,preKind,pre,o.order_number,o.client_name,'предоплата');
     }
+    // доплаты при закрытии — деньги пришли в день закрытия, а не заказа
+    var _cd=o.closed_at||o.order_date;
+    _flow(_cd,'cash',Math.round(o.pay_cash||0),o.order_number,o.client_name,'доплата при закрытии');
+    _flow(_cd,'card',Math.round(o.pay_card||0),o.order_number,o.client_name,'доплата при закрытии');
+    _flow(_cd,'transfer',Math.round(o.pay_transfer||0),o.order_number,o.client_name,'доплата при закрытии');
     if(Math.round(o.pay_cash||0)>0)cashParts.push({num:o.order_number,client:o.client_name,kind:'остаток при закрытии',amt:Math.round(o.pay_cash),date:o.closed_at||o.order_date});
     // Расшифровка доставки: наша (в кассе) / сторонняя (мимо кассы, справочно)
     var delivSum=Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
@@ -2322,6 +2377,7 @@ function _renderCashUI(orders,withdrawals,itemPays){
       var dKind=_payKind(o.payment_method);
       r[dKind==='other'?'other':dKind]+=delivPre;
       if(dKind==='cash')cashParts.push({num:o.order_number,client:o.client_name,kind:'доставка при оформлении',amt:delivPre,date:o.order_date});
+      _flow(o.order_date,dKind,delivPre,o.order_number,o.client_name,'доставка при оформлении');
     }
     if(delivSum>0){
       if(o.delivery_our===false){
@@ -2440,20 +2496,84 @@ function _renderCashUI(orders,withdrawals,itemPays){
     +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">'
     +'<div><div class="stat-label">💵 Наличных в кассе</div>'
     +'<div style="font-size:34px;font-weight:800;color:'+(_cashBoxNow>0?'#1B5E20':'var(--text2)')+'">'+fmt(_cashBoxNow)+' ₽</div>'
-    +'<div style="font-size:11px;color:var(--text2);margin-top:2px">= наличные предоплаты + наличные доплаты при закрытии − забрано из кассы</div></div>'
+    +'<div style="font-size:11px;color:var(--text2);margin-top:2px">= наличные предоплаты + наличные доплаты при закрытии − забрано из кассы</div>'
+    +'<div style="font-size:11px;color:var(--text2)">Это остаток на сейчас — выбор периода ниже на него не влияет.</div></div>'
     +(_cashBoxNow>0
       ?'<button class="btn btn-success" onclick="takeCash()" style="padding:12px 22px;font-size:14px">✅ Я забрал наличные</button>'
       :_cashBoxNow<0
         ?'<span style="font-size:12px;color:#C62828;max-width:300px;text-align:right;line-height:1.4">⚠️ Касса в минусе — скорее всего забор записан дважды. Удалите лишнюю запись кнопкой «✖ отменить» в истории заборов ниже.</span>'
         :'<span style="font-size:13px;color:var(--text2)">Касса пуста</span>')
     +'</div>'+breakBlock+'</div>';
-  // Сводка по способам (все поступления)
+  // ── v7.45: выбор периода ──────────────────────────────────────────
+  // Месяцы берём из самих поступлений, а не из календаря: показывать пустые
+  // месяцы, в которых денег не было, незачем.
+  var monthsSet={};
+  flows.forEach(function(f){if(f.date)monthsSet[f.date.slice(0,7)]=1;});
+  var months=Object.keys(monthsSet).sort().reverse();
+  var chip=function(v,label){
+    var on=(_cashPeriod===v);
+    return '<span onclick="setCashPeriod(\''+v+'\')" style="cursor:pointer;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;'
+      +(on?'background:var(--dark);color:#fff':'background:var(--grey);color:var(--text2)')+'">'+label+'</span>';
+  };
+  var monthPicked=/^\d{4}-\d{2}$/.test(_cashPeriod);
+  html+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'
+    +chip('month','Этот месяц')+chip('quarter','3 месяца')+chip('year','Год')+chip('all','Всё время')
+    +'<select onchange="if(this.value)setCashPeriod(this.value)" style="padding:4px 8px;border-radius:14px;font-size:12px;border:1px solid var(--border);'
+    +(monthPicked?'background:var(--dark);color:#fff':'')+'">'
+    +'<option value="">— любой месяц —</option>'
+    +months.map(function(m){return '<option value="'+m+'"'+(_cashPeriod===m?' selected':'')+'>'+fmtMonth(m)+'</option>';}).join('')
+    +'</select></div>';
+
+  // Суммы за выбранный период
+  var totP={cash:0,card:0,transfer:0,other:0};
+  var inPeriod=[];
+  flows.forEach(function(f){
+    if(!_cashInPeriod(f.date))return;
+    totP[f.kind]+=f.amt;inPeriod.push(f);
+  });
+  var totPsum=totP.cash+totP.card+totP.transfer+totP.other;
+  var pName=_cashPeriodName();
   html+='<div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">'
-    +'<div class="stat-card"><div class="stat-label">💵 Наличными всего</div><div class="stat-val" style="font-size:18px">'+fmt(tot.cash)+' ₽</div></div>'
-    +'<div class="stat-card"><div class="stat-label">💳 Картой всего</div><div class="stat-val" style="font-size:18px">'+fmt(tot.card)+' ₽</div></div>'
-    +'<div class="stat-card"><div class="stat-label">📲 Переводом всего</div><div class="stat-val" style="font-size:18px">'+fmt(tot.transfer)+' ₽</div></div>'
-    +'<div class="stat-card"><div class="stat-label">Итого поступлений</div><div class="stat-val" style="font-size:18px;color:var(--dark)">'+fmt(tot.cash+tot.card+tot.transfer+tot.other)+' ₽</div>'
-    +(tot.other>0?'<div style="font-size:10px;color:#E65100">в т.ч. '+fmt(tot.other)+' ₽ без способа оплаты</div>':'')+'</div>'
+    +'<div class="stat-card"><div class="stat-label">💵 Наличными</div><div class="stat-val" style="font-size:18px">'+fmt(totP.cash)+' ₽</div><div style="font-size:10px;color:var(--text2)">'+pName+'</div></div>'
+    +'<div class="stat-card"><div class="stat-label">💳 Картой</div><div class="stat-val" style="font-size:18px">'+fmt(totP.card)+' ₽</div><div style="font-size:10px;color:var(--text2)">'+pName+'</div></div>'
+    +'<div class="stat-card"><div class="stat-label">📲 Переводом</div><div class="stat-val" style="font-size:18px">'+fmt(totP.transfer)+' ₽</div><div style="font-size:10px;color:var(--text2)">'+pName+'</div></div>'
+    +'<div class="stat-card"><div class="stat-label">Итого поступлений</div><div class="stat-val" style="font-size:18px;color:var(--dark)">'+fmt(totPsum)+' ₽</div>'
+    +(totP.other>0?'<div style="font-size:10px;color:#E65100">в т.ч. '+fmt(totP.other)+' ₽ без способа оплаты</div>':'<div style="font-size:10px;color:var(--text2)">'+pName+'</div>')+'</div>'
+    +'</div>';
+  if(_cashPeriod!=='all')
+    html+='<div style="font-size:11.5px;color:var(--text2);margin:-4px 0 12px">Деньги отнесены к месяцу, когда они РЕАЛЬНО пришли: предоплата — в день заказа, доплата — в день закрытия, оплата за товар — в день доставки. За всё время получено '+fmt(tot.cash+tot.card+tot.transfer+tot.other)+' ₽.</div>';
+
+  // ── Таблица по месяцам ────────────────────────────────────────────
+  var byMonth={};
+  flows.forEach(function(f){
+    var m=f.date.slice(0,7);if(!m)return;
+    if(!byMonth[m])byMonth[m]={cash:0,card:0,transfer:0,other:0};
+    byMonth[m][f.kind]+=f.amt;
+  });
+  var mList=Object.keys(byMonth).sort().reverse().slice(0,12);
+  var mRows=mList.map(function(m){
+    var d=byMonth[m],sum=d.cash+d.card+d.transfer+d.other;
+    var on=(_cashPeriod===m);
+    return '<tr'+(on?' style="background:var(--alt)"':'')+'>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12.5px">'
+      +'<span onclick="setCashPeriod(\''+m+'\')" style="cursor:pointer;color:#1565C0;border-bottom:1px dashed #90A4AE">'+fmtMonth(m)+'</span></td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px">'+(d.cash?fmt(d.cash)+' ₽':'—')+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px">'+(d.card?fmt(d.card)+' ₽':'—')+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px">'+(d.transfer?fmt(d.transfer)+' ₽':'—')+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px;color:'+(d.other?'#E65100':'var(--text2)')+'">'+(d.other?fmt(d.other)+' ₽':'—')+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;font-size:13px">'+fmt(sum)+' ₽</td></tr>';
+  }).join('');
+  html+='<div class="card"><div class="card-title">📅 Поступления по месяцам</div>'
+    +(mRows?'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:560px">'
+      +'<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Месяц</th>'
+      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">💵 Наличные</th>'
+      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">💳 Карта</th>'
+      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">📲 Перевод</th>'
+      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Без способа</th>'
+      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Итого</th></tr>'
+      +mRows+'</table></div>'
+      +'<div style="font-size:11px;color:var(--text2);margin-top:8px">Нажмите на месяц, чтобы посмотреть его поступления списком.</div>'
+      :'<p style="font-size:13px;color:var(--text2);padding:8px 0">Поступлений пока нет</p>')
     +'</div>';
   // История забора наличных — у каждого забора свой раскрывающийся список поступлений
   var wdRows='';
@@ -2480,44 +2600,41 @@ function _renderCashUI(orders,withdrawals,itemPays){
   html+='<div class="card"><div class="card-title">📤 История забора наличных'+(withdrawn>0?' · всего забрано '+fmt(withdrawn)+' ₽':'')+'</div>'
     +(wdRows||'<p style="font-size:13px;color:var(--text2);padding:8px 0">Наличные ещё не забирали</p>')
     +'</div>';
-  // Все поступления по заказам (предоплаты + закрытия)
-  var pRows='';
-  list.forEach(function(r){
-    var rowTot=r.cash+r.card+r.transfer+r.other;
-    pRows+='<tr>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">'
-        +(r.order_number
-          ?'<span onclick="openOrderByNumber(\''+String(r.order_number).replace(/'/g,"\\'")+'\')" title="Открыть заказ №'+r.order_number+'" style="cursor:pointer;color:#1565C0;border-bottom:1px dashed #90A4AE">№'+r.order_number+'</span>'
-          :'—')+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:13px">'+(r.client_name||'—')
-      +(r.preNote?'<div style="font-size:10px;color:var(--text2)">'+r.preNote+'</div>':'')
-      +(r.delivNote?'<div style="font-size:10px">'+r.delivNote+'</div>':'')+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">'+fmtDate(r.order_date)+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">'+(r.closed_at?fmtDate(r.closed_at):'<span style="color:#1565C0">в работе</span>')+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px">'+(r.cash>0?fmt(r.cash)+' ₽':'—')+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px">'+(r.card>0?fmt(r.card)+' ₽':'—')+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px">'+(r.transfer>0?fmt(r.transfer)+' ₽':'—')+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;font-size:13px">'+fmt(rowTot)+' ₽</td>'
-      +'</tr>';
+  // ── v7.45: журнал поступлений за выбранный период ─────────────────
+  // Раньше здесь была таблица «по заказам»: предоплата и доплата в одной
+  // строке с датой заказа. Теперь строка = одно поступление со своей датой,
+  // поэтому список сходится с цифрами наверху и с таблицей по месяцам.
+  var KIND={cash:'💵 наличные',card:'💳 карта',transfer:'📲 перевод',other:'⚠️ не указан'};
+  var jFlows=inPeriod.slice().sort(function(a,b){
+    var c=String(b.date).localeCompare(String(a.date));
+    return c||String(b.num).localeCompare(String(a.num));
   });
-  html+='<div class="card"><div class="card-title">📋 Поступления по заказам ('+list.length+') — предоплаты, оплаты при доставке и при закрытии</div>'
-    +(pRows?'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:720px">'
-      +'<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Заказ</th>'
+  var LIMIT=300, shown=jFlows.slice(0,LIMIT);
+  var jRows=shown.map(function(f){
+    return '<tr>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px;white-space:nowrap">'+fmtDate(f.date)+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px">'
+        +(f.num?'<span onclick="openOrderByNumber(\''+String(f.num).replace(/'/g,"\\'")+'\')" title="Открыть заказ" style="cursor:pointer;color:#1565C0;border-bottom:1px dashed #90A4AE">№'+esc(f.num)+'</span>':'—')+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:13px">'+esc(f.client||'—')+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">'+esc(f.what)+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px'+(f.kind==='other'?';color:#E65100':'')+'">'+KIND[f.kind]+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;font-size:13px">'+fmt(f.amt)+' ₽</td>'
+      +'</tr>';
+  }).join('');
+  html+='<div class="card"><div class="card-title">📋 Поступления ' + pName + ' — ' + jFlows.length + ' шт.</div>'
+    +(jRows?'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:700px">'
+      +'<tr><th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Дата</th>'
+      +'<th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Заказ</th>'
       +'<th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Клиент</th>'
-      +'<th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Дата заказа</th>'
-      +'<th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Закрыт</th>'
-      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">💵 Наличные</th>'
-      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">💳 Карта</th>'
-      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">📲 Перевод</th>'
-      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Итого</th></tr>'
-      +pRows
-      +'<tr style="background:var(--grey)"><td colspan="4" style="padding:7px 8px;font-weight:700;font-size:12px">ИТОГО</td>'
-      +'<td style="padding:7px 8px;text-align:right;font-weight:700;font-size:13px">'+fmt(tot.cash)+' ₽</td>'
-      +'<td style="padding:7px 8px;text-align:right;font-weight:700;font-size:13px">'+fmt(tot.card)+' ₽</td>'
-      +'<td style="padding:7px 8px;text-align:right;font-weight:700;font-size:13px">'+fmt(tot.transfer)+' ₽</td>'
-      +'<td style="padding:7px 8px;text-align:right;font-weight:700;font-size:13px;color:var(--dark)">'+fmt(tot.cash+tot.card+tot.transfer+tot.other)+' ₽</td></tr>'
+      +'<th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">За что</th>'
+      +'<th style="text-align:left;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Как</th>'
+      +'<th style="text-align:right;padding:4px 8px;border-bottom:2px solid var(--border);font-size:11px">Сумма</th></tr>'
+      +jRows
+      +'<tr style="background:var(--grey)"><td colspan="5" style="padding:7px 8px;font-weight:700;font-size:12px">ИТОГО '+pName+'</td>'
+      +'<td style="padding:7px 8px;text-align:right;font-weight:700;font-size:13px;color:var(--dark)">'+fmt(totPsum)+' ₽</td></tr>'
       +'</table></div>'
-      :'<p style="font-size:13px;color:var(--text2);padding:8px 0">Поступлений пока нет</p>')
+      +(jFlows.length>LIMIT?'<div style="font-size:11px;color:#8a5a18;margin-top:8px">Показаны последние '+LIMIT+' поступлений из '+jFlows.length+'. Итог посчитан по всем. Выберите месяц, чтобы увидеть список целиком.</div>':'')
+      :'<p style="font-size:13px;color:var(--text2);padding:8px 0">За этот период поступлений не было</p>')
     +'</div>';
   el.innerHTML=html;
 }
