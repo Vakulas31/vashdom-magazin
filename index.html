@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.42</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.43.1</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -7082,9 +7082,20 @@ function renderStats(){
 // с листами: Заказы, Позиции, Клиенты, Касса-изъятия, Прайсы. Если библиотека
 // Excel недоступна — фолбэк в JSON (старое поведение).
 async function _bkFetchAll(table,orderCol){
-  var out=[],off=0;
+  var out=[],off=0,ord=orderCol;
   for(;;){
-    var page=await sbGet(table,'select=*&order='+orderCol+'.asc&limit=1000&offset='+off);
+    var page;
+    try{
+      page=await sbGet(table,'select=*'+(ord?'&order='+ord+'.asc':'')+'&limit=1000&offset='+off);
+    }catch(e){
+      // v7.43: НЕ у всех таблиц есть колонка id — у ролей ключ user_id,
+      // у настроек key, у ставок свой. Запрос с сортировкой по id падал,
+      // таблица попадала в «нет таблиц» мелким шрифтом в конце тоста —
+      // и МОЛЧА отсутствовала в копии: роли с версии 7.28, ставки с 7.40.
+      // Обнаружилось только 02.08.2026 по журналу ночной копии.
+      if(ord){ord=null;continue;}
+      throw e;
+    }
     out=out.concat(page||[]);
     if(!page||page.length<1000)break;
     off+=1000;
@@ -7308,7 +7319,9 @@ var _BK_TABLES=[
   {t:'products',         sheet:'Каталог старый'},
   {t:'catalog_items',    sheet:'Каталоги фабрик'},
   {t:'app_roles',        sheet:'Роли'}, // v7.28: иначе при восстановлении теряется, кто владелец
-  {t:'staff_rates',      sheet:'Ставки продавцов'} // v7.40
+  {t:'staff_rates',      sheet:'Ставки продавцов'}, // v7.40
+  {t:'price_imports',    sheet:'Загрузки прайсов'},  // v7.41
+  {t:'app_settings',     sheet:'Настройки'}          // v7.42
 ];
 function _bkSave(text,name,mime){
   var blob=new Blob([text],{type:mime});
@@ -7319,7 +7332,7 @@ function _bkSave(text,name,mime){
 }
 async function exportBackup(){
   var today=new Date().toISOString().slice(0,10);
-  var dump={exported_at:new Date().toISOString(),tables:{}};
+  var dump={exported_at:new Date().toISOString(),schema:null,tables:{}};
   var stat=[],missing=[];
   toast('⏳ Собираю все таблицы из базы — с прайсами это может занять минуту...','ok',8000);
   for(var i=0;i<_BK_TABLES.length;i++){
@@ -7329,6 +7342,24 @@ async function exportBackup(){
       dump.tables[d.t]=rows||[];
       if(rows&&rows.length)stat.push(d.sheet.toLowerCase()+': '+rows.length);
     }catch(e){missing.push(d.t);}
+  }
+  // v7.43: пропущенная незаменимая таблица — это дыра в копии. Раньше о ней
+  // сообщалось мелким шрифтом в конце тоста, и её никто не замечал.
+  var _BK_IMPORTANT=['orders','order_items','clients','cash_withdrawals','manager_days','staff_rates','app_roles','app_settings','price_imports'];
+  var lost=missing.filter(function(t){return _BK_IMPORTANT.indexOf(t)>=0;});
+  if(lost.length&&!confirm('В копию НЕ ПОПАЛИ таблицы: '+lost.join(', ')+'.\n\n'
+    +'Это данные, которые нельзя восстановить руками. Скачать неполную копию всё равно?'))return;
+  // v7.43: описание базы — без него копия бесполезна. В ней есть строки,
+  // но нет таблиц, куда их класть: устройство базы делали руками в Supabase
+  // и нигде не записывали. Отдаёт функция db_schema (SQL_обновление_7.13).
+  try{
+    dump.schema=await sb('POST','rpc/db_schema',null);
+    if(dump.schema&&dump.schema.tables)stat.push('описание базы: '+dump.schema.tables.length+' таблиц');
+  }catch(e){
+    dump.schema=null;
+    if(!confirm('В копию не попало ОПИСАНИЕ базы — похоже, не выполнен файл SQL_обновление_7.13.sql.\n\n'
+      +'Такая копия хранит данные, но восстановить их можно будет только в базу, где таблицы уже созданы.\n\n'
+      +'Скачать копию всё равно?'))return;
   }
   // v7.28: проверяем именно КОЛИЧЕСТВО. Раньше стояло `if(!dump.tables.orders)`,
   // а пустой массив эту проверку проходит — копия «на 0 заказов» считалась удачной
