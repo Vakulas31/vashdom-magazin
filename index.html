@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.40</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.42</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -754,6 +754,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div style="color:var(--text2);font-size:13px;padding:20px;text-align:center">Загрузка...</div>
       </div>
     </div>
+
+    <!-- v7.41: история загрузок прайсов + откат последней -->
+    <div class="card">
+      <div class="card-title">📜 История загрузок прайсов</div>
+      <p style="font-size:12.5px;color:var(--text2);margin-bottom:10px;line-height:1.5">Что и когда заливалось в прайсы. Новые цены встают в базу <strong>раньше</strong>, чем удаляются прежние — если загрузка сорвётся, старый прайс останется на месте. У последней загрузки каждого поставщика есть кнопка «откатить»: она вернёт цены такими, какими они были до неё.</p>
+      <div id="pl-history" style="min-height:60px;max-height:420px;overflow-y:auto">
+        <div style="color:var(--text2);font-size:13px;padding:16px;text-align:center">Загрузка...</div>
+      </div>
+      <button class="btn btn-outline" onclick="renderImportHistory()" style="margin-top:10px;padding:4px 12px;font-size:12px">↻ Обновить список</button>
+    </div>
     </div>
   </div>
 </div>
@@ -807,6 +817,15 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="card"><div class="card-title">География заказов</div><div id="chart-geo"></div></div>
   </div>
   </details>
+
+  <!-- v7.42: разовая проверка уже накопленных данных -->
+  <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🔍 Проверка данных <span style="font-weight:400;font-size:11px">(нажмите, чтобы развернуть)</span></summary>
+  <div class="card">
+    <p style="font-size:12.5px;color:var(--text2);margin-bottom:10px;line-height:1.5">Ищет заказы, где числа не сходятся: итог не равен сумме позиций, не заполнена оптовая цена (тогда прибыль в аналитике занижена), цена за штуку получилась дробной из-за старого расчёта. Ничего не меняет — только показывает, куда посмотреть.</p>
+    <button class="btn btn-primary" id="dc-btn" onclick="runDataCheck()" style="justify-content:center">🔍 Проверить заказы</button>
+    <div id="dc-results" style="margin-top:12px"></div>
+  </div>
+  </details>
 </div>
 
 <div class="page" id="page-cash">
@@ -823,7 +842,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <div class="modal-bg" id="modal-markup">
   <div class="modal" style="max-width:380px">
     <div class="modal-title">⚙️ Настройка наценки</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Розничная цена = опт × (1 + наценка%). Применяется к товарам с категориями ткани. Изменение действует только в текущем сеансе.</p>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px">Розничная цена за штуку = опт × (1 + наценка), округлённая вверх до сотни. Итог строки заказа — эта цена, умноженная на количество.</p>
+    <div id="markup-scope-note" style="font-size:12px;padding:8px 11px;border-radius:7px;background:#E8F5E9;color:#1B5E20;margin-bottom:16px;line-height:1.45">Наценка общая: изменится сразу на всех устройствах.</div>
     <div class="fg" style="margin-bottom:16px">
       <label>Наценка (%)</label>
       <div style="display:flex;gap:8px;align-items:center">
@@ -840,10 +860,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       </div>
     </div>
     <div style="background:var(--alt);border-radius:6px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--text2)">
-      Пример: опт <strong>10 000 ₽</strong> → розн. <strong id="markup-example">15 000 ₽</strong>
+      Пример: опт <strong>10 000 ₽</strong> → розн. <strong id="markup-example">15 000 ₽</strong> за штуку
     </div>
     <div style="display:flex;gap:10px">
-      <button class="btn btn-primary" onclick="applyMarkup()" style="flex:1;justify-content:center">✅ Применить</button>
+      <button class="btn btn-primary" id="markup-save-btn" onclick="applyMarkup()" style="flex:1;justify-content:center">✅ Применить</button>
       <button class="btn btn-outline" onclick="closeModal('modal-markup')">Отмена</button>
     </div>
   </div>
@@ -1166,11 +1186,41 @@ function loadMyRole(){
     _isOwner=true;_applyRole();
   });
 }
+// ═══ v7.42: НАСТРОЙКИ МАГАЗИНА ЖИВУТ В БАЗЕ ═══════════════════════════
+// Наценка лежала в памяти браузера (localStorage). У каждого устройства она
+// была своя: владелец менял 50 % на 60 %, а продавец на своём телефоне
+// продолжал считать по 50 % — и цены в заказах расходились без всякой причины.
+// Теперь наценка одна на всех и хранится в таблице app_settings; память
+// браузера остаётся только запасной копией на случай, когда база недоступна.
+var _settingsInBase=false;
+function loadSettings(){
+  return sbGet('app_settings','select=key,value').then(function(rows){
+    _settingsInBase=true;
+    var map={};(rows||[]).forEach(function(r){map[r.key]=r.value;});
+    if(map.markup_pct!=null&&map.markup_pct!==''){
+      var v=parseFloat(map.markup_pct);
+      if(isFinite(v)&&v>=0&&v<=500){
+        MARKUP_PCT=v;
+        localStorage.setItem('vashdom_markup',v); // запасная копия
+      }
+    }
+    var el=document.getElementById('markup-display');
+    if(el)el.textContent=MARKUP_PCT;
+  }).catch(function(){
+    // таблицы ещё нет (SQL 7.12 не выполнен) — работаем как раньше, из браузера
+    _settingsInBase=false;
+  });
+}
+function saveSetting(key,value){
+  return sbUpsert('app_settings',[{key:key,value:String(value),
+    updated_at:new Date().toISOString(),
+    updated_by:(_auth&&_auth.email)||null}]);
+}
 function _authShowUser(){
   var el=document.getElementById('tb-user');
   if(el&&_auth&&_auth.email)el.textContent=_auth.email.split('@')[0];
 }
-function _sbOnce(method,table,data,params,_retried){
+function _sbOnce(method,table,data,params,_retried,prefer){
   var url=SB_URL+'/rest/v1/'+table+(params?'?'+params:'');
   // без входа шлём сам ключ — так приложение продолжает работать в момент
   // перехода, пока в базе ещё не закрыт анонимный доступ
@@ -1182,7 +1232,7 @@ function _sbOnce(method,table,data,params,_retried){
   // DELETE намеренно оставлен minimal: при импорте он удаляет тысячи строк,
   // и возвращать их все — лишний трафик.
   var _wantBack=(method==='POST'||method==='PATCH');
-  var opts={method:method,headers:{'apikey':SB_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json','Prefer':_wantBack?'return=representation':'return=minimal'}};
+  var opts={method:method,headers:{'apikey':SB_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json','Prefer':prefer||(_wantBack?'return=representation':'return=minimal')}};
   if(data)opts.body=JSON.stringify(data);
   // Таймаут 30 сек — защита от зависания на слабом интернете
   var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
@@ -1192,7 +1242,7 @@ function _sbOnce(method,table,data,params,_retried){
     if(timer)clearTimeout(timer);
     // токен протух — обновляем сессию и повторяем ОДИН раз
     if((r.status===401||r.status===403)&&!_retried&&_auth){
-      return authRefresh().then(function(){return _sbOnce(method,table,data,params,true);},
+      return authRefresh().then(function(){return _sbOnce(method,table,data,params,true,prefer);},
         function(){_authRequire('Сессия закончилась — войдите заново');throw new Error('Нужно войти заново');});
     }
     if(r.status===401||r.status===403){_authRequire('Войдите, чтобы работать с данными');}
@@ -1211,19 +1261,21 @@ function _sbOnce(method,table,data,params,_retried){
     throw e;
   });
 }
-function sb(method,table,data,params){
+function sb(method,table,data,params,prefer){
   params=params||'';
   // GET/DELETE идемпотентны — при обрыве связи повторяем до 3 раз с паузой.
   // POST/PATCH автоматически не повторяем (за это отвечает вызывающий код).
   var attempts=(method==='GET'||method==='DELETE')?3:1;
   function attempt(n){
-    return _sbOnce(method,table,data,params).catch(function(e){
+    return _sbOnce(method,table,data,params,false,prefer).catch(function(e){
       if(n<attempts-1)return new Promise(function(res){setTimeout(res,700*(n+1));}).then(function(){return attempt(n+1);});
       throw e;
     });
   }
   return attempt(0);
 }
+// Вставить-или-обновить одной записью (нужен таблице настроек)
+function sbUpsert(t,d){return sb('POST',t,d,'','resolution=merge-duplicates,return=representation');}
 function sbGet(t,p){return sb('GET',t,null,p);}
 function sbPost(t,d){return sb('POST',t,d);}
 function sbPatch(t,d,p){return sb('PATCH',t,d,p);}
@@ -1264,6 +1316,35 @@ function orderDebt(o){
   var delivDebt=(o.delivery_paid==='yes'||o.delivery_our===false||isDone(o))?0:delivCost;
   return goods+delivDebt;
 }
+// ═══ v7.42: ОДНА формула цены на всё приложение ═══════════════════════
+// Раньше розничная цена считалась в ЧЕТЫРЁХ местах четырьмя способами, и при
+// количестве больше одной штуки они расходились: поиск, калькулятор и ценник
+// округляли цену ЗА ШТУКУ вверх до сотни, а форма заказа — итог всей строки.
+// Опт 1010 ₽ и наценка 50 %: ценник показывал 1600 ₽, а заказ на 6 штук
+// считал 9100 ₽ вместо 9600 ₽. Продавец переносил комплект из калькулятора
+// в заказ — и сумма менялась сама собой.
+// Теперь правило ОДНО (решение владельца 02.08.2026): округляем цену за штуку
+// вверх до сотни, потом умножаем на количество.
+// Новый код обязан звать эти функции, а не писать формулу заново.
+function markupK(){return 1+(MARKUP_PCT/100);}
+// Розничная цена ЗА ШТУКУ по оптовой
+function retailFromOpt(opt){
+  var o=+opt||0;
+  if(o<=0)return 0;
+  return Math.ceil(o*markupK()/100)*100;
+}
+// Итог строки заказа: цена за штуку × количество
+function retailLine(opt,qty){
+  var q=parseInt(qty)||1;if(q<1)q=1;
+  return retailFromOpt(opt)*q;
+}
+// Обратный ход: какой опт стоит за розничной ценой ОДНОЙ штуки
+// (нужен аналитике для маржи, когда цена вписана руками)
+function optFromRetail(ret){
+  var r=+ret||0;
+  if(r<=0)return 0;
+  return Math.round(r/markupK());
+}
 function _saveItemsReliable(orderId,batchItems){
   function attempt(n){
     var check=n===0?Promise.resolve(null):sbGet('order_items','select=id&order_id=eq.'+orderId+'&limit=1');
@@ -1286,7 +1367,7 @@ window.addEventListener('DOMContentLoaded',function(){
   function tryInit(attempt){
     var el=document.getElementById('conn-status');
     el.textContent='● Подключение'+(attempt>1?' (попытка '+attempt+')':'')+'...';el.style.color='#aaa';
-    Promise.all([loadOrders(),loadClients(),loadMyRole()]).then(function(){
+    Promise.all([loadOrders(),loadClients(),loadMyRole(),loadSettings()]).then(function(){
       el.textContent='● Онлайн';el.style.color='#4CAF50';
       checkManagerDay(); // v6.9: новый день — спросить, кто сегодня работает
       loadSuppliers(); // v7.20: справочник поставщиков — тихо, в фоне
@@ -1324,7 +1405,7 @@ function showPage(name){
   if(idx>=0)document.querySelectorAll('.nav-btn')[idx].classList.add('active');
   if(name==='stats')renderStats();
   if(name==='clients')renderClients();
-  if(name==='prices'){loadPriceSummary();renderCalc();_ssLoadFactories();if(window.loadFabricCats){loadFabricCats().then(function(){if(window._fabSpecInfo)_fabSpecInfo();});}}
+  if(name==='prices'){loadPriceSummary();if(window.renderImportHistory)renderImportHistory();renderCalc();_ssLoadFactories();if(window.loadFabricCats){loadFabricCats().then(function(){if(window._fabSpecInfo)_fabSpecInfo();});}}
   if(name==='cash')renderCash();
   if(name==='pricelabels'){renderPriceLabel();renderLabelQueue();renderRecentLabels();}
 }
@@ -2502,6 +2583,7 @@ function onPriceFile(input){
     return;
   }
   document.getElementById('pl-fname').textContent=file.name;
+  _plFileName=file.name; // v7.41: имя файла записывается в историю загрузок
   // v7.28 ГЛАВНОЕ: чистим поля, оставшиеся от ПРЕДЫДУЩЕГО файла.
   // Раньше «фабрика» переживала загрузку нового файла, и импорт другого прайса
   // с оставшимся полем «Миф» удалял все товары Миф (инцидент 18.07.2026).
@@ -2894,8 +2976,26 @@ function _plHasGoodsWord(s){return /кроват|диван|шкаф|стол|к
 // а строка — нет (напр. цвет обивки «СВЕТЛО-СЕРЫЙ» под «БЕЛИСТА кровать двойная»).
 function _isVariantUnder(group,name){return _plHasGoodsWord(group)&&!_plHasGoodsWord(name);}
 // Собирает товары из данных листа по настройкам колонок
+// v7.41: считаем, сколько строк листа разборщик выбросил и почему. Раньше
+// «загружено 300 товаров» из файла на 1200 строк выглядело нормально, и понять,
+// что 900 строк молча потерялись (например, цена в неожиданной колонке),
+// было невозможно. Счётчик живёт на самом массиве строк (rows._drop), поэтому
+// пробные разборы соседних вариантов его не портят.
+function _plNewDrop(){return{noname:0,noprice:0,dead:0,weird:0,scanned:0};}
+function _plDropTotal(d){return d?(d.noname+d.noprice+d.dead+d.weird):0;}
+function _plDropText(d){
+  var t=_plDropTotal(d);if(!t)return '';
+  var p=[];
+  if(d.noprice)p.push('без цены '+d.noprice);
+  if(d.noname)p.push('без названия '+d.noname);
+  if(d.dead)p.push('снято с производства '+d.dead);
+  if(d.weird)p.push('цена не похожа на цену '+d.weird);
+  return 'отброшено строк: '+t+(p.length?' ('+p.join(', ')+')':'');
+}
 function _collectRows(data,cfg){
   var rows=[];
+  var _drop=_plNewDrop();
+  try{Object.defineProperty(rows,'_drop',{value:_drop,enumerable:false});}catch(e){rows._drop=_drop;}
   var currentGroupName='',groupIsHeader=false;
   var noteBuf='',groupStart=0; // примечание-совместимость текущей группы (этап C)
   for(var i=cfg.start-1;i<data.length;i++){
@@ -2955,12 +3055,17 @@ function _collectRows(data,cfg){
         else if(nameVal&&optNum&&!rowCategory){currentGroupName=nameVal;groupIsHeader=false;}
       }
     }
-    if(!nameVal||!optNum)continue;
+    if(nameVal||optNum)_drop.scanned++;
+    if(!nameVal||!optNum){
+      // пустые строки-разделители не считаем потерей — только те, где что-то было
+      if(nameVal||optNum){if(!nameVal)_drop.noname++;else _drop.noprice++;}
+      continue;
+    }
     // Снятые с производства позиции не тащим в каталог
-    if(_plIsDead(nameVal)||_plIsDead(artVal))continue;
+    if(_plIsDead(nameVal)||_plIsDead(artVal)){_drop.dead++;continue;}
     // Защита от переполнения numeric(12,2): цена мебели не бывает > 100 млн.
     // Больше — это не цена (артикул/штрихкод/склеенное число), строку пропускаем.
-    if(optNum<0||optNum>99999999)continue;
+    if(optNum<0||optNum>99999999){_drop.weird++;continue;}
     if(retVal<0||retVal>99999999)retVal=0;
     optNum=Math.round(optNum*100)/100;retVal=Math.round(retVal*100)/100;
     var _at=_extractAttrs(nameVal,artVal,'');
@@ -3600,6 +3705,69 @@ async function _plPreflight(rows){
   try{await sbGet('price_items','select=price_kind,valid_until&limit=1');}
   catch(e){if(/price_kind|valid_until/i.test(e.message))rows.forEach(function(r){delete r.price_kind;delete r.valid_until;});}
 }
+// ═══ v7.41: БЕЗОПАСНЫЙ ПОРЯДОК ЗАГРУЗКИ ═════════════════════════════
+// Было: импорт СНАЧАЛА удалял старые цены поставщика, потом вставлял новые.
+// Если вставка срывалась (оборвалась связь, база не приняла строку, закончился
+// токен) — прайса не оставалось вообще: старого уже нет, нового ещё нет.
+// Именно так 18.07.2026 пропала фабрика «Миф».
+// Стало: сначала вставляем новое, и только когда ВСЁ вставилось — удаляем
+// старое. Старые строки узнаём по номеру: все они получили номер раньше, чем
+// начался импорт, значит их номер меньше самого большого на момент старта.
+// Плюс перед заменой снимается копия заменяемых строк — по ней работает откат.
+var _plHasBatchCol=null,_plHasImportsTbl=null,_plFileName='';
+var _PL_SNAP_MAX=8000;   // больше этого числа строк копию для отката не делаем
+var _PL_SNAP_COLS='supplier,factory,sheet_name,product_name,article,price_opt,price_retail,category,compatibility,kit_part,price_kind,valid_until,dim_w,dim_h,dim_d,ptype,color,doors,material';
+var _PL_SNAP_MIN='supplier,product_name,article,price_opt,price_retail';
+var _plLastImport=null;  // сведения о последней загрузке — для подписи в интерфейсе
+
+function _plNewBatchId(){return 'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+// Проба «есть ли колонка/таблица». Через _sbOnce, а не sbGet: sbGet при отказе
+// повторяет запрос трижды с паузами, и проверки съедали бы секунды.
+async function _plProbe(table,cols){
+  try{await _sbOnce('GET',table,null,'select='+cols+'&limit=1');return true;}catch(e){return false;}
+}
+var _PL_META_COLS='batch_id,imported_at,source_file';
+async function _plBatchReady(){
+  if(_plHasBatchCol===null)_plHasBatchCol=await _plProbe('price_items',_PL_META_COLS);
+  return _plHasBatchCol;
+}
+async function _plImportsReady(){
+  if(_plHasImportsTbl===null)_plHasImportsTbl=await _plProbe('price_imports','id');
+  return _plHasImportsTbl;
+}
+// Наибольший номер строки в прайсах — граница «старое / новое»
+async function _plMaxId(){
+  try{
+    var r=await _sbOnce('GET','price_items',null,'select=id&order=id.desc&limit=1');
+    if(!r||!r.length)return 0;
+    var v=+r[0].id;
+    return isFinite(v)?v:null; // номер не числовой — старый порядок надёжнее
+  }catch(e){return null;}
+}
+// Копия заменяемых строк + их точный подсчёт. Возвращает {rows:[]|null,count:N}
+// (rows=null — строк слишком много, копию не храним, откат будет недоступен).
+async function _plSnapshot(filters,maxId){
+  var cols=(await _plProbe('price_items',_PL_SNAP_COLS))?_PL_SNAP_COLS:_PL_SNAP_MIN;
+  var out=[],count=0,over=false;
+  for(var f=0;f<filters.length;f++){
+    for(var page=0;page<40;page++){
+      var chunk;
+      try{
+        chunk=await _sbOnce('GET','price_items',null,
+          'select='+cols+'&'+filters[f]+'&id=lte.'+maxId+'&order=id.asc&limit=1000&offset='+(page*1000));
+      }catch(e){return{rows:null,count:null};}
+      if(!chunk||!chunk.length)break;
+      count+=chunk.length;
+      if(!over){
+        if(count>_PL_SNAP_MAX){over=true;out=null;}
+        else out=out.concat(chunk);
+      }
+      if(chunk.length<1000)break;
+    }
+  }
+  return{rows:out,count:count};
+}
+
 // batches: [{sheetName, rows}]; replaceWhole=true — заменить все данные фабрики
 // (если фабрика пустая — заменяются только товары поставщика БЕЗ фабрики)
 async function _importBatches(supplier,factory,batches,replaceWhole){
@@ -3617,21 +3785,98 @@ async function _importBatches(supplier,factory,batches,replaceWhole){
   // 18.07.2026 при загрузке файла «Мебель Рум» стёрлась фабрика «Миф»)
   var factScope='';
   if(_plHasFactoryCol)factScope=factory?'&factory=eq.'+encodeURIComponent(factory):'&or=(factory.is.null,factory.eq.%22%22)';
+  var base='supplier=eq.'+encodeURIComponent(supplier)+factScope;
   var delKey=supplier+'|'+(factory||'');
-  if(replaceWhole||!_plHasSheetCol){
-    if(replaceWhole||_plDeletedSupplier!==delKey){
-      await _sbDelUntilEmpty('supplier=eq.'+encodeURIComponent(supplier)+factScope);
-      _plDeletedSupplier=delKey;
-    }
+  var wholeScope=(replaceWhole||!_plHasSheetCol);
+  var filters=[];
+  if(wholeScope){
+    if(replaceWhole||_plDeletedSupplier!==delKey)filters=[base];
   }else{
     // точечно обновляем только импортируемые листы этой фабрики
-    for(var b=0;b<batches.length;b++){
-      await _sbDelUntilEmpty('supplier=eq.'+encodeURIComponent(supplier)+factScope+'&sheet_name=eq.'+encodeURIComponent(batches[b].sheetName||''));
-    }
+    for(var b=0;b<batches.length;b++)filters.push(base+'&sheet_name=eq.'+encodeURIComponent(batches[b].sheetName||''));
   }
-  for(var j=0;j<all.length;j+=400)await sbPost('price_items',all.slice(j,j+400));
+
+  // Безопасный порядок возможен, только когда выполнен SQL_обновление_7.11
+  // (есть метка загрузки) И номера строк числовые — иначе новое от старого
+  // не отличить, и приходится работать по-старому.
+  var hasBatch=await _plBatchReady();
+  var maxId=hasBatch?await _plMaxId():null;
+  var safeOrder=hasBatch&&maxId!==null;
+  var batchId=_plNewBatchId();
+  if(hasBatch)all.forEach(function(r){r.batch_id=batchId;r.source_file=_plFileName||null;});
+
+  var skipped=0;
+  batches.forEach(function(b){skipped+=_plDropTotal(b.rows&&b.rows._drop);});
+
+  if(!safeOrder){
+    // ── СТАРЫЙ ПОРЯДОК (SQL 7.11 не выполнен): сначала удаляем, потом вставляем
+    for(var q=0;q<filters.length;q++)await _sbDelUntilEmpty(filters[q]);
+    if(filters.length)_plDeletedSupplier=delKey;
+    for(var j0=0;j0<all.length;j0+=400)await sbPost('price_items',all.slice(j0,j0+400));
+    _plLastImport={rows:all.length,deleted:null,skipped:skipped,safe:false,rollback:false};
+    batches.forEach(function(b){_plImportedSheets[b.sheetName]=b.rows.length;});
+    _markImportedSheets();
+    return;
+  }
+
+  // ── 1. Копия заменяемых строк (для отката) ──
+  var hasHist=await _plImportsReady();
+  var snap={rows:null,count:null};
+  if(filters.length)snap=await _plSnapshot(filters,maxId);
+
+  // ── 2. Вставляем новое. Старое пока на месте: если сорвётся — прайс цел ──
+  var inserted=0;
+  try{
+    for(var j=0;j<all.length;j+=400){
+      await sbPost('price_items',all.slice(j,j+400));
+      inserted=Math.min(j+400,all.length);
+    }
+  }catch(e){
+    // убираем недовставленный кусок, чтобы не появились дубли цен
+    if(inserted){try{await _sbDelUntilEmpty('batch_id=eq.'+encodeURIComponent(batchId));}catch(e2){}}
+    throw new Error(e.message+'\n\nПрежний прайс НЕ тронут — в базе всё как было до загрузки.');
+  }
+
+  // ── 3. Запись в историю ДО удаления: если удаление сорвётся, копия уже сохранена ──
+  var histId=null;
+  if(hasHist){
+    try{
+      var hres=await sbPost('price_imports',[{
+        batch_id:batchId,supplier:supplier,factory:factory||null,
+        sheets:JSON.stringify(batches.map(function(b){return b.sheetName||'';})).slice(0,2000),
+        source_file:_plFileName||null,
+        rows_added:all.length,rows_deleted:0,rows_skipped:skipped,
+        scope_whole:wholeScope,status:'deleting',
+        snapshot:(snap.rows&&snap.rows.length)?snap.rows:null,
+        snapshot_rows:snap.rows?snap.rows.length:0,
+        user_email:(typeof _auth!=='undefined'&&_auth&&_auth.email)||null
+      }]);
+      if(Array.isArray(hres)&&hres[0])histId=hres[0].id;
+    }catch(e){}
+  }
+
+  // ── 4. Теперь можно удалять старое: всё, что было до начала загрузки ──
+  for(var f=0;f<filters.length;f++)await _sbDelUntilEmpty(filters[f]+'&id=lte.'+maxId);
+  if(filters.length)_plDeletedSupplier=delKey;
+
+  if(histId){
+    try{await sbPatch('price_imports',{status:'ok',rows_deleted:snap.count||0},'id=eq.'+histId);}catch(e){}
+    try{await sb('POST','rpc/price_imports_trim',null);}catch(e){}
+  }
+  _plLastImport={rows:all.length,deleted:snap.count,skipped:skipped,safe:true,
+    rollback:!!(snap.rows&&snap.rows.length)};
   batches.forEach(function(b){_plImportedSheets[b.sheetName]=b.rows.length;});
   _markImportedSheets();
+}
+// Короткая приписка к сообщению об успешной загрузке
+function _plResultNote(){
+  var L=_plLastImport;if(!L)return '';
+  var p=[];
+  if(L.safe)p.push(L.deleted!=null?('заменено прежних: '+L.deleted):'прежние заменены');
+  else p.push('⚠ выполните SQL_обновление_7.11 — пока загрузка идёт по-старому, без страховки и отката');
+  if(L.skipped)p.push('отброшено строк файла: '+L.skipped);
+  if(L.safe&&!L.rollback&&L.deleted)p.push('откат недоступен: заменённых строк слишком много');
+  return p.join(' · ');
 }
 function _markImportedSheets(){
   var sel=document.getElementById('pl-sheet');if(!sel||!sel.options)return;
@@ -3693,7 +3938,8 @@ async function importPriceList(){
     if(isMatrix){var _st=_getTplStore();_st[sheetName]={supplier:supplier,factory:factory,matrix:true};localStorage.setItem(_TPL_KEY,JSON.stringify(_st));}
     else savePriceTemplate(); // запоминаем настройки листа как шаблон
     var many=_plWB&&_plWB.SheetNames.length>1;
-    toast('✅ Лист «'+sheetName+'»: '+rows.length+' товаров загружено'+(rausHit?' (корпус прибавлен у '+rausHit+')':''),'ok',3500);
+    var _rn=_plResultNote();
+    toast('✅ Лист «'+sheetName+'»: '+rows.length+' товаров загружено'+(rausHit?' (корпус прибавлен у '+rausHit+')':'')+(_rn?' · '+_rn:''),'ok',_rn?6000:3500);
     if(many){
       var note=document.getElementById('pl-multi-note');
       note.style.display='block';
@@ -3760,7 +4006,7 @@ async function importAllSheets(){
     if(!best||!best.rows.length){report.push({sheet:sn,count:0,note:'не удалось определить колонки — импортируйте вручную'});return;}
     plan.push({sheetName:sn,rows:best.rows,cfg:best.cfg,kind:best.kind,kit:!!(tpl&&tpl.kit_part)});
     var rh=_rausApply(best.rows,sn); // РАУС: корпус+фасад по коду модуля
-    report.push({sheet:sn,count:best.rows.length,note:best.src+(rh?', ➕корпус у '+rh:'')});
+    report.push({sheet:sn,count:best.rows.length,note:best.src+(rh?', ➕корпус у '+rh:''),drop:_plDropText(best.rows._drop)});
   });
   var total=plan.reduce(function(s,p){return s+p.rows.length;},0);
   if(!total){toast('⚠️ Ни на одном листе не найдены товары — настройте листы вручную по одному','err',6000);return;}
@@ -3781,9 +4027,12 @@ async function importAllSheets(){
         +scopeTot+' ('+(factory?'фабрика «'+factory+'»':'товары без фабрики')+'). Остальные '+(mineTot-scopeTot)+' останутся как есть.';
     }
   }catch(e){}
+  var dropTot=plan.reduce(function(s,p){return s+_plDropTotal(p.rows&&p.rows._drop);},0);
   var msg='Импорт '+(factory?('«'+supplier+'» → «'+factory+'»'):('«'+supplier+'»'))+' — все листы:\n\n'
-    +report.map(function(r){return '• '+r.sheet+': '+(r.count?r.count+' товаров ('+r.note+')':r.note);}).join('\n')
-    +'\n\nИтого: '+total+' товаров.'+curNote+'\nПрежние товары '+scopeLbl+' будут заменены. Продолжить?';
+    +report.map(function(r){return '• '+r.sheet+': '+(r.count?r.count+' товаров ('+r.note+')'+(r.drop?'\n   ↳ '+r.drop:''):r.note);}).join('\n')
+    +'\n\nИтого: '+total+' товаров.'
+    +(dropTot?'\nСтрок файла отброшено при разборе: '+dropTot+' (обычно это шапки, пустые строки и позиции без цены — но если число велико, проверьте колонки).':'')
+    +curNote+'\nПрежние товары '+scopeLbl+' будут заменены. Продолжить?';
   if(!confirm(msg))return;
   plan.forEach(function(p){p.rows.forEach(function(r){r.factory=factory;if(p.kit&&r.kit_part!==false)r.kit_part=true;});_plPriceKindApply(p.rows);});
   var btn=document.getElementById('pl-import-all-btn');
@@ -3810,8 +4059,10 @@ async function importAllSheets(){
     localStorage.setItem(_TPL_KEY,JSON.stringify(st));
     var note=document.getElementById('pl-multi-note');
     note.style.display='block';
+    var _rn2=_plResultNote();
     note.innerHTML='<div style="font-weight:600;margin-bottom:4px">📚 Результат импорта всех листов:</div>'
-      +report.map(function(r){return '<div>'+(r.count?'✅':'⚠️')+' '+r.sheet+' — '+(r.count?r.count+' тов. ('+r.note+')':r.note)+'</div>';}).join('');
+      +report.map(function(r){return '<div>'+(r.count?'✅':'⚠️')+' '+r.sheet+' — '+(r.count?r.count+' тов. ('+r.note+(r.drop?', '+r.drop:'')+')':r.note)+'</div>';}).join('')
+      +(_rn2?'<div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border)">'+esc(_rn2)+'</div>':'');
     toast('✅ «'+supplier+'»: '+total+' товаров с '+plan.length+' листов','ok',5000);
     loadPriceSummary();
   }catch(e){toast('❌ Ошибка: '+e.message,'err',6000);}
@@ -3910,6 +4161,117 @@ async function deleteFactory(supplier,factory){
     toast('🗑 Фабрика «'+factory+'» удалена');
     loadPriceSummary();
   }catch(e){toast('❌ Ошибка: '+e.message,'err');}
+}
+
+// ═══ v7.41: ИСТОРИЯ ЗАГРУЗОК ПРАЙСОВ И ОТКАТ ════════════════════════
+// Владелец должен видеть, что и когда заливалось, и уметь вернуть как было,
+// если файл оказался не тот или колонки распознались криво.
+function _plSheetList(im){
+  var s=String(im.sheets||'');
+  try{var a=JSON.parse(s);if(Array.isArray(a))return a.filter(Boolean);}catch(e){}
+  return s?s.split(', ').filter(Boolean):[];
+}
+function _plScopeFilters(im){
+  var base='supplier=eq.'+encodeURIComponent(im.supplier||'');
+  base+=im.factory?('&factory=eq.'+encodeURIComponent(im.factory)):'&or=(factory.is.null,factory.eq.%22%22)';
+  if(im.scope_whole)return[base];
+  var sh=_plSheetList(im);
+  if(!sh.length)return[base];
+  return sh.map(function(s){return base+'&sheet_name=eq.'+encodeURIComponent(s);});
+}
+function _plWhen(ts){
+  if(!ts)return '—';
+  var d=new Date(ts);if(isNaN(d))return String(ts).slice(0,16).replace('T',' ');
+  var p=function(n){return(n<10?'0':'')+n;};
+  return p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+async function renderImportHistory(){
+  var el=document.getElementById('pl-history');if(!el)return;
+  if(!(await _plImportsReady())){
+    el.innerHTML='<div style="font-size:12px;color:#8a5a18;background:#fbf0e2;padding:9px 11px;border-radius:7px;line-height:1.5">'
+      +'История загрузок появится после того, как будет выполнен файл <strong>SQL_обновление_7.11.sql</strong> в Supabase.<br>'
+      +'Пока он не выполнен, прайс загружается по-старому: прежние цены удаляются <em>до</em> того, как встанут новые, и откатить загрузку нельзя.</div>';
+    return;
+  }
+  el.innerHTML='<div style="color:var(--text2);font-size:13px;padding:14px;text-align:center">Загрузка...</div>';
+  try{
+    var rows=await sbGet('price_imports',
+      'select=id,batch_id,supplier,factory,sheets,source_file,rows_added,rows_deleted,rows_skipped,status,scope_whole,snapshot_rows,user_email,created_at'
+      +'&order=id.desc&limit=15');
+    if(!rows||!rows.length){
+      el.innerHTML='<div style="color:var(--text2);font-size:13px;padding:16px;text-align:center">Загрузок ещё не было</div>';
+      return;
+    }
+    // Откатывать можно только САМУЮ СВЕЖУЮ загрузку каждой области
+    // (поставщик + фабрика): если поверх неё уже залили другой файл, возвращать
+    // старое поздно — оно заменит чужие, более новые цены.
+    var newest={};
+    rows.forEach(function(r){var k=(r.supplier||'')+'|'+(r.factory||'');if(newest[k]==null)newest[k]=r.id;});
+    var html='<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    rows.forEach(function(r){
+      var canRoll=(newest[(r.supplier||'')+'|'+(r.factory||'')]===r.id)
+        &&r.status!=='rolled_back'&&(r.snapshot_rows||0)>0;
+      var stat=r.status==='rolled_back'?'<span style="color:#c62828">↩ откачена</span>'
+        :(r.status==='deleting'?'<span style="color:#E65100" title="Новые цены встали, но прежние удалились не полностью">⚠ не завершена</span>':'');
+      var sh=_plSheetList(r);
+      html+='<tr><td style="padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top">'
+        +'<div style="font-weight:600">'+esc(r.supplier||'—')+(r.factory?' → '+esc(r.factory):'')+' '+stat+'</div>'
+        +'<div style="color:var(--text2);margin-top:2px">'+_plWhen(r.created_at)
+        +(r.source_file?' · '+esc(r.source_file):'')
+        +(sh.length?' · листы: '+esc(sh.join(', ')).slice(0,140):'')
+        +(r.user_email?' · '+esc(String(r.user_email).split('@')[0]):'')+'</div>'
+        +'<div style="color:var(--text2);margin-top:2px">загружено '+(r.rows_added||0)
+        +' · заменено '+(r.rows_deleted||0)
+        +(r.rows_skipped?' · отброшено строк файла '+r.rows_skipped:'')
+        +((r.snapshot_rows||0)>0?' · <span style="color:#1B5E20">копия для отката есть</span>':' · копии для отката нет')
+        +'</div></td>'
+        +'<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;vertical-align:top;white-space:nowrap">'
+        +(canRoll?'<button class="btn btn-outline owner-only" onclick="rollbackImport('+r.id+')" style="padding:3px 9px;font-size:11px;color:#c62828;border-color:#c62828">↩ откатить</button>':'')
+        +'</td></tr>';
+    });
+    el.innerHTML=html+'</table>'
+      +'<div style="font-size:11px;color:var(--text2);margin-top:10px;padding-top:8px;border-top:1px solid var(--border);line-height:1.5">'
+      +'💡 Откатить можно только последнюю загрузку каждого поставщика: если поверх неё уже залит другой файл, возвращать старое поздно. '
+      +'Копии заменённых строк хранятся у 10 последних загрузок.</div>';
+  }catch(e){el.innerHTML='<div style="color:#c62828;font-size:13px;padding:10px">Ошибка: '+esc(e.message)+'</div>';}
+}
+
+async function rollbackImport(id){
+  if(typeof _isOwner!=='undefined'&&!_isOwner){toast('↩ Откат загрузки доступен только владельцу','err');return;}
+  var im=null;
+  try{var r=await sbGet('price_imports','select=*&id=eq.'+id);im=r&&r[0];}
+  catch(e){toast('❌ '+e.message,'err',5000);return;}
+  if(!im){toast('Запись о загрузке не найдена','err');return;}
+  if(im.status==='rolled_back'){toast('Эта загрузка уже откачена','err');return;}
+  var snap=Array.isArray(im.snapshot)?im.snapshot:[];
+  if(!snap.length){toast('Копии прежних цен нет — откатить нечем','err',5000);return;}
+  var lbl=(im.supplier||'')+(im.factory?' → '+im.factory:'');
+  if(!confirm('Откатить загрузку «'+lbl+'» от '+_plWhen(im.created_at)+'?\n\n'
+    +'• будет удалено загруженных строк: '+(im.rows_added||0)+'\n'
+    +'• будет возвращено прежних строк: '+snap.length+'\n\n'
+    +'Прайс станет таким, каким был до этой загрузки. Отменить откат нельзя.'))return;
+  var el=document.getElementById('pl-history');
+  if(el)el.innerHTML='<div style="color:var(--text2);font-size:13px;padding:14px;text-align:center"><span class="spinner"></span> Возвращаем прежние цены...</div>';
+  try{
+    // Тот же безопасный порядок, что и при импорте: СНАЧАЛА возвращаем прежние
+    // строки, и только потом убираем загруженные. Граница «старое/новое» — номер
+    // самой свежей строки на момент начала отката.
+    var maxId=await _plMaxId();
+    if(maxId===null)throw new Error('не удалось определить границу строк');
+    var rbId='r'+Date.now().toString(36);
+    var back=snap.map(function(s){var o={};for(var k in s)o[k]=s[k];o.batch_id=rbId;o.source_file=(im.source_file||'')+' (откат)';return o;});
+    for(var j=0;j<back.length;j+=400)await sbPost('price_items',back.slice(j,j+400));
+    // убираем загруженное: и по метке партии, и всё старое в этой же области
+    await _sbDelUntilEmpty('batch_id=eq.'+encodeURIComponent(im.batch_id));
+    var filters=_plScopeFilters(im);
+    for(var f=0;f<filters.length;f++)await _sbDelUntilEmpty(filters[f]+'&id=lte.'+maxId);
+    await sbPatch('price_imports',{status:'rolled_back',note:'откат '+_plWhen(new Date().toISOString())},'id=eq.'+id);
+    toast('↩ Загрузка откачена: возвращено '+snap.length+' прежних строк','ok',5000);
+  }catch(e){
+    toast('❌ Откат не завершён: '+e.message+' Копия сохранена — попробуйте ещё раз.','err',8000);
+  }
+  loadPriceSummary();
+  renderImportHistory();
 }
 
 // ── ГЛОБАЛЬНЫЙ ПОИСК ПО ВСЕМ ПРАЙСАМ ────────────────────
@@ -4046,7 +4408,6 @@ function _fabSpecInfo(n){
   el.textContent=n>0?('✓ В базе загружено тканей: '+n+' (синхронизируется на всех устройствах)')
     :('Своя спецификация ещё не загружена — используется встроенная ('+Object.keys(FABRIC_CATS).length+' тканей). Загрузите файл, чтобы обновить.');
 }
-function retailFromOpt(opt){return Math.ceil(opt*(1+MARKUP_PCT/100)/100)*100;}
 function globalSearch(){
   clearTimeout(_gsTimer);
   var q=document.getElementById('gs-input').value.trim();
@@ -4288,7 +4649,7 @@ function _ssRun(q){
   var doorsVal=_ssNum('ss-doors')||P.doors; // поле имеет приоритет над текстом
   var pmin=_ssNum('ss-pmin'),pmax=_ssNum('ss-pmax');
   var factory=(document.getElementById('ss-factory')||{}).value||'';
-  var mk=1+(MARKUP_PCT/100); // розница ≈ опт × mk, фильтруем по опту
+  var mk=markupK(); // розница ≈ опт × mk, фильтруем по опту
   var chips=[];
   if(P.ptype)chips.push('тип: '+P.ptype);
   if(P.color)chips.push('цвет: '+P.color);
@@ -4503,7 +4864,7 @@ function calcToOrder(){
     }
     document.getElementById('fi-qty2-'+id).value=it.qty;
     var ib=document.getElementById('ib-'+id);
-    var opt=it.opt||Math.round((it.retail||0)/(1+MARKUP_PCT/100));
+    var opt=it.opt||optFromRetail(it.retail);
     if(ib){ib.dataset.opt=opt;ib.classList.add('matched');}
     // авто-подстановка размера из артикула или названия (как при выборе из автодополнения)
     var src=String(it.article||'')+' '+String(it.name||'');
@@ -5809,8 +6170,9 @@ function selectModel(id,item){
     catRow.style.display='none';nocatRow.style.display='grid';
     if(availRow)availRow.style.display='none';
     var qty=parseInt(document.getElementById('fi-qty2-'+id).value)||1;
-    var opt=item.price_opt||Math.round((item.price_retail||0)/1.5);
-    var ret=Math.ceil(opt*(1+MARKUP_PCT/100)*qty/100)*100;
+    // v7.42: опт восстанавливаем по ТЕКУЩЕЙ наценке, а не по зашитым 1.5
+    var opt=item.price_opt||optFromRetail(item.price_retail);
+    var ret=retailLine(opt,qty);
     itemPrices[id]=ret;
     document.getElementById('fi-ret-'+id).textContent=fmt(ret)+' ₽';
     if(ib){ib.dataset.opt=opt;ib.dataset.ret=ret;}
@@ -5872,14 +6234,14 @@ function calcItemPrice(id){
   if(catSel&&catSel.value&&catSel.dataset.prices){
     var cats=JSON.parse(catSel.dataset.cats);var prices=JSON.parse(catSel.dataset.prices);
     var idx=cats.indexOf(catSel.value);if(idx<0)return;
-    var ret=Math.ceil(Math.round(prices[idx]*(1+MARKUP_PCT/100))*qty/100)*100;
+    var ret=retailLine(prices[idx],qty);
     itemPrices[id]=ret;document.getElementById('fi-ret-'+id).textContent=fmt(ret)+' ₽';
   }else{
     var ib=document.getElementById('ib-'+id);
     var baseOpt=parseFloat(ib?ib.dataset.opt:0)||0;
     var storedRet=parseFloat(ib?ib.dataset.ret:0)||0;
     var ret2;
-    if(baseOpt>0){ret2=Math.ceil(baseOpt*(1+MARKUP_PCT/100)*qty/100)*100;}
+    if(baseOpt>0){ret2=retailLine(baseOpt,qty);}
     else if(storedRet>0){ret2=storedRet*qty;}
     else{ret2=0;}
     // v7.0: страховка — цена лежит в поле «вручную», но события не было
@@ -5995,12 +6357,12 @@ function saveOrder(){
     var isFabric=catSel&&catSel.value;
     if(isManual&&manualVal>0){
       // v6.9.1: ручная цена за штуку → итог строки = цена × кол-во
-      ret=Math.round(manualVal*qty);opt=Math.round(manualVal/(1+MARKUP_PCT/100));
+      ret=Math.round(manualVal*qty);opt=optFromRetail(manualVal);
     }else if(isFabric){
-      ret=itemPrices[i]||0;opt=Math.round(ret/qty/(1+MARKUP_PCT/100));
+      ret=itemPrices[i]||0;opt=optFromRetail(ret/qty);
     }else{
       var baseOpt=parseFloat(ib?ib.dataset.opt:0)||0;
-      ret=itemPrices[i]||Math.ceil(baseOpt*(1+MARKUP_PCT/100)*qty/100)*100;opt=baseOpt;
+      ret=itemPrices[i]||retailLine(baseOpt,qty);opt=baseOpt;
     }
     var disc=_discPct();
     var availEl=isFabric?document.getElementById('fi-avail-cat-'+i):document.getElementById('fi-avail-'+i);
@@ -7275,9 +7637,109 @@ function printAct(orderId){
   _vdOpenPrint(html);
 }
 
+// ═══ v7.42: ПРОВЕРКА УЖЕ НАКОПЛЕННЫХ ДАННЫХ ═════════════════════════
+// Четыре разные формулы цены и старые ошибки оставили след в заказах:
+// где-то итог не сходится с позициями, где-то не записана оптовая цена и
+// прибыль в аналитике занижена. Отчёт ничего не правит — он показывает,
+// какие заказы стоит открыть и посмотреть глазами.
+function _dcRound(n){return Math.round((+n||0)*100)/100;}
+function runDataCheck(){
+  var btn=document.getElementById('dc-btn');
+  var box=document.getElementById('dc-results');
+  if(!box)return;
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Проверяю...';}
+  var groups=[
+    {key:'total',   title:'Итог заказа не сходится с суммой позиций',
+     why:'Обычно это след старого расчёта «по строке»: цена за штуку сохранялась округлённой, и произведение переставало совпадать с итогом. Расхождение почти всегда в рубли, но именно из-за него аналитика и печать могли показывать разные суммы.',
+     rows:[]},
+    {key:'noopt',   title:'Не записана оптовая цена',
+     why:'Прибыль и маржа по этим заказам в аналитике занижены: приложение считает, что товар достался бесплатно.',
+     rows:[]},
+    {key:'lowopt',  title:'Оптовая цена не ниже розничной',
+     why:'Либо товар действительно продан без наценки, либо при сохранении опт попал не в ту колонку.',
+     rows:[]},
+    {key:'fracunit',title:'Цена за штуку не круглая при количестве больше одного',
+     why:'След старого расчёта: округляли итог строки, а не цену за штуку. С версии 7.42 такого больше не появится. Уже сохранённые заказы не трогаем — цена в договоре у клиента на руках.',
+     rows:[]},
+    {key:'closed',  title:'Заказ закрыт, но числится остаток',
+     why:'Так выглядела ошибка, исправленная в версии 7.28: правка выполненного заказа воскрешала долг. Проверьте, получены ли деньги.',
+     rows:[]},
+    {key:'disc',    title:'Скидка вне разумных границ',
+     why:'Раньше на экране скидка зажималась, а в базу могло уйти любое число.',
+     rows:[]}
+  ];
+  var G={};groups.forEach(function(g){G[g.key]=g;});
+  var checked=0;
+  (allOrders||[]).forEach(function(o){
+    checked++;
+    var items=o.order_items||[];
+    var num=o.order_number||('#'+o.id);
+    var sumDisc=0,sumRet=0;
+    items.forEach(function(it){
+      var q=parseInt(it.qty!=null?it.qty:it.quantity)||1;
+      var pr=+it.price_retail||0, pd=(it.price_discounted!=null?+it.price_discounted:pr);
+      sumRet+=pr*q;sumDisc+=pd*q;
+      if(pr>0&&!(+it.price_opt>0))G.noopt.rows.push({num:num,note:(it.product_name||'позиция')+' · '+fmt(pr)+' ₽'});
+      else if(+it.price_opt>0&&+it.price_opt>=pr&&pr>0)G.lowopt.rows.push({num:num,note:(it.product_name||'позиция')+' · опт '+fmt(it.price_opt)+' ≥ розн. '+fmt(pr)});
+      if(q>1&&pr>0&&pr%100!==0)G.fracunit.rows.push({num:num,note:(it.product_name||'позиция')+' · '+fmt(pr)+' ₽ × '+q+' шт'});
+    });
+    if(items.length){
+      var goods=+o.goods_discounted||+o.goods_total||0;
+      var diff=_dcRound(sumDisc-goods);
+      if(goods>0&&Math.abs(diff)>1)
+        G.total.rows.push({num:num,note:'позиции '+fmt(sumDisc)+' ₽, в заказе '+fmt(goods)+' ₽ — разница '+(diff>0?'+':'')+fmt(diff)+' ₽'});
+    }
+    if(isDone(o)&&Math.round(o.remainder||0)>0)
+      G.closed.rows.push({num:num,note:'остаток '+fmt(o.remainder)+' ₽'});
+    var d=+o.discount_pct;
+    if(isFinite(d)&&(d<0||d>100))G.disc.rows.push({num:num,note:'скидка '+d+' %'});
+  });
+  var bad=groups.reduce(function(s,g){return s+g.rows.length;},0);
+  var html='<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Проверено заказов: <strong>'+checked+'</strong>'
+    +(_ordersTruncated?' (загружены последние '+_ORDERS_LIMIT+' — более старые в приложение не попали)':'')+'</div>';
+  if(!bad){
+    html+='<div style="background:#E8F5E9;color:#1B5E20;border-radius:7px;padding:11px 13px;font-size:13px">✅ Расхождений не найдено.</div>';
+  }else{
+    groups.forEach(function(g){
+      if(!g.rows.length)return;
+      var uniq={};g.rows.forEach(function(r){uniq[r.num]=1;});
+      var nOrders=Object.keys(uniq).length;
+      html+='<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">'
+        +'<div style="font-weight:700;font-size:13px">⚠️ '+esc(g.title)+' — '+g.rows.length+' в '+nOrders+' заказ'+_dcWord(nOrders)+'</div>'
+        +'<div style="font-size:11.5px;color:var(--text2);margin:4px 0 7px;line-height:1.5">'+esc(g.why)+'</div>'
+        +'<div style="font-size:12px;line-height:1.7">'
+        +g.rows.slice(0,25).map(function(r){
+          return '<div><span style="color:#1565C0;cursor:pointer;text-decoration:underline" onclick="openOrderByNumber(\''+String(r.num).replace(/'/g,"\\'")+'\')">№ '+esc(r.num)+'</span> — '+esc(r.note)+'</div>';
+        }).join('')
+        +(g.rows.length>25?'<div style="color:var(--text2)">…и ещё '+(g.rows.length-25)+'</div>':'')
+        +'</div></div>';
+    });
+    html+='<div style="font-size:11.5px;color:var(--text2);line-height:1.5;padding-top:6px;border-top:1px solid var(--border)">'
+      +'Отчёт ничего не исправляет сам: старые заказы уже напечатаны и лежат у клиентов, тихо менять в них суммы нельзя. '
+      +'Если какой-то заказ ещё не закрыт и цифры в нём неверны — откройте его и поправьте руками.</div>';
+  }
+  box.innerHTML=html;
+  if(btn){btn.disabled=false;btn.innerHTML='🔍 Проверить заказы';}
+}
+function _dcWord(n){
+  var n1=n%10,n2=n%100;
+  if(n2>=11&&n2<=14)return 'ах';
+  if(n1===1)return 'е';
+  if(n1>=2&&n1<=4)return 'ах';
+  return 'ах';
+}
+
 function openMarkupModal(){
   document.getElementById('markup-input').value=MARKUP_PCT;
   updateMarkupExample();
+  var note=document.getElementById('markup-scope-note');
+  if(note){
+    note.textContent=_settingsInBase
+      ? 'Наценка общая: изменится сразу на всех устройствах — и у вас, и у продавцов.'
+      : 'Пока наценка хранится только в этом браузере. Чтобы она стала общей для всех устройств, выполните SQL_обновление_7.12.sql в Supabase.';
+    note.style.color=_settingsInBase?'#1B5E20':'#8a5a18';
+    note.style.background=_settingsInBase?'#E8F5E9':'#fbf0e2';
+  }
   document.getElementById('modal-markup').classList.add('open');
 }
 function setMarkupPreset(pct){
@@ -7289,9 +7751,7 @@ function updateMarkupExample(){
   var example=Math.ceil(10000*(1+pct/100)/100)*100;
   document.getElementById('markup-example').textContent=fmt(example)+' ₽';
 }
-function applyMarkup(){
-  var pct=parseFloat(document.getElementById('markup-input').value)||0;
-  if(pct<0||pct>500){toast('⚠️ Наценка должна быть от 0 до 500%','err');return;}
+function _markupApplyLocal(pct){
   MARKUP_PCT=pct;
   localStorage.setItem('vashdom_markup',pct);
   document.getElementById('markup-display').textContent=pct;
@@ -7301,8 +7761,34 @@ function applyMarkup(){
     if(ib.dataset.manual==='1')continue;
     calcItemPrice(i);
   }
-  closeModal('modal-markup');
-  toast('✅ Наценка установлена: +'+pct+'%');
+}
+async function applyMarkup(){
+  var pct=parseFloat(document.getElementById('markup-input').value)||0;
+  if(pct<0||pct>500){toast('⚠️ Наценка должна быть от 0 до 500%','err');return;}
+  // v7.42: наценка общая, поэтому менять её может только владелец
+  if(_settingsInBase&&typeof _isOwner!=='undefined'&&!_isOwner){
+    toast('⚙️ Наценку меняет только владелец','err',4000);return;
+  }
+  var btn=document.getElementById('markup-save-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Сохраняю...';}
+  try{
+    if(_settingsInBase)await saveSetting('markup_pct',pct);
+    _markupApplyLocal(pct);
+    closeModal('modal-markup');
+    toast(_settingsInBase
+      ? '✅ Наценка +'+pct+'% — теперь на всех устройствах'
+      : '✅ Наценка +'+pct+'% (только в этом браузере — выполните SQL 7.12)','ok',4000);
+  }catch(e){
+    // База не приняла — НЕ применяем и локально, иначе у устройств разойдётся.
+    // Отказ по правам база отдаёт тем же кодом, что и протухший вход, и
+    // приложение выкидывает экран логина. Для настроек это ложная тревога.
+    if(_authValid()){var ov=document.getElementById('auth-overlay');if(ov)ov.style.display='none';}
+    var msg=/прав|permission|denied|policy|войти|row-level/i.test(String(e.message))
+      ? 'база не разрешила запись — общую наценку меняет только владелец.'
+      : e.message;
+    toast('❌ Не удалось сохранить наценку: '+msg+' Осталась прежняя, +'+MARKUP_PCT+'%','err',7000);
+  }
+  if(btn){btn.disabled=false;btn.innerHTML='✅ Применить';}
 }
 document.addEventListener('input',function(e){if(e.target&&e.target.id==='markup-input')updateMarkupExample();});
 
