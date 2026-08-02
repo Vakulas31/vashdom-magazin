@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.43.1</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.44</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -6397,7 +6397,8 @@ function saveOrder(){
       qty:qty,price_opt:opt,price_retail:Math.round(ret/qty),
       price_discounted:Math.round(ret/qty*(1-disc/100)),
       availability:availEl?availEl.value:'Есть',
-      sort_order:i
+      sort_order:i,
+      _dbId:(ib&&ib.dataset.itemId)?ib.dataset.itemId:null // v7.44: служебное, в базу не уходит
     });
   }
   if(!items.length){toast('⚠️ Добавьте хотя бы один товар!','err');_saving=false;btn.disabled=false;return;}
@@ -6427,6 +6428,27 @@ function saveOrder(){
       _saving=false;btn.disabled=false;return;
     }
   }
+  // v7.44: деньги, полученные за позиции при доставке, уже списаны с долга
+  // заказа (v6.7). При правке форма считала остаток заново — только от
+  // предоплаты — и долг клиента раздувался обратно на уже полученную сумму.
+  var _paidByItems=0;
+  if(editId&&found&&found.order_items){
+    var _keepIds={};
+    items.forEach(function(it){if(it._dbId!=null)_keepIds[String(it._dbId)]=1;});
+    var _lostMarks=[];
+    found.order_items.forEach(function(oi){
+      if(_keepIds[String(oi.id)]){_paidByItems+=Math.round(oi.paid_amount||0);return;}
+      // позицию убирают из заказа — предупредим, если по ней уже есть отметки
+      var why=[];
+      if(oi.delivered_at)why.push('отвезена');
+      if(Math.round(oi.paid_amount||0)>0)why.push('получено '+fmt(oi.paid_amount)+' ₽');
+      if(why.length)_lostMarks.push((oi.product_name||'позиция')+' — '+why.join(', '));
+    });
+    if(_lostMarks.length&&!confirm('Из заказа убираются позиции, по которым уже есть отметки:\n\n• '
+      +_lostMarks.join('\n• ')+'\n\nОтметка о доставке и полученные за них деньги пропадут. Продолжить?')){
+      _saving=false;btn.disabled=false;return;
+    }
+  }
   var orderData={
     order_number:orderNum,order_date:document.getElementById('f-date').value,
     delivery_date:document.getElementById('f-delivery-date').value||null,
@@ -6444,7 +6466,7 @@ function saveOrder(){
     has_lift:((document.getElementById('f-lift')||{}).value||'')==='yes',
     discount_pct:disc2,prepayment:prepay,
     goods_total:goods,goods_discounted:goodsDisc,
-    remainder:_wasDone?(found.remainder||0):Math.max(0,goodsDisc-prepay),
+    remainder:_wasDone?(found.remainder||0):Math.max(0,goodsDisc-prepay-_paidByItems),
     status:_wasDone?found.status:document.getElementById('f-status').value,
     payment_method:document.getElementById('f-payment').value,
     notes:document.getElementById('f-notes').value.trim()
@@ -6463,6 +6485,46 @@ function saveOrder(){
   // (медленная связь) или SQL 7.9 выполнят прямо во время работы. Если база
   // ругнулась на новые поля — убираем их и повторяем ОДИН раз, чтобы заказ
   // всё равно сохранился и работа не встала.
+  // ═══ v7.44: правка заказа больше НЕ стирает позиции ═════════════════
+  // БЫЛО: сохранение делало `delete order_items where order_id=…` и вставляло
+  // всё заново. Новые строки — с новыми номерами и без служебных полей, поэтому
+  // при каждой правке молча пропадали:
+  //   • отметки «отвезено» (delivered_at),
+  //   • частичная отгрузка (delivered_qty) — «1 пенал из 2 отвезли»,
+  //   • деньги, полученные за позицию при доставке (paid_amount).
+  // Владелец видел это как «на рабочем компьютере отметки есть, на домашнем нет»:
+  // на рабочем они оставались в памяти открытой страницы, а в базе их уже не было.
+  // СТАЛО: позиции сопоставляются по номеру в базе. Что осталось — правится,
+  // что убрали — удаляется, что добавили — вставляется. Служебные поля не трогаем.
+  function _itemFields(it){
+    var o={};for(var k in it){if(k!=='_dbId')o[k]=it[k];}
+    return o;
+  }
+  async function _saveItemsKeepMarks(orderId,batchItems){
+    var keep={};
+    batchItems.forEach(function(it){if(it._dbId!=null)keep[String(it._dbId)]=1;});
+    // 1) убираем только те позиции, которых в форме больше нет
+    var have=await sbGet('order_items','select=id&order_id=eq.'+orderId);
+    var gone=(have||[]).map(function(r){return r.id;}).filter(function(id){return !keep[String(id)];});
+    for(var g=0;g<gone.length;g+=100){
+      await sbDel('order_items','id=in.('+gone.slice(g,g+100).join(',')+')');
+    }
+    // 2) правим оставшиеся — по одной, чтобы служебные поля остались как есть
+    var fresh=[];
+    for(var i=0;i<batchItems.length;i++){
+      var it=batchItems[i];
+      if(it._dbId==null){fresh.push(_itemFields(it));continue;}
+      try{
+        await sbPatch('order_items',_itemFields(it),'id=eq.'+it._dbId);
+      }catch(e){
+        // Позиции с таким номером уже нет (удалили с другого устройства) —
+        // вставляем заново, чем потерять товар из заказа.
+        fresh.push(_itemFields(it));
+      }
+    }
+    // 3) вставляем добавленные
+    if(fresh.length)await sbPost('order_items',fresh);
+  }
   function _saveOrderRow(data,eid){
     var call=function(d){
       return eid?sbPatch('orders',d,'id=eq.'+eid):sbPost('orders',d);
@@ -6477,22 +6539,33 @@ function saveOrder(){
   }
   var savePromise;
   if(editId){
-    savePromise=_saveOrderRow(orderData,editId).then(function(){
-      return sbDel('order_items','order_id=eq.'+editId).then(function(){return editId;});
-    });
+    savePromise=_saveOrderRow(orderData,editId).then(function(){return editId;});
   }else{
     savePromise=_saveOrderRow(orderData,null).then(function(created){return created[0].id;});
   }
   savePromise.then(function(orderId){
     _recoverOrderId=orderId; // заказ создан/найден — запоминаем на случай обрыва на позициях
     var batchItems=items.map(function(item){return Object.assign({},item,{order_id:orderId});});
-    return _saveItemsReliable(orderId,batchItems).then(function(){return orderId;});
+    // v7.44: у нового заказа позиций в базе ещё нет — вставляем пачкой.
+    // У существующего — правим по номерам, не удаляя (см. _saveItemsKeepMarks).
+    return (editId?_saveItemsKeepMarks(orderId,batchItems):_saveItemsReliable(orderId,batchItems))
+      .then(function(){return orderId;});
   }).then(function(orderId){
     _recoverOrderId=null; // всё сохранено полностью
     // Мгновенное локальное обновление списка — без перезагрузки всех заказов
     var base=found?Object.assign({},found):{created_at:new Date().toISOString()};
+    var _oldById={};
+    if(found&&found.order_items)found.order_items.forEach(function(oi){_oldById[String(oi.id)]=oi;});
     var local=Object.assign(base,orderData,{id:orderId,
-      order_items:items.map(function(it){return Object.assign({},it,{order_id:orderId});})});
+      order_items:items.map(function(it){
+        // v7.44: у оставшихся позиций служебные поля берём из прежних данных,
+        // иначе отметки «отвезено» на секунду мигнут пропавшими
+        var prev=(it._dbId!=null)?_oldById[String(it._dbId)]:null;
+        var row=Object.assign({},prev||{},it,{order_id:orderId});
+        if(prev)row.id=prev.id;
+        delete row._dbId;
+        return row;
+      })});
     var idx=allOrders.findIndex(function(o){return o.id==orderId;});
     if(idx>=0)allOrders[idx]=local;else allOrders.unshift(local);
     toast('✅ Заказ сохранён!');
@@ -6559,6 +6632,11 @@ function editOrder(id){
   document.getElementById('form-items').innerHTML='';itemCount=0;itemPrices={};
   (o.order_items||[]).forEach(function(item){
     addFormItem();var id2=itemCount;
+    // v7.44: запоминаем номер позиции в базе. Без него сохранение удаляло ВСЕ
+    // позиции и вставляло заново — вместе с ними стирались отметки «отвезено»,
+    // частичная отгрузка и деньги, полученные за позицию при доставке.
+    var _ib2=document.getElementById('ib-'+id2);
+    if(_ib2&&item.id!=null)_ib2.dataset.itemId=item.id;
     document.getElementById('fi-model-'+id2).value=item.product_name;
     if(item.supplier){
       var l=document.getElementById('sup-lbl-'+id2);l.textContent=item.supplier;l.style.display='inline';
