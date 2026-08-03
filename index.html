@@ -231,7 +231,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.45</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.46</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1345,6 +1345,26 @@ function optFromRetail(ret){
   if(r<=0)return 0;
   return Math.round(r/markupK());
 }
+// ═══ v7.46: ОДИН расчёт «сколько уже у клиента, сколько ещё нет» ═══════
+// Частичная отгрузка (v7.34) считалась в каждом месте по-своему, а кое-где
+// проверялось просто «стоит ли дата отвоза». Из-за этого позиция «2 пенала,
+// отвезли 1» пропадала из списка «Забрать у поставщика» — как будто забирать
+// уже нечего, — и печаталась в акте как отвезённая целиком.
+// Новый код обязан звать эти функции, а не проверять delivered_at напрямую.
+function itemQty(it){
+  if(!it)return 1;
+  var q=parseInt(it.qty!=null?it.qty:it.quantity);
+  return Math.max(1,q||1);
+}
+function deliveredQty(it){
+  if(!it)return 0;
+  var q=itemQty(it);
+  // Пусто, но дата отвоза стоит — значит отвезли всё (записи до версии 7.34)
+  if(it.delivered_qty==null)return it.delivered_at?q:0;
+  return Math.max(0,Math.min(q,parseInt(it.delivered_qty)||0));
+}
+function remainQty(it){return Math.max(0,itemQty(it)-deliveredQty(it));}
+function isPartlyDelivered(it){var d=deliveredQty(it);return d>0&&d<itemQty(it);}
 function _saveItemsReliable(orderId,batchItems){
   function attempt(n){
     var check=n===0?Promise.resolve(null):sbGet('order_items','select=id&order_id=eq.'+orderId+'&limit=1');
@@ -1538,10 +1558,10 @@ function orderCard(o){
     // плашку «не отвезено» на закрытых заказах (иначе выглядит как противоречие).
     // v7.34: частичная отгрузка. Если в позиции несколько штук, можно отвезти
     // не все: delivered_qty хранит, сколько уже у клиента. Пусто = вся позиция.
-    var _q=Math.max(1,parseInt(it.qty)||1);
-    var _dq=(it.delivered_qty==null)?null:Math.max(0,parseInt(it.delivered_qty)||0);
+    var _q=itemQty(it);                    // v7.46: считаем функциями ядра
+    var _dq=(it.delivered_qty==null)?null:deliveredQty(it);
     var dlv=!!it.delivered_at;
-    var _part=dlv&&_dq!=null&&_dq>0&&_dq<_q; // отвезена часть
+    var _part=dlv&&isPartlyDelivered(it);   // отвезена часть
     if(dlv&&!_part)delivCnt++;else if(_done)delivCnt++;
     // v6.7: оплата позиции при доставке
     var itPaid=Math.round(it.paid_amount||0);if(itPaid>0)itemsPaid+=itPaid;
@@ -1847,11 +1867,14 @@ function openSupplierItems(name){
   }).forEach(function(o){
     if((o.status||'')==='🏁 Выполнен')return;              // заказ закрыт — забирать нечего
     var rows=(o.order_items||[]).filter(function(it){
-      if(it.delivered_at)return false;                     // уже у клиента
+      // v7.46: считаем ОСТАТОК, а не факт «что-то отвезли». Позиция «2 пенала,
+      // отвезли 1» раньше выпадала из списка целиком — второй пенал у
+      // поставщика ещё лежал, а забирать его было некому.
+      if(remainQty(it)<=0)return false;                    // всё уже у клиента
       return _supNorm(it.supplier_manual||it.supplier)===key;
     });
     if(rows.length)groups.push({o:o,rows:rows});
-    rows.forEach(function(it){cnt++;qty+=(it.qty||1);});
+    rows.forEach(function(it){cnt++;qty+=remainQty(it);});
   });
   var html='',txt='Забрать у «'+_supItemsName+'»\n\n';
   if(!groups.length){
@@ -1868,12 +1891,16 @@ function openSupplierItems(name){
         if(it.color)parts.push(it.color);
         if(it.fabric_category)parts.push('кат.'+it.fabric_category);
         if(it.dims)parts.push(it.dims);
-        txt+='   • '+parts.join(' · ')+(it.qty>1?' × '+it.qty+' шт.':'')+' — '+(it.availability||'')+'\n';
+        // v7.46: в списке нужен ОСТАТОК к получению, а не всё количество позиции
+        var _left=remainQty(it),_all=itemQty(it),_partly=isPartlyDelivered(it);
+        var _qtyTxt=_partly?(' × '+_left+' шт. (из '+_all+', остальное уже у клиента)'):(_all>1?' × '+_all+' шт.':'');
+        txt+='   • '+parts.join(' · ')+_qtyTxt+' — '+(it.availability||'')+'\n';
         var cls=it.availability==='Есть'?'badge-yes':'badge-order';
         return '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-top:1px dashed var(--border)">'
           +'<div style="flex:1;font-size:13px;line-height:1.45"><strong>'+it.product_name+'</strong>'
           +(parts.length>1?'<span style="color:var(--text2)"> · '+parts.slice(1).join(' · ')+'</span>':'')
-          +(it.qty>1?' <span class="tag-qty">'+it.qty+' шт.</span>':'')+'</div>'
+          +(_left>1||_all>1?' <span class="tag-qty">'+_left+' шт.</span>':'')
+          +(_partly?' <span style="background:#fbf0e2;color:#8a5a18;border:1px solid #e0b252;border-radius:10px;padding:1px 7px;font-size:10.5px;font-weight:700;white-space:nowrap">остаток из '+_all+' шт.</span>':'')+'</div>'
           +'<span class="badge '+cls+'" style="flex-shrink:0">'+(it.availability||'')+'</span></div>';
       }).join('');
       txt+='\n';
@@ -5552,16 +5579,22 @@ function printOrdersJournal(mode){
   var rows='';
   list.forEach(function(o,idx){
     var items=o.order_items||[];
-    var anyDlv=items.some(function(it){return!!it.delivered_at;});
+    // v7.46: «что-то отвезли» ещё не значит «отвезли всё» — считаем остаток
+    var anyDlv=items.some(function(it){return deliveredQty(it)>0;});
     var itemsStr=items.map(function(it){
       var parts=[esc(it.product_name)];
       if(it.color)parts.push(esc(it.color));
       if(it.dims)parts.push(esc(it.dims));
       if(it.fabric_category)parts.push('кат.'+it.fabric_category);
       if(it.qty>1)parts.push(it.qty+' шт.');
-      // Отметка частичной доставки: ✅ отвезено / ⏳ ещё нет (если в заказе что-то уже отвезли)
-      var mark=it.delivered_at?'<span style="color:#1B5E20">✅</span> ':(anyDlv?'<span style="color:#E65100">⏳</span> ':'');
-      return mark+parts.join(', ')+(it.delivered_at?' <span style="color:#1B5E20;font-size:7px">(отв. '+fmtDate(it.delivered_at)+')</span>':'')+(Math.round(it.paid_amount||0)>0?' <span style="color:#1B5E20;font-size:7px;font-weight:700">💰'+fmt(it.paid_amount)+'₽</span>':'');
+      // Отметка доставки: ✅ отвезено всё / ◧ отвезена часть / ⏳ ещё нет
+      var _left=remainQty(it),_part=isPartlyDelivered(it);
+      var mark=_left<=0?'<span style="color:#1B5E20">✅</span> '
+        :(_part?'<span style="color:#E65100">◧</span> ':(anyDlv?'<span style="color:#E65100">⏳</span> ':''));
+      var note=_part
+        ?' <span style="color:#E65100;font-size:7px">(везём ещё '+_left+' из '+itemQty(it)+', отв. '+fmtDate(it.delivered_at)+')</span>'
+        :(_left<=0&&it.delivered_at?' <span style="color:#1B5E20;font-size:7px">(отв. '+fmtDate(it.delivered_at)+')</span>':'');
+      return mark+parts.join(', ')+note+(Math.round(it.paid_amount||0)>0?' <span style="color:#1B5E20;font-size:7px;font-weight:700">💰'+fmt(it.paid_amount)+'₽</span>':'');
     }).join('<br>');
 
     var goodsTotal=o.goods_discounted||o.goods_total||0;
@@ -5657,12 +5690,17 @@ function printOrder(id){
     if(it.fabric_category)det.push('Категория ткани: '+it.fabric_category);
     if(it.supplier_manual)det.push('Поставщик: '+esc(it.supplier_manual));
     var sum=fmt((it.price_discounted||it.price_retail||0)*(it.qty||1));
-    var dlv=it.delivered_at
-      ?'<span class="dlv-yes">✅ Отвезено<br>'+fmtDate(it.delivered_at)+'</span>'
-      :'<span class="dlv-no">☐<br><span style="font-size:8px;color:#999">отметить</span></span>';
+    // v7.46: в акте нельзя писать «Отвезено» на позиции, привезённой частично —
+    // это документ, который клиент подписывает.
+    var _left=remainQty(it),_part=isPartlyDelivered(it);
+    var dlv=_part
+      ?'<span class="dlv-no" style="color:#8a5a18">◧ Отвезено '+deliveredQty(it)+' из '+itemQty(it)+'<br><span style="font-size:8px">осталось '+_left+'</span></span>'
+      :(_left<=0&&it.delivered_at
+        ?'<span class="dlv-yes">✅ Отвезено<br>'+fmtDate(it.delivered_at)+'</span>'
+        :'<span class="dlv-no">☐<br><span style="font-size:8px;color:#999">отметить</span></span>');
     // v6.7: за позицию уже рассчитались — видно водителю, чтобы деньги не просили дважды
     if(Math.round(it.paid_amount||0)>0)dlv+='<br><span style="color:#1B5E20;font-weight:700;font-size:9px">💰 оплачен '+fmt(it.paid_amount)+' ₽</span>';
-    itemRows+='<tr'+(it.delivered_at?' class="row-dlv"':'')+'>'
+    itemRows+='<tr'+(_left<=0&&it.delivered_at?' class="row-dlv"':'')+'>'
       +'<td class="c">'+(i+1)+'</td>'
       +'<td><strong>'+esc(it.product_name||'—')+'</strong>'+(det.length?'<br><span class="det">'+det.join(' · ')+'</span>':'')+'</td>'
       +'<td class="c">'+(it.qty||1)+'</td>'
