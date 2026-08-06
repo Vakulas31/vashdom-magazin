@@ -241,7 +241,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.48</span>
+  <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
+       Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
+  <button class="nav-btn" onclick="openDelivBook('')">🚚 Доставка</button>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.50</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -326,7 +329,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
     <div class="fg" style="margin-bottom:12px">
       <label>Адрес доставки *</label>
-      <input type="text" id="f-address" class="inp-gold" placeholder="Улица, дом, квартира" oninput="if(window.placeHintFromAddress)placeHintFromAddress()">
+      <input type="text" id="f-address" class="inp-gold" placeholder="Улица, дом, квартира">
     </div>
     <!-- v6.8: дата заказа ставится сама (сегодня); поле видно только при редактировании -->
     <div class="form-row" id="f-date-row" style="display:none">
@@ -365,20 +368,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <option value="yes">есть</option>
         </select></div>
     </div>
-    <!-- v7.48: цена доставки из прейскуранта по населённому пункту -->
-    <div id="f-place-hint" style="display:none;font-size:12px;background:var(--alt);border-radius:6px;padding:7px 10px;margin-bottom:8px"></div>
-    <div class="fg" style="position:relative;margin-bottom:10px">
-      <label>📍 Куда везём — населённый пункт
-        <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openDelivBook('')">📋 Прейскурант</button>
-      </label>
-      <input type="text" id="f-place" class="inp-gold" autocomplete="off" placeholder="Бехтеевка, Ломово, Мазикино…"
-             oninput="placeLive()" onfocus="placeLive()"
-             onblur="setTimeout(function(){var b=document.getElementById('f-place-list');if(b)b.style.display='none';},200)">
-      <div id="f-place-list" class="ac-list"></div>
-      <div id="f-place-note" style="font-size:11.5px;color:var(--text2);margin-top:4px;line-height:1.55"></div>
-    </div>
     <div class="form-row">
-      <div class="fg"><label>🚚 Стоимость доставки (₽)</label>
+      <div class="fg"><label>🚚 Стоимость доставки (₽)
+        <!-- v7.50: только кнопка-подсказка. Населённый пункт второй раз не вводим —
+             он уже есть в адресе клиента; цена ставится руками, как и раньше. -->
+        <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="delivBookFromOrder()" title="Посмотреть цену по населённому пункту — поиск сам наведётся на адрес клиента">🚚 Прейскурант</button>
+      </label>
         <input type="number" id="f-delivery" value="0" min="0" class="inp-gold" oninput="recalcTotals()"></div>
       <div class="fg"><label>🏗 Занос/подъём (₽)</label>
         <input type="number" id="f-lifting" value="0" min="0" class="inp-gold" oninput="this.dataset.manual='1';recalcTotals()"></div>
@@ -5937,10 +5932,6 @@ function resetForm(){
   document.getElementById('form-title').textContent='Новый заказ';
   ['f-client','f-phone','f-phone2','f-address','f-notes'].forEach(function(id){document.getElementById(id).value='';});
   ['f-phone','f-phone2'].forEach(function(id){document.getElementById(id).style.borderColor='';});
-  // v7.48: поле «куда везём» и подсказка по прейскуранту
-  var _fp=document.getElementById('f-place');if(_fp)_fp.value='';
-  if(window._plNote)_plNote(null,'');
-  if(window.placeHintFromAddress)placeHintFromAddress();
   // v6.8: менеджер запоминается с прошлого заказа
   document.getElementById('f-manager').value=localStorage.getItem('vd_manager')||'';
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
@@ -6865,15 +6856,6 @@ function editOrder(id){
   document.getElementById('f-phone').value=o.client_phone||'';
   document.getElementById('f-phone2').value=o.client_phone2||'';
   document.getElementById('f-address').value=o.client_address||'';
-  // v7.48: населённый пункт узнаём из адреса — в самом заказе он не хранится,
-  // чтобы старые заказы и базы без SQL 7.14 продолжали сохраняться как прежде
-  var _fp2=document.getElementById('f-place');
-  if(_fp2){
-    var _pl=window.placeFromAddress?placeFromAddress(o.client_address||''):null;
-    _fp2.value=_pl?_pl.name:'';
-    if(window._plNote)_plNote(_pl,_fp2.value);
-  }
-  var _ph=document.getElementById('f-place-hint');if(_ph)_ph.style.display='none';
   document.getElementById('f-date').value=o.order_date||'';
   document.getElementById('f-delivery-date').value=o.delivery_date||'';
   document.getElementById('f-manager').value=o.manager||'';
@@ -7188,8 +7170,6 @@ function selectClient(c){
   document.getElementById('f-phone2').value=c.phone2||'';
   document.getElementById('f-address').value=c.address||'';
   document.getElementById('ac-client').style.display='none';
-  // v7.48: адрес подставился из карточки клиента — сразу подсказываем доставку
-  if(window.placeHintFromAddress)placeHintFromAddress();
 }
 
 function ensureProducts(){
@@ -8274,11 +8254,25 @@ function kmPrice(km){
   var k=parseFloat(km);if(!isFinite(k)||k<0)k=0;
   return Math.round(k*r);
 }
-// Ссылка-линейка: маршрут от магазина до пункта в Яндекс.Картах
-function placeMapUrl(name){
+// Ссылка-линейка: маршрут от магазина до пункта в Яндекс.Картах.
+// v7.49: одного названия мало. «Алексеевка» — это и село в Корочанском
+// районе в 20 км, и город Алексеевка в 118 км; карта показывала город.
+// Поэтому в адрес идёт полная триада: область, район, тип и название.
+// Принимает либо строку с названием, либо строку справочника целиком.
+function placeAddr(p){
+  var o=(p&&typeof p==='object')?p:null;
+  // «Мазикино (Шляховское)» — уточнение для нас, карта его не понимает
+  var nm=String(o?o.name:(p||'')).replace(/\s*\([^)]*\)\s*/g,' ').trim();
+  var parts=['Белгородская область'];
+  if(o&&o.district)parts.push(o.district+' район');
+  var kind=(o&&o.kind&&o.kind!=='город')?o.kind+' ':'';
+  parts.push(kind+nm);
+  return parts.join(', ');
+}
+function placeMapUrl(p){
   return 'https://yandex.ru/maps/?rtext='
-    +encodeURIComponent('Короча, Белгородская область')+'~'
-    +encodeURIComponent(String(name||'')+', Белгородская область')+'&rtt=auto';
+    +encodeURIComponent('Белгородская область, Короча')+'~'
+    +encodeURIComponent(placeAddr(p))+'&rtt=auto';
 }
 
 // Подбор пунктов по запросу: точное совпадение, потом «начинается с»,
@@ -8322,109 +8316,11 @@ function placeLabel(p){
     +(p.district?' <span style="color:var(--text2);font-size:11px">· '+esc(p.district)+'</span>':'');
 }
 
-// ═══ ПОЛЕ «КУДА ВЕЗЁМ» В ФОРМЕ ЗАКАЗА ═════════════════════════════════
-var _plPickTimer=null;
-function placeLive(){
-  clearTimeout(_plPickTimer);
-  _plPickTimer=setTimeout(_plPickRun,160);
-}
-function _plPickRun(){
-  var inp=document.getElementById('f-place'),box=document.getElementById('f-place-list');
-  if(!inp||!box)return;
-  var q=inp.value.trim();
-  if(q.length<2){box.style.display='none';_plNote(null,q);return;}
-  var found=findPlaces(q);
-  if(!found.length){box.style.display='none';_plNote(null,q);return;}
-  box.innerHTML=found.map(function(p){
-    var pr=placePrice(p);
-    return '<div class="ac-item" onclick="placePick('+p.id+')" style="display:flex;justify-content:space-between;gap:10px">'
-      +'<span>'+placeLabel(p)+'</span>'
-      +'<strong style="white-space:nowrap">'+(pr?fmt(pr.sum)+' ₽'+(pr.how==='km'?' <span style="font-weight:400;color:var(--text2)">('+pr.km+' км)</span>':''):'<span style="color:#E65100;font-weight:400">цены нет</span>')+'</strong>'
-      +'</div>';
-  }).join('');
-  box.style.display='block';
-}
-function placePick(id){
-  var p=allPlaces.find(function(x){return x.id===id;});
-  var box=document.getElementById('f-place-list');if(box)box.style.display='none';
-  if(!p)return;
-  var inp=document.getElementById('f-place');if(inp)inp.value=p.name;
-  var pr=placePrice(p);
-  if(pr){
-    var d=document.getElementById('f-delivery');
-    if(d){d.value=pr.sum;if(window.recalcTotals)recalcTotals();}
-  }
-  _plNote(p,p.name);
-}
-// Пояснение под полем: откуда взялась цена и что делать, если пункта нет
-function _plNote(p,q){
-  var el=document.getElementById('f-place-note');if(!el)return;
-  if(!_placesLoaded){
-    el.innerHTML='<span style="color:#E65100">Справочник доставки не найден — нужно выполнить <strong>SQL_обновление_7.14</strong>.</span>';
-    return;
-  }
-  if(!q){el.innerHTML='Начните вводить название — подставим цену из прейскуранта. Её всегда можно поправить руками.';return;}
-  if(p){
-    var pr=placePrice(p);
-    if(pr&&pr.how==='fix'){
-      el.innerHTML='✅ По прейскуранту: <strong>'+esc(p.name)+'</strong> — '+fmt(pr.sum)+' ₽.'
-        +' <a href="#" onclick="openDelivBook(\''+String(p.name).replace(/'/g,"\\'")+'\');return false">изменить цену</a>';
-      return;
-    }
-    if(pr&&pr.how==='km'){
-      el.innerHTML='📏 Считаем по расстоянию: '+pr.km+' км × '+fmt(DELIV_KM_RATE)+' ₽ = <strong>'+fmt(pr.sum)+' ₽</strong>.'
-        +' <a href="#" onclick="openDelivBook(\''+String(p.name).replace(/'/g,"\\'")+'\');return false">задать фиксированную</a>';
-      return;
-    }
-    el.innerHTML='<strong>'+esc(p.name)+'</strong> есть в справочнике, но цены и расстояния у него нет. '+_plKmForm(p.name);
-    return;
-  }
-  el.innerHTML='Такого пункта в прейскуранте нет. '+_plKmForm(q);
-}
-function _plKmForm(name){
-  var safe=String(name||'').replace(/'/g,"\\'");
-  return '<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px">'
-    +'<a href="'+placeMapUrl(name)+'" target="_blank" rel="noopener">📏 Замерить в Яндекс.Картах</a>'
-    +' · км: <input type="number" id="f-place-km" min="0" step="0.5" style="width:70px;padding:3px 6px" oninput="placeKmCalc()">'
-    +' × '+fmt(DELIV_KM_RATE)+' ₽ = <strong id="f-place-kmsum">—</strong>'
-    +' <button type="button" class="btn btn-outline owner-only" style="padding:3px 8px;font-size:11px" onclick="placeRemember(\''+safe+'\')">💾 Запомнить</button>'
-    +'</span>';
-}
-function placeKmCalc(){
-  var km=parseFloat((document.getElementById('f-place-km')||{}).value);
-  var out=document.getElementById('f-place-kmsum');
-  if(!isFinite(km)||km<=0){if(out)out.textContent='—';return;}
-  var sum=kmPrice(km);
-  if(out)out.innerHTML=fmt(sum)+' ₽';
-  var d=document.getElementById('f-delivery');
-  if(d){d.value=sum;if(window.recalcTotals)recalcTotals();}
-}
-// Запомнить новый пункт в справочнике вместе с замеренным расстоянием
-function placeRemember(name){
-  if(!_isOwner){toast('Справочник правит только владелец','err');return;}
-  name=String(name||'').trim();
-  if(!name){toast('Не указано название','err');return;}
-  var km=parseFloat((document.getElementById('f-place-km')||{}).value);
-  if(!isFinite(km)||km<=0){toast('Сначала укажите расстояние в километрах','err',4000);return;}
-  var exist=findPlaceExact(name);
-  var body={name:name,km:km,updated_at:new Date().toISOString(),updated_by:(_auth&&_auth.email)||null};
-  var req=exist?sbPatch('delivery_places',body,'id=eq.'+exist.id):sbPost('delivery_places',[body]);
-  req.then(function(){return loadDeliveryPlaces(true);})
-     .then(function(){toast('✅ «'+name+'» в справочнике: '+km+' км');_plNote(findPlaceExact(name),name);})
-     .catch(function(e){toast('❌ '+((e&&e.message)||e),'err',6000);});
-}
-// Подсказка по адресу заказа: «похоже, это Ломово — 1 700 ₽»
-function placeHintFromAddress(){
-  var el=document.getElementById('f-place-hint');if(!el)return;
-  var addr=(document.getElementById('f-address')||{}).value||'';
-  var pl=(document.getElementById('f-place')||{}).value||'';
-  var p=(!pl&&addr)?placeFromAddress(addr):null;
-  if(!p){el.style.display='none';el.innerHTML='';return;}
-  var pr=placePrice(p);if(!pr){el.style.display='none';return;}
-  el.style.display='block';
-  el.innerHTML='📍 Похоже, это <strong>'+esc(p.name)+'</strong> — доставка '+fmt(pr.sum)+' ₽. '
-    +'<a href="#" onclick="placePick('+p.id+');placeHintFromAddress();return false">подставить</a>';
-}
+// v7.50: поля «Куда везём» в форме заказа больше нет. Оно заставляло
+// вводить адрес дважды — сначала настоящий адрес клиента, потом ещё раз
+// населённый пункт. Справочник — это отдельный помощник вместо бумажки
+// на прилавке, а цену доставки продавец как ставил руками, так и ставит.
+// Открывается кнопкой «🚚 Доставка» в меню и кнопкой в карточке доставки.
 
 // ═══ СПРАВОЧНИК: ОТДЕЛЬНОЕ ОКНО ═══════════════════════════════════════
 var _dbFilter='';
@@ -8435,6 +8331,13 @@ function openDelivBook(preset){
     renderDelivBook();
     document.getElementById('modal-deliv').classList.add('open');
   });
+}
+// Кнопка в карточке доставки: открываем справочник, а поиск заранее наводим
+// на населённый пункт из адреса клиента — вводить его второй раз не нужно.
+function delivBookFromOrder(){
+  var addr=(document.getElementById('f-address')||{}).value||'';
+  var p=addr?placeFromAddress(addr):null;
+  openDelivBook(p?p.name:'');
 }
 function delivBookSearch(){
   _dbFilter=(document.getElementById('db-search')||{}).value||'';
@@ -8455,7 +8358,16 @@ function renderDelivBook(){
   if(sum)sum.innerHTML='Пунктов в справочнике: <strong>'+allPlaces.length+'</strong>'
     +(noPrice?' · без фиксированной цены: <strong>'+noPrice+'</strong> (считаются километрами)':'')
     +(_dbFilter.trim()?' · показано: <strong>'+list.length+'</strong>':'');
-  if(!list.length){box.innerHTML='<div style="padding:14px;font-size:13px;color:var(--text2)">Ничего не найдено. Новый пункт можно добавить кнопкой ниже.</div>';return;}
+  if(!list.length){
+    // v7.50: не нашли — сразу даём линейку и добавление, а не тупик
+    var q=_dbFilter.trim(),safe=q.replace(/'/g,"\\'");
+    box.innerHTML='<div style="padding:14px;font-size:13px;color:var(--text2);line-height:1.7">'
+      +'«<strong>'+esc(q)+'</strong>» в прейскуранте нет.<br>'
+      +'<a href="'+placeMapUrl(q)+'" target="_blank" rel="noopener">📏 Замерить расстояние в Яндекс.Картах</a>'
+      +(_isOwner?' · <a href="#" onclick="delivAddPlace(\''+safe+'\');return false">➕ добавить в справочник</a>':'')
+      +'</div>';
+    return;
+  }
   var own=!!_isOwner;
   var html='<table style="width:100%;border-collapse:collapse;font-size:12.5px">'
     +'<thead><tr style="background:var(--alt)">'
@@ -8476,8 +8388,10 @@ function renderDelivBook(){
       +'<td style="padding:5px 8px;text-align:right">'
         +(own?'<input type="number" min="0" step="0.5" value="'+(p.km!=null?p.km:'')+'" placeholder="—" style="width:74px;padding:3px 6px;text-align:right" onchange="delivSave('+p.id+',null,this.value)">'
              :(p.km!=null?p.km:'—'))
+        // цену по километрам иначе не видно: в клетке цены стоит пустое поле
+        +(pr&&pr.how==='km'?'<div style="font-size:10.5px;color:var(--text2)">= '+fmt(pr.sum)+' ₽</div>':'')
       +'</td>'
-      +'<td style="padding:5px 4px;text-align:center"><a href="'+placeMapUrl(p.name)+'" target="_blank" rel="noopener" title="Замерить расстояние в Яндекс.Картах" style="text-decoration:none">📏</a></td>'
+      +'<td style="padding:5px 4px;text-align:center"><a href="'+placeMapUrl(p)+'" target="_blank" rel="noopener" title="Замерить расстояние: '+esc(placeAddr(p))+'" style="text-decoration:none">📏</a></td>'
       +'</tr>';
   });
   box.innerHTML=html+'</tbody></table>';
@@ -8506,9 +8420,10 @@ function delivSave(id,price,km){
     })
     .catch(function(e){toast('❌ '+((e&&e.message)||e),'err',6000);renderDelivBook();});
 }
-function delivAddPlace(){
+// preset — подставить название, если владелец нажал «добавить» после поиска
+function delivAddPlace(preset){
   if(!_isOwner){toast('Справочник правит только владелец','err');return;}
-  var name=prompt('Название населённого пункта (как в адресе, без «село»/«хутор»):','');
+  var name=prompt('Название населённого пункта (как в адресе, без «село»/«хутор»):',preset||'');
   if(name===null)return;
   name=String(name).trim();
   if(!name){toast('Пустое название','err');return;}
