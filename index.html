@@ -164,6 +164,14 @@ body.role-seller .owner-only{display:none!important}
 .modal{box-shadow:0 24px 60px -20px rgba(16,24,40,.45)}
 .ac-list{box-shadow:0 12px 28px -12px rgba(16,24,40,.3)}
 .ac-item:hover{background:#eef3f9}
+/* ── v7.47: КАЖДЫЙ ЗАКАЗ ОТДЕЛЁН ОТ СОСЕДНЕГО ──────────────
+   В длинном списке карточки сливались в одно полотно: границу между
+   заказами приходилось искать глазами по строке-шапке. Рамка толще,
+   промежуток шире, тень заметнее. Цвет намеренно нейтральный — он
+   ничего не означает, значение несут только плашки статуса. */
+.order-card{border-width:2px;border-color:#dbe2ea;margin-bottom:16px;box-shadow:0 2px 6px -2px rgba(31,78,121,.13)}
+.order-card:hover{border-color:#b6c5d6;box-shadow:0 6px 18px -8px rgba(31,78,121,.30)}
+.order-card.done{border-color:#c6d9cb}
 /* ── МОБИЛЬНАЯ ВЕРСИЯ ─────────────────────────────────── */
 @media (max-width:700px){
   .topbar{padding:0 8px;gap:6px;height:48px}
@@ -194,6 +202,8 @@ body.role-seller .owner-only{display:none!important}
   .item-info{white-space:normal;flex-basis:100%}
   .item-avail{margin-left:0;flex-wrap:wrap}
   .order-ftr{padding:8px 10px}
+  /* v7.47: на телефоне тот же приём, но промежуток скромнее — экран короткий */
+  .order-card{margin-bottom:12px}
   .ftr-nums{gap:10px}
   .note-box{margin:6px 10px}
   .bar-name{width:78px;font-size:11px}
@@ -231,7 +241,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.46</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.48</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -316,7 +326,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
     <div class="fg" style="margin-bottom:12px">
       <label>Адрес доставки *</label>
-      <input type="text" id="f-address" class="inp-gold" placeholder="Улица, дом, квартира">
+      <input type="text" id="f-address" class="inp-gold" placeholder="Улица, дом, квартира" oninput="if(window.placeHintFromAddress)placeHintFromAddress()">
     </div>
     <!-- v6.8: дата заказа ставится сама (сегодня); поле видно только при редактировании -->
     <div class="form-row" id="f-date-row" style="display:none">
@@ -354,6 +364,18 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <option value="no">нет</option>
           <option value="yes">есть</option>
         </select></div>
+    </div>
+    <!-- v7.48: цена доставки из прейскуранта по населённому пункту -->
+    <div id="f-place-hint" style="display:none;font-size:12px;background:var(--alt);border-radius:6px;padding:7px 10px;margin-bottom:8px"></div>
+    <div class="fg" style="position:relative;margin-bottom:10px">
+      <label>📍 Куда везём — населённый пункт
+        <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openDelivBook('')">📋 Прейскурант</button>
+      </label>
+      <input type="text" id="f-place" class="inp-gold" autocomplete="off" placeholder="Бехтеевка, Ломово, Мазикино…"
+             oninput="placeLive()" onfocus="placeLive()"
+             onblur="setTimeout(function(){var b=document.getElementById('f-place-list');if(b)b.style.display='none';},200)">
+      <div id="f-place-list" class="ac-list"></div>
+      <div id="f-place-note" style="font-size:11.5px;color:var(--text2);margin-top:4px;line-height:1.55"></div>
     </div>
     <div class="form-row">
       <div class="fg"><label>🚚 Стоимость доставки (₽)</label>
@@ -566,6 +588,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         </select></span>
       <span>Фабрика
         <select id="ss-factory" onchange="smartSearchLive()" style="width:auto;padding:4px 6px"><option value="">любая</option></select></span>
+      <span>Поставщик
+        <select id="ss-supplier" onchange="smartSearchLive()" style="width:auto;padding:4px 6px"><option value="">любой</option></select></span>
     </div>
     <div id="ss-parsed" style="font-size:11px;color:var(--text2);min-height:16px;margin-bottom:6px"></div>
     <div id="ss-results"><div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос. Для работы нужно применить SQL_обновление_5.6 и нажать «Разобрать атрибуты».</div></div>
@@ -826,6 +850,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div id="dc-results" style="margin-top:12px"></div>
   </div>
   </details>
+
+  <!-- v7.47: подсказка про колонтитулы браузера на бланках -->
+  <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🖨 Печать бланков <span style="font-weight:400;font-size:11px">(лишняя дата сверху и about:blank снизу)</span></summary>
+  <div class="card">
+    <p style="font-size:12.5px;color:var(--text2);margin-bottom:10px;line-height:1.55">Дату со временем сверху и «about:blank» снизу печатает сам браузер, а не наш бланк. Убирается один раз: в окне печати «Ещё настройки» → снять галочку «Колонтитулы». Приложение показывает эту подсказку перед первой печатью договора; если вы её скрыли, а на новом компьютере она нужна снова — верните кнопкой ниже.</p>
+    <button class="btn btn-outline" onclick="resetPrintHint()">↻ Показывать подсказку о печати снова</button>
+  </div>
+  </details>
+
+  <!-- v7.48: прейскурант доставки -->
+  <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🚚 Прейскурант доставки <span style="font-weight:400;font-size:11px">(цены по населённым пунктам и цена километра)</span></summary>
+  <div class="card">
+    <p style="font-size:12.5px;color:var(--text2);margin-bottom:10px;line-height:1.55">Тот же бумажный лист, только общий для всех компьютеров. Цены правятся прямо в списке, пункт без цены считается по расстоянию: километры × цена километра. Для новых адресов есть значок 📏 — открывает Яндекс.Карты с маршрутом от Корочи.</p>
+    <button class="btn btn-primary" onclick="openDelivBook('')" style="justify-content:center">🚚 Открыть прейскурант</button>
+  </div>
+  </details>
 </div>
 
 <div class="page" id="page-cash">
@@ -1060,6 +1100,47 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
 </div>
+<!-- v7.48: прейскурант доставки по населённым пунктам -->
+<div class="modal-bg" id="modal-deliv">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-title">🚚 Прейскурант доставки</div>
+    <div id="db-sum" style="font-size:12px;color:var(--text2);margin:-8px 0 10px"></div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+      <div class="fg" style="flex:1;min-width:180px;margin:0">
+        <label style="font-size:11px">Поиск населённого пункта</label>
+        <input type="text" id="db-search" placeholder="начните вводить…" oninput="delivBookSearch()" autocomplete="off">
+      </div>
+      <div class="fg owner-only" style="width:150px;margin:0">
+        <label style="font-size:11px">Цена километра (₽)</label>
+        <input type="number" id="db-rate" min="0" step="5" onchange="saveKmRate()">
+      </div>
+    </div>
+    <div style="font-size:11.5px;color:var(--text2);background:var(--alt);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.55">
+      Цена из этого списка подставляется в заказ, но её всегда можно поправить руками — на цену в договоре влияет только поле в заказе.
+      Пустая цена значит «считать по расстоянию»: километры × цена километра. Значок 📏 открывает Яндекс.Карты с маршрутом от Корочи.
+    </div>
+    <div id="db-list" style="max-height:50vh;overflow-y:auto;margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-outline owner-only" onclick="delivAddPlace()">➕ Добавить пункт</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-deliv')" style="margin-left:auto">Закрыть</button>
+    </div>
+  </div>
+</div>
+<!-- v7.47: колонтитулы браузера на бланках убираются одной галочкой в окне печати -->
+<div class="modal-bg" id="modal-printhint">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">🖨 Один раз настройте печать</div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.55;margin-bottom:12px">Браузер сам допечатывает на бланке <strong>дату и время</strong> сверху и <strong>about:blank</strong> с номером листа снизу. Это не наш договор — из приложения такое убрать нельзя.</p>
+    <div style="background:var(--alt);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.6;margin-bottom:14px">
+      В окне печати нажмите <strong>«Ещё настройки»</strong> и снимите галочку <strong>«Колонтитулы»</strong>.<br>
+      <span style="color:var(--text2);font-size:12px">В некоторых браузерах она называется «Верхние и нижние колонтитулы» или Headers and footers. Браузер запомнит выбор — на этом компьютере больше ничего делать не нужно.</span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="printHintGo(false)" style="flex:1;justify-content:center">🖨 Печатать</button>
+      <button class="btn btn-outline" onclick="printHintGo(true)">Печатать и больше не напоминать</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="modal-delete">
   <div class="modal" style="max-width:400px">
     <div class="modal-title">🗑 Удалить заказ?</div>
@@ -1203,6 +1284,11 @@ function loadSettings(){
         MARKUP_PCT=v;
         localStorage.setItem('vashdom_markup',v); // запасная копия
       }
+    }
+    // v7.48: цена километра для доставки — тоже одна на всех
+    if(map.delivery_km_rate!=null&&map.delivery_km_rate!==''){
+      var r=parseFloat(map.delivery_km_rate);
+      if(isFinite(r)&&r>=0&&r<=10000)DELIV_KM_RATE=r;
     }
     var el=document.getElementById('markup-display');
     if(el)el.textContent=MARKUP_PCT;
@@ -1391,6 +1477,7 @@ window.addEventListener('DOMContentLoaded',function(){
       el.textContent='● Онлайн';el.style.color='#4CAF50';
       checkManagerDay(); // v6.9: новый день — спросить, кто сегодня работает
       loadSuppliers(); // v7.20: справочник поставщиков — тихо, в фоне
+      if(window.loadDeliveryPlaces)loadDeliveryPlaces(); // v7.48: прейскурант доставки
     }).catch(function(e){
       console.error('Init attempt '+attempt+':',e);
       if(attempt<3){
@@ -4731,34 +4818,47 @@ function _ssDimFilters(){
   return f;
 }
 function ssClearDims(){['ss-hmin','ss-hmax','ss-wmin','ss-wmax','ss-dmin','ss-dmax'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});smartSearchLive();}
-function _ssHasFilter(){return document.getElementById('ss-input').value.trim().length>=2||_ssDimFilters().length>0||_ssNum('ss-pmin')!=null||_ssNum('ss-pmax')!=null||_ssNum('ss-doors')!=null||((document.getElementById('ss-factory')||{}).value||'')!=='';}
+// v7.47: значение выпадающего списка фильтра (фабрика/поставщик)
+function _ssPick(id){return String((document.getElementById(id)||{}).value||'');}
+function _ssHasFilter(){return document.getElementById('ss-input').value.trim().length>=2||_ssDimFilters().length>0||_ssNum('ss-pmin')!=null||_ssNum('ss-pmax')!=null||_ssNum('ss-doors')!=null||_ssPick('ss-factory')!==''||_ssPick('ss-supplier')!=='';}
 function smartSearchLive(){
   clearTimeout(_ssTimer);
   var q=document.getElementById('ss-input').value.trim();
   var box=document.getElementById('ss-results'),pb=document.getElementById('ss-parsed');
-  if(!_ssHasFilter()){pb.textContent='';box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос (тип, цвет) или задайте размеры/цену/фабрику полями выше.</div>';return;}
+  if(!_ssHasFilter()){pb.textContent='';box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите запрос (тип, цвет) или задайте размеры, цену, фабрику или поставщика полями выше.</div>';return;}
   _ssTimer=setTimeout(function(){_ssRun(q);},280);
 }
-// Загрузка списка фабрик в фильтр
+// Загрузка списков фабрик и поставщиков в фильтры углублённого поиска.
+// v7.47: раньше заполнялся только список фабрик, и отобрать товар по
+// поставщику было нечем — хотя в прайсах поставщик есть у каждой строки.
+function _ssFillPick(id,names,anyWord){
+  var sel=document.getElementById(id);if(!sel)return;
+  var keep=sel.value; // не сбрасываем то, что владелец уже выбрал
+  sel.innerHTML='<option value="">'+anyWord+'</option>'
+    +names.map(function(n){return'<option value="'+String(n).replace(/"/g,'&quot;')+'">'+esc(n)+'</option>';}).join('');
+  if(keep&&names.indexOf(keep)>=0)sel.value=keep;
+  sel.dataset.loaded='1';
+}
 function _ssLoadFactories(){
-  var sel=document.getElementById('ss-factory');if(!sel||sel.dataset.loaded)return;
-  // v7.2: фабрики из RPC price_summary — обычный запрос сервер режет до 1000 строк
+  var sel=document.getElementById('ss-factory'),sup=document.getElementById('ss-supplier');
+  if((!sel||sel.dataset.loaded)&&(!sup||sup.dataset.loaded))return;
+  // v7.2: списки из RPC price_summary — обычный запрос сервер режет до 1000 строк
   sb('POST','rpc/price_summary',null)
   .then(function(g){
     if(!Array.isArray(g)||!g.length)throw new Error('rpc недоступен');
-    var f={};g.forEach(function(r){if(r.factory)f[r.factory]=1;});
-    return f;
+    return g;
   })
   .catch(function(){
-    return sbGet('price_items','select=factory&limit=10000').then(function(rows){
-      var f={};(rows||[]).forEach(function(r){if(r.factory)f[r.factory]=1;});
-      return f;
-    });
+    // запасной путь: колонки factory может не быть — тогда берём хотя бы поставщика
+    return sbGet('price_items','select=supplier,factory&limit=10000')
+      .catch(function(){return sbGet('price_items','select=supplier&limit=10000');});
   })
-  .then(function(f){
-    var names=Object.keys(f).sort(function(a,b){return String(a).localeCompare(String(b),'ru');});
-    sel.innerHTML='<option value="">любая</option>'+names.map(function(n){return'<option value="'+String(n).replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('');
-    sel.dataset.loaded='1';
+  .then(function(rows){
+    var f={},s={};
+    (rows||[]).forEach(function(r){if(r.factory)f[r.factory]=1;if(r.supplier)s[r.supplier]=1;});
+    var byRu=function(a,b){return String(a).localeCompare(String(b),'ru');};
+    _ssFillPick('ss-factory',Object.keys(f).sort(byRu),'любая');
+    _ssFillPick('ss-supplier',Object.keys(s).sort(byRu),'любой');
   }).catch(function(){});
 }
 // Разбор свободного запроса на тип/цвет/материал/двери/габариты/слова
@@ -4792,7 +4892,7 @@ function _ssRun(q){
   var nmMap={dim_w:'ширина',dim_h:'высота',dim_d:'глубина',any:'размер'},opMap={lte:'≤',gte:'≥',eq:'=',near:'≈'};
   var doorsVal=_ssNum('ss-doors')||P.doors; // поле имеет приоритет над текстом
   var pmin=_ssNum('ss-pmin'),pmax=_ssNum('ss-pmax');
-  var factory=(document.getElementById('ss-factory')||{}).value||'';
+  var factory=_ssPick('ss-factory'),supplier=_ssPick('ss-supplier');
   var mk=markupK(); // розница ≈ опт × mk, фильтруем по опту
   var chips=[];
   if(P.ptype)chips.push('тип: '+P.ptype);
@@ -4804,6 +4904,7 @@ function _ssRun(q){
   if(pmin!=null)chips.push('цена ≥ '+fmt(pmin));
   if(pmax!=null)chips.push('цена ≤ '+fmt(pmax));
   if(factory)chips.push('фабрика: '+factory);
+  if(supplier)chips.push('поставщик: '+supplier);
   if(P.free.length)chips.push('текст: '+P.free.join(' '));
   pb.innerHTML=chips.length?'Понял: <strong>'+chips.join('</strong> · <strong>')+'</strong>':'Не распознаны параметры — ищу по названию.';
   // Собираем условия в единый and(...). Тип/цвет/материал ищем и в атрибуте, и в названии.
@@ -4832,8 +4933,10 @@ function _ssRun(q){
   // Цена (розница) → фильтр по опту
   if(pmin!=null)conds.push('price_opt.gte.'+Math.floor(pmin/mk));
   if(pmax!=null)conds.push('price_opt.lte.'+Math.ceil(pmax/mk));
-  if(factory)conds.push('factory.eq.'+encodeURIComponent('"'+factory.replace(/(["\\])/g,'\\$1')+'"'));
-  if(!conds.length){box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:6px 2px">Уточните запрос: тип, цвет, размеры, цену или фабрику.</div>';return;}
+  var _eqLit=function(v){return encodeURIComponent('"'+String(v).replace(/(["\\])/g,'\\$1')+'"');};
+  if(factory)conds.push('factory.eq.'+_eqLit(factory));
+  if(supplier)conds.push('supplier.eq.'+_eqLit(supplier));
+  if(!conds.length){box.innerHTML='<div style="color:var(--text2);font-size:12px;padding:6px 2px">Уточните запрос: тип, цвет, размеры, цену, фабрику или поставщика.</div>';return;}
   box.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 2px">Ищу...</div>';
   var sortV=(document.getElementById('ss-sort')||{}).value||'name';
   var order=sortV==='price_asc'?'price_opt.asc.nullslast':(sortV==='price_desc'?'price_opt.desc.nullslast':'product_name.asc');
@@ -5834,6 +5937,10 @@ function resetForm(){
   document.getElementById('form-title').textContent='Новый заказ';
   ['f-client','f-phone','f-phone2','f-address','f-notes'].forEach(function(id){document.getElementById(id).value='';});
   ['f-phone','f-phone2'].forEach(function(id){document.getElementById(id).style.borderColor='';});
+  // v7.48: поле «куда везём» и подсказка по прейскуранту
+  var _fp=document.getElementById('f-place');if(_fp)_fp.value='';
+  if(window._plNote)_plNote(null,'');
+  if(window.placeHintFromAddress)placeHintFromAddress();
   // v6.8: менеджер запоминается с прошлого заказа
   document.getElementById('f-manager').value=localStorage.getItem('vd_manager')||'';
   document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
@@ -6758,6 +6865,15 @@ function editOrder(id){
   document.getElementById('f-phone').value=o.client_phone||'';
   document.getElementById('f-phone2').value=o.client_phone2||'';
   document.getElementById('f-address').value=o.client_address||'';
+  // v7.48: населённый пункт узнаём из адреса — в самом заказе он не хранится,
+  // чтобы старые заказы и базы без SQL 7.14 продолжали сохраняться как прежде
+  var _fp2=document.getElementById('f-place');
+  if(_fp2){
+    var _pl=window.placeFromAddress?placeFromAddress(o.client_address||''):null;
+    _fp2.value=_pl?_pl.name:'';
+    if(window._plNote)_plNote(_pl,_fp2.value);
+  }
+  var _ph=document.getElementById('f-place-hint');if(_ph)_ph.style.display='none';
   document.getElementById('f-date').value=o.order_date||'';
   document.getElementById('f-delivery-date').value=o.delivery_date||'';
   document.getElementById('f-manager').value=o.manager||'';
@@ -7072,6 +7188,8 @@ function selectClient(c){
   document.getElementById('f-phone2').value=c.phone2||'';
   document.getElementById('f-address').value=c.address||'';
   document.getElementById('ac-client').style.display='none';
+  // v7.48: адрес подставился из карточки клиента — сразу подсказываем доставку
+  if(window.placeHintFromAddress)placeHintFromAddress();
 }
 
 function ensureProducts(){
@@ -7554,7 +7672,8 @@ var _BK_TABLES=[
   {t:'app_roles',        sheet:'Роли'}, // v7.28: иначе при восстановлении теряется, кто владелец
   {t:'staff_rates',      sheet:'Ставки продавцов'}, // v7.40
   {t:'price_imports',    sheet:'Загрузки прайсов'},  // v7.41
-  {t:'app_settings',     sheet:'Настройки'}          // v7.42
+  {t:'app_settings',     sheet:'Настройки'},         // v7.42
+  {t:'delivery_places',  sheet:'Доставка'}           // v7.48: прейскурант по пунктам
 ];
 function _bkSave(text,name,mime){
   var blob=new Blob([text],{type:mime});
@@ -7693,6 +7812,13 @@ function _vdDocCss(){
     +'.sb{flex:1;font-size:9pt}'
     +'.sl{border-bottom:1px solid #000;height:16px;margin:9px 0 2px}'
     +'.small{font-size:8pt;color:#333}'
+    // v7.47: галочка у мест, где расписывается покупатель. Клиент подписывает
+    // договор стоя у прилавка и половину подписей пропускал — приходилось
+    // возвращать бланк. Галочка стоит слева от линии, расписываются правее неё.
+    +'.sl.sign-here{position:relative}'
+    +'.sl.sign-here::before{content:"\\2714";position:absolute;left:1px;bottom:0;'
+      +'font-size:12pt;font-weight:bold;color:#1F4E79;line-height:1}'
+    +'.vmark{font-weight:bold;color:#1F4E79;font-size:11pt;line-height:1}'
     // v7.36: фирменная шапка с логотипом и заметный телефон магазина
     +'.hdr{display:flex;align-items:center;gap:9px;border-bottom:2px solid #1F4E79;padding-bottom:4px;margin-bottom:4px}'
     +'.hdr .logo{height:12mm;object-fit:contain;flex-shrink:0}'
@@ -7710,7 +7836,34 @@ function _vdHeader(title){
     +(VD_SHOP.phone?'<br><span class="tel">☎ '+esc(VD_SHOP.phone)+'</span>':'')
     +'</div></div>';
 }
+// ── v7.47: КОЛОНТИТУЛЫ БРАУЗЕРА НА БЛАНКАХ ─────────────────────────────
+// Сверху листа печаталась дата со временем, снизу — «about:blank» и номер
+// листа. Это рисует не наш бланк, а сам браузер, и убрать это из кода
+// нельзя: CSS туда не достаёт, а обнуление полей страницы не помогает —
+// проверено, надпись просто наезжает на текст договора. Единственный
+// работающий способ — снять галочку «Колонтитулы» в окне печати; браузер
+// запоминает выбор навсегда. Поэтому показываем подсказку один раз.
+var _VD_HINT_KEY='vd_print_hint_off',_vdPendingPrint=null;
+function _vdHintOff(){try{return localStorage.getItem(_VD_HINT_KEY)==='1';}catch(e){return false;}}
 function _vdOpenPrint(html){
+  if(_vdHintOff()){_vdPrintNow(html);return;}
+  _vdPendingPrint=html;
+  var m=document.getElementById('modal-printhint');
+  if(!m){_vdPrintNow(html);return;} // старая разметка — печатаем как раньше
+  m.classList.add('open');
+}
+// Кнопки подсказки. dontShow=true — больше не показывать на этом компьютере.
+function printHintGo(dontShow){
+  if(dontShow){try{localStorage.setItem(_VD_HINT_KEY,'1');}catch(e){}}
+  closeModal('modal-printhint');
+  var html=_vdPendingPrint;_vdPendingPrint=null;
+  if(html)_vdPrintNow(html);
+}
+function resetPrintHint(){
+  try{localStorage.removeItem(_VD_HINT_KEY);}catch(e){}
+  toast('✅ Подсказка о печати снова будет показана');
+}
+function _vdPrintNow(html){
   var w=window.open('','_blank');
   if(!w){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4500);return;}
   w.document.write(html);w.document.close();
@@ -7802,7 +7955,7 @@ function printContract(orderId){
     +'<div class="opt">'
     +'<div class="row"><span class="box"></span> Доставка по адресу: '+_vdBlank(o.client_address,230)+' — стоимость '+(delivCost>0?'<strong>'+fmt(delivCost)+'</strong>':'<span class="fill">&nbsp;</span>')+' руб.</div>'
     +'<div class="row"><span class="box"></span> Подъём (занос) на '+(o.floor?('<strong>'+esc(String(o.floor))+'</strong>'):'<span class="fill" style="min-width:34px">&nbsp;</span>')+' этаж, кв. '+(o.apartment?('<strong>'+esc(o.apartment)+'</strong>'):'<span class="fill" style="min-width:34px">&nbsp;</span>')+', грузовой лифт: '+(o.has_lift===true?'<strong>есть</strong>':(o.has_lift===false?'<strong>нет</strong>':'есть / нет'))+' — итого '+(liftCost>0?'<strong>'+fmt(liftCost)+'</strong>':'<span class="fill">&nbsp;</span>')+' руб.</div>'
-    +'<div class="row small">Подпись Покупателя о заказе указанных услуг: <span class="fill" style="min-width:150px">&nbsp;</span></div>'
+    +'<div class="row small"><span class="vmark">✔</span> Подпись Покупателя о заказе указанных услуг: <span class="fill" style="min-width:150px">&nbsp;</span></div>'
     +'</div>'
     +'<div class="cl">7.2. Стоимость подъёма (заноса) — <strong>'+VD_SHOP.liftPerFloor+' руб. за этаж за одну позицию Спецификации</strong>. При наличии в доме исправного грузового лифта — '+VD_SHOP.liftPerFloor+' руб. за одну позицию независимо от этажа.</div>'
     +'<div class="cl">7.3. Доставка выполняется силами Продавца до входа в здание (подъезда) в пределах '+VD_SHOP.zone+' при беспрепятственном проезде автотранспорта. В иные населённые пункты — по действующему прейскуранту Продавца.</div>'
@@ -7832,7 +7985,7 @@ function printContract(orderId){
     +'тел. '+(phones?esc(phones):'<span class="fill">&nbsp;</span>')+'<br>'
     +'адрес: '+_vdBlank(o.client_address,180)+'<br>'
     +'<span class="small">Экземпляр Договора получил, с условиями ознакомлен и согласен:</span>'
-    +'<div class="sl"></div><div class="small">подпись</div></div>'
+    +'<div class="sl sign-here"></div><div class="small">подпись</div></div>'
     +'</div>'
 
     +'</body></html>';
@@ -7895,7 +8048,7 @@ function printAct(orderId){
 
     +'<div class="sigs">'
     +'<div class="sb"><strong>Передал:</strong><br>Продавец, ИП '+esc(VD_SHOP.name)+' / представитель<div class="sl"></div><div class="small">подпись, расшифровка</div></div>'
-    +'<div class="sb"><strong>Принял:</strong><br>Покупатель, '+esc(o.client_name||'')+'<div class="sl"></div><div class="small">подпись, расшифровка</div></div>'
+    +'<div class="sb"><strong>Принял:</strong><br>Покупатель, '+esc(o.client_name||'')+'<div class="sl sign-here"></div><div class="small">подпись, расшифровка</div></div>'
     +'</div>'
     +'</body></html>';
   _vdOpenPrint(html);
@@ -8064,6 +8217,323 @@ function initials(n){if(!n)return'?';return n.trim().split(/\s+/).slice(0,2).map
 function hideAc(id,delay){setTimeout(function(){var el=document.getElementById(id);if(el)el.style.display='none';},delay||200);}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
+// ═══ v7.48: СПРАВОЧНИК ДОСТАВКИ ПО НАСЕЛЁННЫМ ПУНКТАМ ═══════════════════
+// До этого прейскурант был бумажным листом на прилавке: печатные цены и
+// поверх них цены шариковой ручкой. Лист один, компьютеров несколько, а
+// продавец на телефоне вообще его не видел. Теперь список лежит в базе
+// (таблица delivery_places, SQL 7.14), правит его владелец, видят все.
+//
+// Как считается цена:
+//   · пункт есть в справочнике и у него проставлена цена  → берём её;
+//   · пункт есть, но цены нет, зато есть километры        → км × цена км;
+//   · пункта нет вовсе → показываем поле «км» и кнопку «замерить»,
+//     которая открывает Яндекс.Карты с готовым маршрутом Короча → адрес.
+//     Ключей API не нужно — карта работает как обычная линейка.
+// Цена километра — из настроек (по договору, п. 7.5, сейчас 50 ₽).
+
+var allPlaces=[],_placesLoaded=false,_placesTried=false,DELIV_KM_RATE=50;
+
+// ── Поиск: без учёта Ё, регистра и слов «село / хутор / посёлок» ───────
+// Границы слов (\b) в JS считают русские буквы «не буквами», поэтому слова-
+// типы вырезаем не регулярным выражением, а по списку — слово целиком.
+var _PL_STOP={'село':1,'с':1,'хутор':1,'х':1,'посёлок':1,'поселок':1,'пос':1,'п':1,
+  'деревня':1,'дер':1,'д':1,'город':1,'г':1,'ул':1,'улица':1,'кв':1,'квартира':1,'дом':1};
+function _plNorm(s){
+  var w=String(s||'').toLowerCase().replace(/ё/g,'е')
+    .replace(/[^а-я0-9]+/g,' ').trim().split(' ');
+  var out=[];
+  for(var i=0;i<w.length;i++){if(w[i]&&!_PL_STOP[w[i]])out.push(w[i]);}
+  return out.join(' ');
+}
+function _plKey(p){return _plNorm(p&&p.name);}
+
+function loadDeliveryPlaces(force){
+  // Один раз за сеанс. Если таблицы нет, повторять запрос незачем: обычный
+  // GET сам повторяется трижды с паузами, и открытие справочника каждый раз
+  // подвисало бы на пару секунд впустую.
+  if(_placesTried&&!force)return Promise.resolve(allPlaces);
+  return sbGet('delivery_places','select=id,name,kind,district,price,km,note&order=name.asc')
+    .then(function(rows){allPlaces=rows||[];_placesLoaded=true;_placesTried=true;return allPlaces;})
+    .catch(function(){
+      // таблицы ещё нет (SQL 7.14 не выполнен) — приложение работает как раньше
+      allPlaces=[];_placesLoaded=false;_placesTried=true;return allPlaces;
+    });
+}
+
+// Цена по строке справочника: фиксированная либо расчётная по километрам.
+// Возвращает {sum, how} или null, если посчитать нечем.
+function placePrice(p){
+  if(!p)return null;
+  if(p.price!=null&&p.price!=='')return {sum:Math.round(+p.price),how:'fix'};
+  var km=parseFloat(p.km);
+  if(isFinite(km)&&km>0)return {sum:kmPrice(km),how:'km',km:km};
+  return null;
+}
+function kmPrice(km){
+  var r=parseFloat(DELIV_KM_RATE);if(!isFinite(r)||r<0)r=0;
+  var k=parseFloat(km);if(!isFinite(k)||k<0)k=0;
+  return Math.round(k*r);
+}
+// Ссылка-линейка: маршрут от магазина до пункта в Яндекс.Картах
+function placeMapUrl(name){
+  return 'https://yandex.ru/maps/?rtext='
+    +encodeURIComponent('Короча, Белгородская область')+'~'
+    +encodeURIComponent(String(name||'')+', Белгородская область')+'&rtt=auto';
+}
+
+// Подбор пунктов по запросу: точное совпадение, потом «начинается с»,
+// потом «содержит». Иначе на запрос «Красный» первым выпадал «Красный Май».
+function findPlaces(q,limit){
+  var n=_plNorm(q);if(!n)return [];
+  var exact=[],starts=[],inside=[];
+  allPlaces.forEach(function(p){
+    var k=_plKey(p);if(!k)return;
+    if(k===n)exact.push(p);
+    else if(k.indexOf(n)===0)starts.push(p);
+    else if(k.indexOf(n)>=0)inside.push(p);
+  });
+  var byName=function(a,b){
+    var la=_plKey(a).length,lb=_plKey(b).length;
+    if(la!==lb)return la-lb; // короткое название ближе к запросу
+    return String(a.name).localeCompare(String(b.name),'ru');
+  };
+  starts.sort(byName);inside.sort(byName);
+  return exact.concat(starts,inside).slice(0,limit||12);
+}
+// Точное совпадение — для подсказки по адресу заказа
+function findPlaceExact(q){
+  var n=_plNorm(q);if(!n)return null;
+  for(var i=0;i<allPlaces.length;i++)if(_plKey(allPlaces[i])===n)return allPlaces[i];
+  return null;
+}
+// Разбор адреса заказа: «с. Бехтеевка, ул. Садовая, 3» → строка справочника.
+// Берём самое ДЛИННОЕ совпадение, иначе «Красный Май» превратится в «Красный».
+function placeFromAddress(addr){
+  var n=_plNorm(addr);if(!n)return null;
+  var best=null,bestLen=0;
+  allPlaces.forEach(function(p){
+    var k=_plKey(p);if(!k||k.length<=bestLen)return;
+    if((' '+n+' ').indexOf(' '+k+' ')>=0){best=p;bestLen=k.length;}
+  });
+  return best;
+}
+function placeLabel(p){
+  return esc(p.name)+(p.kind?' <span style="color:var(--text2)">'+esc(p.kind)+'</span>':'')
+    +(p.district?' <span style="color:var(--text2);font-size:11px">· '+esc(p.district)+'</span>':'');
+}
+
+// ═══ ПОЛЕ «КУДА ВЕЗЁМ» В ФОРМЕ ЗАКАЗА ═════════════════════════════════
+var _plPickTimer=null;
+function placeLive(){
+  clearTimeout(_plPickTimer);
+  _plPickTimer=setTimeout(_plPickRun,160);
+}
+function _plPickRun(){
+  var inp=document.getElementById('f-place'),box=document.getElementById('f-place-list');
+  if(!inp||!box)return;
+  var q=inp.value.trim();
+  if(q.length<2){box.style.display='none';_plNote(null,q);return;}
+  var found=findPlaces(q);
+  if(!found.length){box.style.display='none';_plNote(null,q);return;}
+  box.innerHTML=found.map(function(p){
+    var pr=placePrice(p);
+    return '<div class="ac-item" onclick="placePick('+p.id+')" style="display:flex;justify-content:space-between;gap:10px">'
+      +'<span>'+placeLabel(p)+'</span>'
+      +'<strong style="white-space:nowrap">'+(pr?fmt(pr.sum)+' ₽'+(pr.how==='km'?' <span style="font-weight:400;color:var(--text2)">('+pr.km+' км)</span>':''):'<span style="color:#E65100;font-weight:400">цены нет</span>')+'</strong>'
+      +'</div>';
+  }).join('');
+  box.style.display='block';
+}
+function placePick(id){
+  var p=allPlaces.find(function(x){return x.id===id;});
+  var box=document.getElementById('f-place-list');if(box)box.style.display='none';
+  if(!p)return;
+  var inp=document.getElementById('f-place');if(inp)inp.value=p.name;
+  var pr=placePrice(p);
+  if(pr){
+    var d=document.getElementById('f-delivery');
+    if(d){d.value=pr.sum;if(window.recalcTotals)recalcTotals();}
+  }
+  _plNote(p,p.name);
+}
+// Пояснение под полем: откуда взялась цена и что делать, если пункта нет
+function _plNote(p,q){
+  var el=document.getElementById('f-place-note');if(!el)return;
+  if(!_placesLoaded){
+    el.innerHTML='<span style="color:#E65100">Справочник доставки не найден — нужно выполнить <strong>SQL_обновление_7.14</strong>.</span>';
+    return;
+  }
+  if(!q){el.innerHTML='Начните вводить название — подставим цену из прейскуранта. Её всегда можно поправить руками.';return;}
+  if(p){
+    var pr=placePrice(p);
+    if(pr&&pr.how==='fix'){
+      el.innerHTML='✅ По прейскуранту: <strong>'+esc(p.name)+'</strong> — '+fmt(pr.sum)+' ₽.'
+        +' <a href="#" onclick="openDelivBook(\''+String(p.name).replace(/'/g,"\\'")+'\');return false">изменить цену</a>';
+      return;
+    }
+    if(pr&&pr.how==='km'){
+      el.innerHTML='📏 Считаем по расстоянию: '+pr.km+' км × '+fmt(DELIV_KM_RATE)+' ₽ = <strong>'+fmt(pr.sum)+' ₽</strong>.'
+        +' <a href="#" onclick="openDelivBook(\''+String(p.name).replace(/'/g,"\\'")+'\');return false">задать фиксированную</a>';
+      return;
+    }
+    el.innerHTML='<strong>'+esc(p.name)+'</strong> есть в справочнике, но цены и расстояния у него нет. '+_plKmForm(p.name);
+    return;
+  }
+  el.innerHTML='Такого пункта в прейскуранте нет. '+_plKmForm(q);
+}
+function _plKmForm(name){
+  var safe=String(name||'').replace(/'/g,"\\'");
+  return '<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px">'
+    +'<a href="'+placeMapUrl(name)+'" target="_blank" rel="noopener">📏 Замерить в Яндекс.Картах</a>'
+    +' · км: <input type="number" id="f-place-km" min="0" step="0.5" style="width:70px;padding:3px 6px" oninput="placeKmCalc()">'
+    +' × '+fmt(DELIV_KM_RATE)+' ₽ = <strong id="f-place-kmsum">—</strong>'
+    +' <button type="button" class="btn btn-outline owner-only" style="padding:3px 8px;font-size:11px" onclick="placeRemember(\''+safe+'\')">💾 Запомнить</button>'
+    +'</span>';
+}
+function placeKmCalc(){
+  var km=parseFloat((document.getElementById('f-place-km')||{}).value);
+  var out=document.getElementById('f-place-kmsum');
+  if(!isFinite(km)||km<=0){if(out)out.textContent='—';return;}
+  var sum=kmPrice(km);
+  if(out)out.innerHTML=fmt(sum)+' ₽';
+  var d=document.getElementById('f-delivery');
+  if(d){d.value=sum;if(window.recalcTotals)recalcTotals();}
+}
+// Запомнить новый пункт в справочнике вместе с замеренным расстоянием
+function placeRemember(name){
+  if(!_isOwner){toast('Справочник правит только владелец','err');return;}
+  name=String(name||'').trim();
+  if(!name){toast('Не указано название','err');return;}
+  var km=parseFloat((document.getElementById('f-place-km')||{}).value);
+  if(!isFinite(km)||km<=0){toast('Сначала укажите расстояние в километрах','err',4000);return;}
+  var exist=findPlaceExact(name);
+  var body={name:name,km:km,updated_at:new Date().toISOString(),updated_by:(_auth&&_auth.email)||null};
+  var req=exist?sbPatch('delivery_places',body,'id=eq.'+exist.id):sbPost('delivery_places',[body]);
+  req.then(function(){return loadDeliveryPlaces(true);})
+     .then(function(){toast('✅ «'+name+'» в справочнике: '+km+' км');_plNote(findPlaceExact(name),name);})
+     .catch(function(e){toast('❌ '+((e&&e.message)||e),'err',6000);});
+}
+// Подсказка по адресу заказа: «похоже, это Ломово — 1 700 ₽»
+function placeHintFromAddress(){
+  var el=document.getElementById('f-place-hint');if(!el)return;
+  var addr=(document.getElementById('f-address')||{}).value||'';
+  var pl=(document.getElementById('f-place')||{}).value||'';
+  var p=(!pl&&addr)?placeFromAddress(addr):null;
+  if(!p){el.style.display='none';el.innerHTML='';return;}
+  var pr=placePrice(p);if(!pr){el.style.display='none';return;}
+  el.style.display='block';
+  el.innerHTML='📍 Похоже, это <strong>'+esc(p.name)+'</strong> — доставка '+fmt(pr.sum)+' ₽. '
+    +'<a href="#" onclick="placePick('+p.id+');placeHintFromAddress();return false">подставить</a>';
+}
+
+// ═══ СПРАВОЧНИК: ОТДЕЛЬНОЕ ОКНО ═══════════════════════════════════════
+var _dbFilter='';
+function openDelivBook(preset){
+  loadDeliveryPlaces().then(function(){
+    _dbFilter=preset||'';
+    var f=document.getElementById('db-search');if(f)f.value=_dbFilter;
+    renderDelivBook();
+    document.getElementById('modal-deliv').classList.add('open');
+  });
+}
+function delivBookSearch(){
+  _dbFilter=(document.getElementById('db-search')||{}).value||'';
+  renderDelivBook();
+}
+function renderDelivBook(){
+  var box=document.getElementById('db-list');if(!box)return;
+  var rate=document.getElementById('db-rate');
+  if(rate&&document.activeElement!==rate)rate.value=DELIV_KM_RATE;
+  if(!_placesLoaded){
+    box.innerHTML='<div style="padding:14px;font-size:13px;color:#c62828">Справочник не найден. Выполните <strong>SQL_обновление_7.14</strong> в Supabase — после этого здесь появится прейскурант.</div>';
+    var s=document.getElementById('db-sum');if(s)s.textContent='';
+    return;
+  }
+  var list=_dbFilter.trim()?findPlaces(_dbFilter,500):allPlaces.slice();
+  var sum=document.getElementById('db-sum');
+  var noPrice=allPlaces.filter(function(p){return p.price==null||p.price==='';}).length;
+  if(sum)sum.innerHTML='Пунктов в справочнике: <strong>'+allPlaces.length+'</strong>'
+    +(noPrice?' · без фиксированной цены: <strong>'+noPrice+'</strong> (считаются километрами)':'')
+    +(_dbFilter.trim()?' · показано: <strong>'+list.length+'</strong>':'');
+  if(!list.length){box.innerHTML='<div style="padding:14px;font-size:13px;color:var(--text2)">Ничего не найдено. Новый пункт можно добавить кнопкой ниже.</div>';return;}
+  var own=!!_isOwner;
+  var html='<table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+    +'<thead><tr style="background:var(--alt)">'
+    +'<th style="text-align:left;padding:6px 8px">Населённый пункт</th>'
+    +'<th style="text-align:left;padding:6px 8px">Район</th>'
+    +'<th style="text-align:right;padding:6px 8px;width:96px">Цена, ₽</th>'
+    +'<th style="text-align:right;padding:6px 8px;width:82px">Км</th>'
+    +'<th style="width:34px"></th></tr></thead><tbody>';
+  list.forEach(function(p,i){
+    var pr=placePrice(p);
+    html+='<tr style="border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
+      +'<td style="padding:5px 8px">'+placeLabel(p)+'</td>'
+      +'<td style="padding:5px 8px;color:var(--text2)">'+esc(p.district||'—')+'</td>'
+      +'<td style="padding:5px 8px;text-align:right">'
+        +(own?'<input type="number" min="0" step="50" value="'+(p.price!=null?p.price:'')+'" placeholder="по км" style="width:88px;padding:3px 6px;text-align:right" onchange="delivSave('+p.id+',this.value,null)">'
+             :(pr?fmt(pr.sum)+(pr.how==='km'?' <span style="color:var(--text2);font-size:11px">по км</span>':''):'—'))
+      +'</td>'
+      +'<td style="padding:5px 8px;text-align:right">'
+        +(own?'<input type="number" min="0" step="0.5" value="'+(p.km!=null?p.km:'')+'" placeholder="—" style="width:74px;padding:3px 6px;text-align:right" onchange="delivSave('+p.id+',null,this.value)">'
+             :(p.km!=null?p.km:'—'))
+      +'</td>'
+      +'<td style="padding:5px 4px;text-align:center"><a href="'+placeMapUrl(p.name)+'" target="_blank" rel="noopener" title="Замерить расстояние в Яндекс.Картах" style="text-decoration:none">📏</a></td>'
+      +'</tr>';
+  });
+  box.innerHTML=html+'</tbody></table>';
+}
+// Сохранение одной клетки. price/km: null — не трогаем, '' — стираем.
+function delivSave(id,price,km){
+  if(!_isOwner){toast('Справочник правит только владелец','err');return;}
+  var p=allPlaces.find(function(x){return x.id===id;});if(!p)return;
+  var body={updated_at:new Date().toISOString(),updated_by:(_auth&&_auth.email)||null};
+  if(price!==null){
+    var v=String(price).trim();
+    if(v===''){body.price=null;}
+    else{var n=Math.round(parseFloat(v));if(!isFinite(n)||n<0){toast('Цена должна быть числом','err');renderDelivBook();return;}body.price=n;}
+  }
+  if(km!==null){
+    var kv=String(km).trim();
+    if(kv===''){body.km=null;}
+    else{var k=parseFloat(kv);if(!isFinite(k)||k<0){toast('Расстояние должно быть числом','err');renderDelivBook();return;}body.km=k;}
+  }
+  sbPatch('delivery_places',body,'id=eq.'+id)
+    .then(function(){
+      if('price' in body)p.price=body.price;
+      if('km' in body)p.km=body.km;
+      toast('✅ '+p.name+' сохранён');
+      renderDelivBook();
+    })
+    .catch(function(e){toast('❌ '+((e&&e.message)||e),'err',6000);renderDelivBook();});
+}
+function delivAddPlace(){
+  if(!_isOwner){toast('Справочник правит только владелец','err');return;}
+  var name=prompt('Название населённого пункта (как в адресе, без «село»/«хутор»):','');
+  if(name===null)return;
+  name=String(name).trim();
+  if(!name){toast('Пустое название','err');return;}
+  if(findPlaceExact(name)){toast('Такой пункт уже есть','err',4000);_dbFilter=name;var f=document.getElementById('db-search');if(f)f.value=name;renderDelivBook();return;}
+  var priceRaw=prompt('Цена доставки в рублях. Оставьте пустым — будем считать по километрам.','');
+  if(priceRaw===null)return;
+  var body={name:name,updated_at:new Date().toISOString(),updated_by:(_auth&&_auth.email)||null};
+  var pv=String(priceRaw).trim();
+  if(pv!==''){var n=Math.round(parseFloat(pv));if(!isFinite(n)||n<0){toast('Цена должна быть числом','err');return;}body.price=n;}
+  sbPost('delivery_places',[body])
+    .then(function(){return loadDeliveryPlaces(true);})
+    .then(function(){toast('✅ Добавлен: '+name);_dbFilter=name;var f=document.getElementById('db-search');if(f)f.value=name;renderDelivBook();})
+    .catch(function(e){toast('❌ '+((e&&e.message)||e),'err',6000);});
+}
+// Цена километра — общая настройка, как наценка
+function saveKmRate(){
+  if(!_isOwner){toast('Цену километра меняет владелец','err');return;}
+  var el=document.getElementById('db-rate');if(!el)return;
+  var v=parseFloat(el.value);
+  if(!isFinite(v)||v<0||v>10000){toast('Цена километра должна быть числом от 0 до 10 000','err',5000);el.value=DELIV_KM_RATE;return;}
+  var was=DELIV_KM_RATE;
+  saveSetting('delivery_km_rate',v)
+    .then(function(){DELIV_KM_RATE=v;toast('✅ Цена километра: '+fmt(v)+' ₽');renderDelivBook();})
+    .catch(function(e){el.value=was;toast('❌ Не сохранилось: '+((e&&e.message)||e),'err',6000);});
+}
 // ═══ v6.6: PWA — регистрация service worker ═══
 // Работает только по HTTPS (GitHub Pages) или на localhost; при открытии файла
 // с диска (file://) молча ничего не делает — приложение работает как раньше.
