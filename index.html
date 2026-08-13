@@ -244,7 +244,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openDelivBook('')">🚚 Доставка</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.50</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.51</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -7047,7 +7047,7 @@ function renderClients(){
   document.getElementById('clients-count').textContent=f.length+' клиентов';
   var html='';
   f.slice(0,100).forEach(function(c){
-    html+='<div class="client-row" style="cursor:pointer" title="Показать историю заказов" onclick="openClientHistory('+_chArg(c.phone)+','+_chArg(c.name)+')">'+
+    html+='<div class="client-row" style="cursor:pointer" title="Показать историю заказов" onclick="openClientHistory('+_chArg(c.phone)+','+_chArg(c.name)+','+_chArg(c.phone2)+')">'+
       '<div class="client-avatar">'+initials(c.name)+'</div>'+
       '<div style="flex:1"><div style="font-size:13px;font-weight:600">'+c.name+'</div>'+
       '<div style="font-size:12px;color:var(--text2)">'+(([c.phone,c.phone2,c.address].filter(Boolean).join(' · '))||'Нет данных')+'</div></div>'+
@@ -7059,13 +7059,31 @@ var filterClients=_debounce(function(){renderClients();},180);
 // ═══ v6.6: история клиента (мини-CRM) ═══
 function _chArg(v){return JSON.stringify(String(v==null?'':v)).replace(/"/g,'&quot;');}
 function _chDigits(p){var d=String(p==null?'':p).replace(/\D/g,'');return d.length>10?d.slice(-10):d;}
-// Открыть историю: по телефону (основной ключ) с фолбэком по имени
-function openClientHistory(phone,name){
-  var pd=_chDigits(phone);
-  var nm=String(name||'').trim().toLowerCase();
+// v7.51: имя сравниваем без учёта регистра, Ё и лишних пробелов
+function _chName(n){return String(n||'').toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();}
+// Все телефоны заказа как ключи. Короткие огрызки в ключи не берём,
+// иначе «8-900» склеит половину журнала.
+function _chKeys(o){
+  var out=[];
+  [o&&o.client_phone,o&&o.client_phone2].forEach(function(p){
+    var d=_chDigits(p);if(d.length>=7)out.push(d);
+  });
+  return out;
+}
+// Открыть историю клиента.
+// v7.51: раньше в ключ шёл ОДИН телефон (первый) и совпадение искалось тоже
+// по одному. У семьи Потаповых общим был ВТОРОЙ номер — и каждый заказ жил
+// сам по себе, будто клиент пришёл впервые. Теперь сверяются оба номера
+// с обоими, плюс точное совпадение ФИО. Дальше по цепочке не идём: один
+// случайно введённый общий номер иначе слепил бы полжурнала в одну историю.
+function openClientHistory(phone,name,phone2){
+  var keys={},nKeys=0;
+  [phone,phone2].forEach(function(p){var d=_chDigits(p);if(d.length>=7&&!keys[d]){keys[d]=1;nKeys++;}});
+  var nm=_chName(name);
+  var pd=Object.keys(keys)[0]||'';
   var list=(allOrders||[]).filter(function(o){
-    if(pd&&(_chDigits(o.client_phone)===pd||_chDigits(o.client_phone2)===pd))return true;
-    if(!pd&&nm&&String(o.client_name||'').trim().toLowerCase()===nm)return true;
+    if(nKeys&&_chKeys(o).some(function(k){return keys[k];}))return true;
+    if(nm&&_chName(o.client_name)===nm)return true;
     return false;
   });
   document.getElementById('ch-title').textContent='📇 '+(name||'История клиента');
@@ -7076,19 +7094,29 @@ function openClientHistory(phone,name){
     document.getElementById('modal-chistory').classList.add('open');
     return;
   }
-  var totalGoods=0,totalDebt=0,phones={},addr='';
+  var totalGoods=0,totalDebt=0,phones={},addr='',addrRank=-1,names={};
   list.forEach(function(o){
     totalGoods+=(o.goods_discounted||o.goods_total||0);
     // v7.29: та же функция, что в карточке заказа, печати и аналитике
     totalDebt+=orderDebt(o);
     [o.client_phone,o.client_phone2].forEach(function(p){if(p)phones[p]=1;});
-    if(o.client_address)addr=o.client_address;
+    if(o.client_name)names[_chName(o.client_name)]=o.client_name;
+    // v7.51: адрес берём из САМОГО СВЕЖЕГО заказа, и заказ на своё имя важнее
+    // родственного — иначе в шапке всплывал адрес чужого старого заказа
+    if(o.client_address){
+      var rank=(nm&&_chName(o.client_name)===nm?2:1)*1e9+Number(String(o.order_date||'').replace(/\D/g,'')||0);
+      if(rank>addrRank){addrRank=rank;addr=o.client_address;}
+    }
   });
+  // v7.51: если по общему телефону подтянулись заказы на другое ФИО —
+  // говорим об этом прямо. Молча складывать долги разных людей нельзя.
+  var otherNames=Object.keys(names).filter(function(k){return k!==nm;}).map(function(k){return names[k];});
   sum.innerHTML='<strong>'+(name||list[0].client_name||'')+'</strong>'
     +(Object.keys(phones).length?' · 📞 '+Object.keys(phones).join(', '):'')
     +(addr?'<br>📍 '+addr:'')
     +'<br>Заказов: <strong>'+list.length+'</strong> · Товаров на сумму: <strong>'+fmt(totalGoods)+' ₽</strong>'
-    +(totalDebt>0?' · <span style="color:#C62828">Текущий долг: <strong>'+fmt(totalDebt)+' ₽</strong></span>':' · <span style="color:#1B5E20">долгов нет</span>');
+    +(totalDebt>0?' · <span style="color:#C62828">Текущий долг: <strong>'+fmt(totalDebt)+' ₽</strong></span>':' · <span style="color:#1B5E20">долгов нет</span>')
+    +(otherNames.length?'<div style="margin-top:6px;font-size:11.5px;color:#8a5a18;background:#FFF8E8;border-radius:6px;padding:5px 8px;line-height:1.5">⚠️ Общий телефон — сюда попали заказы, оформленные ещё на: <strong>'+esc(otherNames.join(', '))+'</strong>. Суммы и долг посчитаны по всем ним.</div>':'');
   var html='';
   list.sort(function(a,b){return String(b.order_date||'').localeCompare(String(a.order_date||''))||((b.id||0)-(a.id||0));});
   list.forEach(function(o){
@@ -7104,7 +7132,9 @@ function openClientHistory(phone,name){
     html+='<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:'+(isDone?'#F7FBF7':'#fff')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
       +'<div style="font-size:13px;font-weight:700">№'+o.order_number+' · '+fmtDate(o.order_date)
-      +' <span style="font-weight:600;font-size:11px;padding:1px 8px;border-radius:10px;'+(isDone?'background:#E8F5E9;color:#1B5E20':'background:#E3F2FD;color:#1565C0')+'">'+(o.status||'')+'</span></div>'
+      +' <span style="font-weight:600;font-size:11px;padding:1px 8px;border-radius:10px;'+(isDone?'background:#E8F5E9;color:#1B5E20':'background:#E3F2FD;color:#1565C0')+'">'+(o.status||'')+'</span>'
+      // v7.51: в семейной истории видно, на кого именно оформлен заказ
+      +(otherNames.length&&o.client_name?' <span style="font-weight:600;font-size:11px;color:var(--text2)">· '+esc(o.client_name)+'</span>':'')+'</div>'
       +'<div style="font-size:13px;font-weight:700">'+fmt(goods)+' ₽</div></div>'
       +itHtml
       +'</div>';
@@ -7115,7 +7145,9 @@ function openClientHistory(phone,name){
 // Из карточки заказа в журнале — по id заказа
 function openClientHistoryFromOrder(orderId){
   var o=(allOrders||[]).filter(function(x){return x.id===orderId;})[0];
-  if(o)openClientHistory(o.client_phone||o.client_phone2||'',o.client_name||'');
+  // v7.51: отдаём ОБА телефона — раньше уходил только первый, и заказы,
+  // где общим был второй номер, в историю не попадали
+  if(o)openClientHistory(o.client_phone||'',o.client_name||'',o.client_phone2||'');
 }
 function openAddClient(){document.getElementById('modal-client').classList.add('open');}
 function saveNewClient(){
