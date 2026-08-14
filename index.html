@@ -244,7 +244,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openDelivBook('')">🚚 Доставка</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.51</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.52</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -2335,6 +2335,13 @@ function delivPrepaidSum(o,itemsPaidSum){
   if(o.delivery_paid!=='yes')return 0;      // ещё не оплачена
   var deliv=Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
   if(deliv<=0)return 0;
+  // v7.52: если в поле «Предоплата за товары» пробили сумму С доставкой —
+  // эти деньги уже посчитаны как предоплата. Случай владельца 14.08.2026,
+  // заказ №221249: товар 53 700, доставка 700, в предоплате 54 400 — и в
+  // учёте появлялось 54 400 + ещё 700, то есть 700 ₽ из воздуха.
+  // Излишек предоплаты над стоимостью товара и есть уже полученная доставка.
+  var over=Math.round((o.prepayment||0)-((o.goods_discounted||o.goods_total||0)));
+  if(over>0){deliv-=over;if(deliv<=0)return 0;}
   if(!o.closed_at)return deliv;             // заказ не закрыт — значит взяли при оформлении
   var payTotal=Math.round((o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0));
   var goodsDebtAtClose=Math.round((o.goods_discounted||o.goods_total||0)-(o.prepayment||0)-(itemsPaidSum||0));
@@ -2488,11 +2495,17 @@ function _renderCashUI(orders,withdrawals,itemPays){
       if(dKind==='cash')cashParts.push({num:o.order_number,client:o.client_name,kind:'доставка при оформлении',amt:delivPre,date:o.order_date});
       _flow(o.order_date,dKind,delivPre,o.order_number,o.client_name,'доставка при оформлении');
     }
+    // v7.52: сколько доставки уже «спрятано» внутри предоплаты
+    var _delivInPre=Math.min(delivSum,Math.max(0,Math.round((o.prepayment||0)-(o.goods_discounted||o.goods_total||0))));
     if(delivSum>0){
       if(o.delivery_our===false){
         r.delivNote='<span style="color:#999">🚚 сторонняя доставка '+fmt(delivSum)+' ₽ — мимо кассы (справочно)</span>';
+      }else if(delivPre>0&&_delivInPre>0){
+        r.delivNote='<span style="color:var(--text2)">доставка '+fmt(delivSum)+' ₽: '+fmt(_delivInPre)+' ₽ уже внутри предоплаты, '+fmt(delivPre)+' ₽ получено отдельно</span>';
       }else if(delivPre>0){
         r.delivNote='<span style="color:var(--text2)">+ доставка '+fmt(delivPre)+' ₽ получена при оформлении</span>';
+      }else if(_delivInPre>0){
+        r.delivNote='<span style="color:var(--text2)">доставка '+fmt(delivSum)+' ₽ — входит в предоплату, отдельно не считаем</span>';
       }else if(o.delivery_paid==='yes'){
         r.delivNote='<span style="color:var(--text2)">в т.ч. доставка (наша) '+fmt(delivSum)+' ₽ — получена при закрытии</span>';
       }else{
@@ -8095,6 +8108,10 @@ function runDataCheck(){
      rows:[]},
     {key:'disc',    title:'Скидка вне разумных границ',
      why:'Раньше на экране скидка зажималась, а в базу могло уйти любое число.',
+     rows:[]},
+    // v7.52: предоплата больше всего, что клиент вообще должен
+    {key:'overpay', title:'Предоплата больше стоимости заказа',
+     why:'Часто в поле «Предоплата за товары» пробивают сумму вместе с доставкой — это нормально, приложение так и считает. Но если излишек больше доставки и заноса, лишние деньги ниоткуда: проверьте, не задвоилась ли сумма.',
      rows:[]}
   ];
   var G={};groups.forEach(function(g){G[g.key]=g;});
@@ -8122,6 +8139,13 @@ function runDataCheck(){
       G.closed.rows.push({num:num,note:'остаток '+fmt(o.remainder)+' ₽'});
     var d=+o.discount_pct;
     if(isFinite(d)&&(d<0||d>100))G.disc.rows.push({num:num,note:'скидка '+d+' %'});
+    // v7.52: излишек предоплаты сверх товаров + доставки и заноса
+    var _g=Math.round(+o.goods_discounted||+o.goods_total||0);
+    var _dl=Math.round((+o.delivery_cost||0)+(+o.lifting_cost||0));
+    var _ov=Math.round((+o.prepayment||0)-_g-_dl);
+    if(_g>0&&_ov>1)
+      G.overpay.rows.push({num:num,note:'предоплата '+fmt(o.prepayment)+' ₽ при товарах '+fmt(_g)+' ₽'
+        +(_dl>0?' и доставке '+fmt(_dl)+' ₽':'')+' — лишних '+fmt(_ov)+' ₽'});
   });
   var bad=groups.reduce(function(s,g){return s+g.rows.length;},0);
   var html='<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Проверено заказов: <strong>'+checked+'</strong>'
