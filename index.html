@@ -215,6 +215,31 @@ body.role-seller .owner-only{display:none!important}
   /* таблицы (касса, списки) — горизонтальная прокрутка вместо сжатия */
   .card{overflow-x:auto}
 }
+
+/* ═══ v7.54: ЦВЕТ ТОЛЬКО ТАМ, ГДЕ НУЖНО ДЕЙСТВИЕ ══════════════════════
+   Было: в одной строке карточки шесть разных заливок — синяя «В процессе»,
+   оранжевая «Частичная», фиолетовый «Перевод», жёлтая «Не отвезено»,
+   бежевая «Под заказ», серая плашка поставщика. Глаз не знает, за что
+   цепляться, и настоящая проблема тонет среди справочных подписей.
+   Стало: одна нейтральная плашка на всё справочное, янтарная — «этим надо
+   заняться», красная — «горит». Зелёная бережётся для полученных денег. */
+.pl{display:inline-block;font-size:11px;font-weight:600;line-height:1.45;
+    padding:2px 8px;border-radius:7px;white-space:nowrap;border:1px solid transparent;
+    font-family:inherit;font-variant-numeric:tabular-nums;vertical-align:middle}
+button.pl{cursor:pointer}
+.pl-mut{background:#eef1f5;color:#5b6270;border-color:#e2e6ec}   /* справочно */
+.pl-warn{background:#fbf0e2;color:#8a5a18;border-color:#e6c284}  /* надо заняться */
+.pl-bad{background:#f8eae7;color:#9c3b2e;border-color:#e7bdb3}   /* горит */
+.pl-good{background:#eaf4ec;color:#256b3c;border-color:#c3ddc9}  /* деньги получены */
+.pl-todo{border-style:dashed}
+a:has(> .pl){text-decoration:none}
+button.pl:hover,a:hover > .pl{filter:brightness(.97)}
+/* статусы заказа: различаются словом, а не заливкой. Красный остаётся только
+   у долга в подвале карточки — там он и нужен. */
+.s-paid,.s-part,.s-no{background:#eef1f5;color:#5b6270}
+.s-done{background:#eaf4ec;color:#256b3c}
+/* наличие товара: «Есть» и «Под заказ» — тоже справочное */
+.badge-yes,.badge-order{background:#eef1f5;color:#5b6270}
 </style>
 <!-- defer: библиотека Excel не должна блокировать открытие приложения, если CDN недоступен
      (из-за этого приложение могло не открываться на новых устройствах/сетях) -->
@@ -244,7 +269,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openDelivBook('')">🚚 Доставка</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.52</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.54</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -746,6 +771,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <button class="btn btn-outline" onclick="resetPriceImport()">✕</button>
         </div>
         <div id="pl-multi-note" style="display:none;font-size:11.5px;color:var(--text2);margin-top:8px;background:var(--alt);border-radius:6px;padding:7px 10px;line-height:1.5"></div>
+        <!-- v7.53: в прайсе может быть 72 листа, а нужны 17 — выбираем какие грузить -->
+        <div id="pl-sheetpick-wrap" style="display:none;margin-top:8px;border:1px solid var(--border);border-radius:8px;padding:9px 11px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:7px">
+            <strong style="font-size:12.5px">📑 Какие листы грузить</strong>
+            <span id="pl-sheetpick-cnt" style="font-size:11.5px;color:var(--text2)"></span>
+            <input type="text" id="pl-sheetpick-find" placeholder="фильтр по названию…" oninput="plSheetPickFilter()"
+                   style="margin-left:auto;width:180px;padding:3px 8px;font-size:12px">
+            <button type="button" class="btn btn-outline" style="padding:3px 9px;font-size:11px" onclick="plSheetPickAll(true)">Все</button>
+            <button type="button" class="btn btn-outline" style="padding:3px 9px;font-size:11px" onclick="plSheetPickAll(false)">Снять</button>
+          </div>
+          <div id="pl-sheetpick" style="max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.5">Кнопка «📚 Все листы сразу» загрузит только отмеченные. Выбор запоминается для этого поставщика — в следующий раз отмечать заново не придётся.</div>
+        </div>
       </div>
     </div>
 
@@ -1604,22 +1642,26 @@ function orderCard(o){
   var isPaid=o.status&&o.status.indexOf('Оплачено')>=0&&o.status.indexOf('Не')<0;
   var contactTags='';
   function telHref(p){return'tel:+7'+p.replace(/^[+7]?[78]?/,'').replace(/\D/g,'');}
-  if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone+'</span></a>';
-  if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">📞 '+o.client_phone2+'</span></a>';
-  if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span style="background:#FFF3E0;color:#E65100;font-weight:600;padding:1px 7px;border-radius:10px;font-size:11px;display:inline-block">📍 '+o.client_address+'</span></a>';}
+  // v7.54: телефон и адрес — справочные подписи, а не сигнал. Одна нейтральная
+  // плашка на оба, смысл несёт значок (📞 / 📍), а не заливка.
+  if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span class="pl pl-mut" style="margin-right:4px">📞 '+o.client_phone+'</span></a>';
+  if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span class="pl pl-mut" style="margin-right:4px">📞 '+o.client_phone2+'</span></a>';
+  if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span class="pl pl-mut" title="Открыть адрес на карте">📍 '+o.client_address+'</span></a>';}
   // v7.8: чип показываем ТОЛЬКО при самовывозе (даже если заполнены адрес и телефон —
   // клиент мог передумать и забирать сам). При доставке ничего не пишем — это по умолчанию.
   var _isPickup=/самовыв/i.test(o.delivery_type||'');
-  var deliveryChip=_isPickup?'<span style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:700;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:4px;display:inline-block">🏬 Самовывоз</span>':'';
+  var deliveryChip=_isPickup?'<span class="pl pl-mut" style="margin-right:4px">🏬 Самовывоз</span>':'';
   // v7.29: если срок доставки прошёл, а заказ не выполнен — плашка красная и с числом дней
   var _lateDays=isLate(o)?Math.round((new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z')-new Date(o.delivery_date+'T00:00:00Z'))/86400000):0;
   var delivBadge=o.delivery_date
     ?(_lateDays>0
-      ?'<span style="background:#f8eae7;color:#9c3b2e;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px" title="Срок передачи прошёл — по закону о защите прав потребителей начисляется пеня">⏰ просрочен на '+_lateDays+' '+_dayWord(_lateDays)+' (срок '+fmtDate(o.delivery_date)+')</span>'
-      :'<span style="background:#E8F5E9;color:#2E7D32;font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">📦 '+fmtDate(o.delivery_date)+'</span>')
+      // просрочка — единственный красный сигнал в шапке: за него платят пеню
+      ?'<span class="pl pl-bad" style="margin-left:6px" title="Срок передачи прошёл — по закону о защите прав потребителей начисляется пеня">⏰ просрочен на '+_lateDays+' '+_dayWord(_lateDays)+' (срок '+fmtDate(o.delivery_date)+')</span>'
+      :'<span class="pl pl-mut" style="margin-left:6px" title="Срок передачи товара">📦 '+fmtDate(o.delivery_date)+'</span>')
     :'';
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
-  var hdrBg=_done?'background:#E8F5E9':isPaid?'background:#f0faf0':'background:var(--grey)';
+  // v7.54: шапка выполненного заказа — чуть зеленоватая, а не салатовая заливка
+  var hdrBg=_done?'background:#f2f7f3':isPaid?'background:#f7faf8':'background:var(--grey)';
 
   var itemsHtml='',delivCnt=0,itemsPaid=0;
   for(var i=0;i<items.length;i++){
@@ -1647,23 +1689,27 @@ function orderCard(o){
     if(dlv&&!_part)delivCnt++;else if(_done)delivCnt++;
     // v6.7: оплата позиции при доставке
     var itPaid=Math.round(it.paid_amount||0);if(itPaid>0)itemsPaid+=itPaid;
-    var paidTag=itPaid>0?'<span title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
+    // v7.54: зелёный бережём для одного смысла — деньги получены
+    var paidTag=itPaid>0?'<span class="pl pl-good" title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
     var dlvBtn;
     if(_part){
       // отвезена только часть — плашка жёлтая с числами, чтобы это было видно сразу
-      dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Отвезена часть позиции. Нажмите, чтобы изменить или снять отметку" '
-        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px;background:#fbf0e2;color:#8a5a18;border:1px solid #e0b252">'
+      // отвезена только часть — янтарная плашка: остаток ещё везти
+      dlvBtn='<button class="pl pl-warn" onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Отвезена часть позиции. Нажмите, чтобы изменить или снять отметку" '
+        +'style="margin-right:8px">'
         +'📦 Отвезено '+_dq+' из '+_q+' · '+fmtDate(it.delivered_at)+'</button>';
     }else if(dlv){
-      dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Товар у клиента. Нажмите, чтобы снять отметку" '
-        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">'
+      // отвезено — делать больше нечего, плашка нейтральная, смысл несёт галочка
+      dlvBtn='<button class="pl pl-mut" onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Товар у клиента. Нажмите, чтобы снять отметку" '
+        +'style="margin-right:8px">'
         +'✅ Отвезено'+(_q>1?' все '+_q+' шт.':'')+' '+fmtDate(it.delivered_at)+'</button>';
     }else if(_done){
-      // заказ выполнен, отметки довоза не было — считаем отвезённым, статичный зелёный бейдж
-      dlvBtn='<span title="Заказ выполнен — товар у клиента" style="border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">✅ Отвезено</span>';
+      // заказ выполнен, отметки довоза не было — считаем отвезённым
+      dlvBtn='<span class="pl pl-mut" title="Заказ выполнен — товар у клиента" style="margin-right:8px">✅ Отвезено</span>';
     }else{
-      dlvBtn='<button onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Нажмите, когда товар отвезён клиенту" '
-        +'style="cursor:pointer;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin-right:8px;background:#FFF8E1;color:#B26A00;border:1px dashed #E0B252">'
+      // ЕДИНСТВЕННАЯ янтарная плашка в строке товара: это и есть работа на сегодня
+      dlvBtn='<button class="pl pl-warn pl-todo" onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Нажмите, когда товар отвезён клиенту" '
+        +'style="margin-right:8px">'
         +'🚚 Не отвезено</button>';
     }
     itemsHtml+='<div class="item-row-compact"'+(dlv?' style="background:#F4FBF4"':'')+'>'+
@@ -1708,7 +1754,7 @@ function orderCard(o){
   var noteHtml=o.notes?'<div class="note-box">📝 '+o.notes+'</div>':'';
   if(_done&&o.close_comment)noteHtml+='<div class="note-box" style="border-left-color:#2e7d32">🏁 '+o.close_comment+'</div>';
   var doneBtn=!_done?'<button class="btn btn-success" onclick="markDone('+o.id+')" style="padding:5px 10px;font-size:12px">✅ Выполнен</button>':'';
-  var closureBtn=_done?'<button class="btn btn-outline" onclick="editClosure('+o.id+')" style="padding:5px 10px;font-size:12px;color:#E65100;border-color:#E65100">🔐 Закрытие</button>':'';
+  var closureBtn=_done?'<button class="btn btn-outline" onclick="editClosure('+o.id+')" style="padding:5px 10px;font-size:12px">🔐 Закрытие</button>':'';
   var ftrClose='';
   if(_done&&(o.closed_at||(o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0)>0)){
     var pp=[];
@@ -1719,14 +1765,14 @@ function orderCard(o){
   }
   var cardClass='order-card'+(_done?' done':'');
 
-  var activeBadge=!_done?'<span style="font-size:11px;background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:20px;font-weight:600;margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
+  var activeBadge=!_done?'<span class="pl pl-mut" style="margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
 
-  // Бейдж «отвезено X из Y» — виден сразу в шапке заказа, если товаров несколько
+  // Бейдж «отвезено X из Y» — виден сразу в шапке заказа, если товаров несколько.
+  // v7.54: янтарный, только пока отвезено не всё — тогда это напоминание.
   var dlvBadge='';
   if(items.length>1&&delivCnt>0){
     var allDlv=delivCnt===items.length;
-    dlvBadge='<span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700;margin-right:6px;flex-shrink:0;'
-      +(allDlv?'background:#E8F5E9;color:#1B5E20':'background:#FFF3E0;color:#E65100')+'">'
+    dlvBadge='<span class="pl '+(allDlv?'pl-mut':'pl-warn')+'" style="margin-right:6px;flex-shrink:0">'
       +'🚚 '+delivCnt+' из '+items.length+' отвезено</span>';
   }
 
@@ -1737,16 +1783,19 @@ function orderCard(o){
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
     '<span style="margin:0 6px;color:#ddd">|</span><strong style="cursor:pointer;border-bottom:1px dashed #90A4AE" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
     ((deliveryChip||contactTags)?'<div style="margin-top:4px">'+deliveryChip+contactTags+'</div>':'')+
-    '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span style="margin-left:4px;background:#EDE7F6;color:#4527A0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">'+o.payment_method+'</span>':'')+'</div>'+
+    '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span class="pl pl-mut" style="margin-left:4px" title="Способ оплаты">'+o.payment_method+'</span>':'')+'</div>'+
     '<div id="order-body-'+o.id+'" style="'+(_done?'display:none':'')+'">'+
     (itemsHtml||'')+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
     '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(o.goods_discounted||o.goods_total||0)+' ₽</div></div>'+
     ftrDeliv+ftrPre+ftrItemPaid+ftrDebt+ftrClose+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
-    '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px;color:#1565C0;border-color:#1565C0">🖨 Наряд</button>'+
-    '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px;color:var(--dark);border-color:var(--dark)">🖨 Договор</button>'+
-    '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px;color:#2e7d32;border-color:#2e7d32">📋 Акт</button>'+
+    // v7.54: бланки печатаются одинаково часто и одинаково безобидны — рамки
+    // у них теперь общие, серые. Цветной остаётся одна кнопка «Выполнен»:
+    // это единственное действие, которое меняет состояние заказа.
+    '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Наряд</button>'+
+    '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Договор</button>'+
+    '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px">📋 Акт</button>'+
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'+
     doneBtn+closureBtn+
     '<button class="btn-danger-sm owner-only" onclick="askDelete('+o.id+')">🗑</button>'+
@@ -2845,8 +2894,9 @@ function onPriceFile(input){
       var mn=document.getElementById('pl-multi-note');
       if(mn){
         mn.style.display=manySheets?'block':'none';
-        if(manySheets)mn.innerHTML='В файле <strong>'+_plWB.SheetNames.length+'</strong> листов: '+_plWB.SheetNames.join(', ')+'.<br>Кнопка <strong>«📚 Все листы сразу»</strong> определит колонки автоматически на каждом листе. Либо настройте и импортируйте листы по одному — уже загруженные помечаются ✓.';
+        if(manySheets)mn.innerHTML='В файле <strong>'+_plWB.SheetNames.length+'</strong> листов. Отметьте нужные ниже и нажмите <strong>«📚 Все листы сразу»</strong> — колонки на каждом листе определятся сами. Либо настраивайте и грузите листы по одному, уже загруженные помечаются ✓.';
       }
+      _plBuildSheetPicker(); // v7.53: галочки «какие листы грузить»
       // v6.6: РАУС — если в файле есть лист «Корпус» и листы плёнок, предлагаем автосумму
       var rausWrap=document.getElementById('pl-raus-wrap'),rausCb=document.getElementById('pl-raus');
       if(rausWrap&&rausCb){
@@ -2915,6 +2965,64 @@ async function loadSupplierDatalist(){
 
 // ── ШАБЛОНЫ ПРАЙСОВ ─────────────────────────────────────
 var _TPL_KEY='vashdom_price_templates';
+
+// ═══ v7.53: ВЫБОР ЛИСТОВ ДЛЯ ЗАГРУЗКИ ════════════════════════════════════
+// В прайсе ДСВ 72 листа, а нужны 17: кухонные фасады владельцу не нужны.
+// Раньше «Все листы сразу» грузила всё подряд, и лишнее приходилось чистить
+// руками. Теперь листы отмечаются галочками, а выбор запоминается по
+// поставщику — прайс приходит каждый месяц, отмечать заново незачем.
+var _PLSEL_KEY='vashdom_price_sheets';
+// Служебные листы (оглавление, условия, снятое с производства) — не товары
+var _PL_SERVICE_RE=/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац|важная|маркетинг|позиции\s+снятые|расчет|расчёт|прайс-лист\s*$|лист\s*\d+\s*$)/i;
+function _plSelStore(){try{return JSON.parse(localStorage.getItem(_PLSEL_KEY)||'{}');}catch(e){return{};}}
+function _plSelKey(){return String((document.getElementById('pl-sup')||{}).value||'').trim().toLowerCase();}
+function _plBuildSheetPicker(){
+  var wrap=document.getElementById('pl-sheetpick-wrap'),box=document.getElementById('pl-sheetpick');
+  if(!wrap||!box||!_plWB)return;
+  var names=_plWB.SheetNames;
+  if(names.length<2){wrap.style.display='none';return;}
+  var saved=_plSelStore()[_plSelKey()];
+  box.innerHTML=names.map(function(n,i){
+    var service=_PL_SERVICE_RE.test(String(n));
+    var on=saved?(saved.indexOf(n)>=0):!service;
+    return '<label class="pl-sheetrow" data-name="'+esc(n).toLowerCase()+'" style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:2px 3px;cursor:pointer">'
+      +'<input type="checkbox" class="pl-sheetcb" value="'+esc(n)+'" '+(on?'checked':'')+' onchange="plSheetPickCount()" style="width:auto;margin:0">'
+      +'<span'+(service?' style="color:var(--text2)"':'')+'>'+esc(n)+(service?' <span style="font-size:10.5px">· служебный</span>':'')+'</span></label>';
+  }).join('');
+  wrap.style.display='block';
+  var f=document.getElementById('pl-sheetpick-find');if(f)f.value='';
+  plSheetPickCount();
+}
+function plSheetPickCount(){
+  var el=document.getElementById('pl-sheetpick-cnt');if(!el)return;
+  var all=document.querySelectorAll('.pl-sheetcb'),on=document.querySelectorAll('.pl-sheetcb:checked');
+  el.textContent='отмечено '+on.length+' из '+all.length;
+}
+function plSheetPickAll(v){
+  // Ставим/снимаем только у ВИДИМЫХ строк — чтобы фильтром выбрать группу листов
+  Array.prototype.forEach.call(document.querySelectorAll('.pl-sheetrow'),function(row){
+    if(row.style.display==='none')return;
+    var cb=row.querySelector('.pl-sheetcb');if(cb)cb.checked=!!v;
+  });
+  plSheetPickCount();
+}
+function plSheetPickFilter(){
+  var q=String((document.getElementById('pl-sheetpick-find')||{}).value||'').toLowerCase().trim();
+  Array.prototype.forEach.call(document.querySelectorAll('.pl-sheetrow'),function(row){
+    row.style.display=(!q||String(row.dataset.name||'').indexOf(q)>=0)?'flex':'none';
+  });
+}
+function _plCheckedSheets(){
+  var cbs=document.querySelectorAll('.pl-sheetcb');
+  if(!cbs.length)return null; // список не построен — грузим всё, как раньше
+  var out=[];Array.prototype.forEach.call(cbs,function(cb){if(cb.checked)out.push(cb.value);});
+  return out;
+}
+function _plSaveSheetSel(list){
+  var k=_plSelKey();if(!k||!list)return;
+  var st=_plSelStore();st[k]=list;
+  try{localStorage.setItem(_PLSEL_KEY,JSON.stringify(st));}catch(e){}
+}
 
 function _getTplStore(){
   try{return JSON.parse(localStorage.getItem(_TPL_KEY)||'{}');}catch(e){return{};}
@@ -3328,8 +3436,13 @@ function _plIsPlainNumCell(v){
 // Считает, сколько в колонке c (начиная со строки startRow) ценоподобных чисел
 // strict=true — только «чистые» числовые ячейки (для разбора листов без шапки)
 function _plColNumericCount(data,startRow,c,strict){
+  // v7.53: раньше смотрели только ПЕРВЫЕ 60 заполненных ячеек колонки. В прайсе
+  // «ПРЕМИУМ» из-за этого побеждала колонка «Цена» (плотная в первых сериях, дальше
+  // пустая, 96 цен на весь лист) вместо настоящей колонки «ОПТ» (251 цена):
+  // в окне из 60 ячеек обе выглядели одинаково полными. Импортировалось 94 товара
+  // из 237. Считаем по всему листу — окно ограничиваем только ради очень длинных.
   var n=0,seen=0;
-  for(var r=startRow;r<data.length&&seen<60;r++){
+  for(var r=startRow;r<data.length&&seen<2000;r++){
     var v=(data[r]||[])[c];if(v===''||v==null)continue;seen++;
     if(/\d\s*[*x×х\/]\s*\d/.test(String(v)))continue; // размеры 800*800, 1900/2000 — не цена
     if(strict&&!_plIsPlainNumCell(v))continue;
@@ -4202,7 +4315,12 @@ async function importAllSheets(){
   if(!supplier){toast('⚠️ Укажите название поставщика','err');return;}
   var store=_getTplStore();
   var plan=[],report=[];
+  // v7.53: грузим только отмеченные листы (галочки строит _plBuildSheetPicker)
+  var picked=_plCheckedSheets();
+  if(picked&&!picked.length){toast('⚠️ Не отмечен ни один лист','err',4000);return;}
+  if(picked)_plSaveSheetSel(picked);
   _plWB.SheetNames.forEach(function(sn){
+    if(picked&&picked.indexOf(sn)<0)return; // лист снят галочкой — молча пропускаем
     // Служебные листы (примечание/условия/инструкция/оглавление) — не товары, пропускаем
     if(/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац|прайс-лист\s*$)/i.test(String(sn))){report.push({sheet:sn,count:0,note:'служебный лист — пропущен'});return;}
     var data=_plTrimData(XLSX.utils.sheet_to_json(_plExpandMerges(_plWB.Sheets[sn]),{header:1,defval:'',raw:false}));
@@ -4770,6 +4888,35 @@ function _gsRank(rows,words){
    .map(function(x){return x.p;});
 }
 // Отрисовка списка результатов прайса — общая для точного и терпимого поиска
+// ═══ v7.53: ПОСМОТРЕТЬ ТОВАР В ИНТЕРНЕТЕ ══════════════════════════════════
+// В прайсе только название и цена — ни фото, ни описания. Продавцу у прилавка
+// проще один раз открыть картинки, чем объяснять словами. Кнопка рядом с каждым
+// найденным товаром открывает поиск в Яндексе по названию + фабрике.
+// Поставщика в запрос НЕ добавляем: «Добрый Дом» или «Мебель Рум» — это наши
+// оптовики, в поиске они только мешают.
+function webSearchQuery(p){
+  if(!p)return '';
+  var nm=String(p.product_name||'').replace(/\s+/g,' ').trim();
+  var fac=String(p.factory||'').trim();
+  // фабрику добавляем, только если её нет в самом названии
+  if(fac&&nm.toLowerCase().indexOf(fac.toLowerCase())<0)nm=fac+' '+nm;
+  return ('мебель '+nm).trim();
+}
+function webSearchUrl(p){
+  return 'https://yandex.ru/search/?text='+encodeURIComponent(webSearchQuery(p));
+}
+// Кнопка «🌐» для строки результата. list — имя массива в window, i — индекс
+function _webBtn(list,i){
+  return '<button class="btn btn-outline" title="Посмотреть товар в интернете (Яндекс)" '
+    +'style="padding:5px 8px;font-size:12px;flex-shrink:0" onclick="openWebSearch(\''+list+'\','+i+')">🌐</button>';
+}
+function openWebSearch(listName,i){
+  var arr=window[listName]||[];
+  var p=arr[i];
+  if(!p){toast('Товар не найден','err');return;}
+  var w=window.open(webSearchUrl(p),'_blank','noopener');
+  if(!w)toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4500);
+}
 function _gsRenderRows(rows,q,box,note){
   var html='<div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">';
   rows.forEach(function(p,i){
@@ -4787,6 +4934,7 @@ function _gsRenderRows(rows,q,box,note){
       +(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
       +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')
       +'</div>'
+      +_webBtn('_gsLastResults',i)
       +'<button class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSearch('+i+')">➕ В расчёт</button>'
       +'</div>';
   });
@@ -4967,6 +5115,7 @@ function _ssRun(q){
         +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')+'</div>'
         +'<div style="text-align:right;flex-shrink:0">'+(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
         +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')+'</div>'
+        +_webBtn('_ssLast',i)
         +'<button title="Править атрибуты" onclick="openAttrEdit('+i+')" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:5px 8px;font-size:12px;flex-shrink:0">✏️</button>'
         +'<button class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSmart('+i+')">➕</button>'
         +'</div>';
@@ -8247,7 +8396,11 @@ document.addEventListener('input',function(e){if(e.target&&e.target.id==='markup
 
 function fmt(n){return Math.round(n||0).toLocaleString('ru-RU');}
 function fmtK(n){n=Math.round(n||0);return n>=1000?(n/1000).toFixed(1).replace('.0','')+'K':String(n);}
-function fmtDate(d){if(!d)return'—';var p=d.split('-');return p[2]+'.'+p[1]+'.'+p[0];}
+// v7.54: в базе есть и чистые даты («2026-07-20»), и метки времени
+// («2026-07-20T10:00:00Z») — delivered_at, closed_at, paid_at. Раньше вторые
+// разваливались: в карточке было написано «Отвезено 20T10:00:00Z.07.2026».
+// Отрезаем время до разбора.
+function fmtDate(d){if(!d)return'—';var p=String(d).slice(0,10).split('-');if(p.length<3)return String(d);return p[2]+'.'+p[1]+'.'+p[0];}
 function fmtMonth(ym){var ms=['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];var p=ym.split('-');return ms[parseInt(p[1])-1]+' '+p[0].slice(2);}
 function initials(n){if(!n)return'?';return n.trim().split(/\s+/).slice(0,2).map(function(w){return w[0]?w[0].toUpperCase():'';}).join('');}
 function hideAc(id,delay){setTimeout(function(){var el=document.getElementById(id);if(el)el.style.display='none';},delay||200);}
