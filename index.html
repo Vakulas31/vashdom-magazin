@@ -269,7 +269,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openDelivBook('')">🚚 Доставка</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.54</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.55</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1813,6 +1813,10 @@ function openOrderByNumber(num){
   var s=document.getElementById('orders-search');if(s)s.value='';
   var fs=document.getElementById('filter-status');if(fs)fs.value='';
   var fm=document.getElementById('filter-manager');if(fm)fm.value='';
+  // v7.55: заодно снимаем и выбранный день — иначе заказ из другой даты
+  // «не найдётся», хотя он есть
+  _dayFilter='';_dayFromChip=false;
+  var fd=document.getElementById('orders-date');if(fd)fd.value='';
   setChip('all'); // сбрасывает фильтр-чип и перерисовывает список
   // список рисуется порциями по 60 — догружаем до нужной карточки
   var idx=-1;
@@ -2092,13 +2096,26 @@ function showMoreOrders(){_ordersShown=Math.min(_ordersShown+_ORDERS_PAGE,_lastF
 var _ordersSearchLive=_debounce(function(){filterOrders();},180);
 
 var _activeChip='all';
+// v7.55: дату в поле мог поставить чип «Сегодня», а мог владелец руками.
+// Различаем: свою — снимаем при уходе с чипа, чужую — не трогаем.
+var _dayFromChip=false;
 function setChip(chip){
   _activeChip=chip;
   // v7.30: «Сегодня» = сегодняшняя дата в поле, чтобы сразу была видна сумма за день;
   // любой другой чип день не выбирает
+  var _di=document.getElementById('orders-date');
   if(chip==='today'){
     _dayFilter=new Date().toISOString().slice(0,10);
-    var _di=document.getElementById('orders-date');if(_di)_di.value=_dayFilter;
+    _dayFromChip=true;
+    if(_di)_di.value=_dayFilter;
+  }else if(_dayFromChip){
+    // v7.55: раньше дата, поставленная чипом «Сегодня», оставалась и на других
+    // вкладках. «На неделе» показывала заказы с доставкой на этой неделе И
+    // оформленные ровно сегодня — пересечение, которого никто не просил, и
+    // снять его можно было только кнопкой «сбросить».
+    _dayFilter='';
+    _dayFromChip=false;
+    if(_di)_di.value='';
   }
   document.querySelectorAll('#chips-row .chip').forEach(function(el){
     el.classList.remove('chip-active');
@@ -2134,7 +2151,12 @@ function filterOrders(){
   });
   renderOrders(f);
   _updateLateChip();
-  _renderDaySum(f);
+  // v7.55: сумму за день считаем по ВСЕМ заказам этого дня, а не по тому, что
+  // осталось на экране. Раньше _renderDaySum получал уже отфильтрованный список,
+  // и одна и та же дата показывала разное: «Все» — 244 600 ₽, «Архив» — 11 000 ₽,
+  // «На неделе» — вообще «заказов не оформлялось» (там отбор по дате ДОСТАВКИ,
+  // а подпись про ОФОРМЛЕНИЕ). Владелец читает это как выручку дня.
+  _renderDaySum(f.length);
 }
 
 // ═══ v7.30: СКОЛЬКО ПРОДАНО ЗА ОДИН ДЕНЬ ══════════════════════════════
@@ -2145,6 +2167,7 @@ function filterOrders(){
 var _dayFilter='';
 function setDayFilter(d){
   _dayFilter=d||'';
+  _dayFromChip=false; // выбрано руками — само не снимется
   var inp=document.getElementById('orders-date');
   if(inp&&inp.value!==_dayFilter)inp.value=_dayFilter;
   // если стоял чип «Сегодня», а выбрали другой день — чип бы обнулил выдачу
@@ -2158,18 +2181,29 @@ function _fmtDayRu(d){
   if(p.length!==3)return d;
   return parseInt(p[2],10)+' '+mos[parseInt(p[1],10)-1]+' '+p[0];
 }
-function _renderDaySum(list){
+// shown — сколько карточек реально осталось на экране после вкладки, поиска и
+// фильтров. Сама сумма от них не зависит: «продано за день» — это продано за
+// день, а не «продано за день среди того, что сейчас видно».
+function _renderDaySum(shown){
   var box=document.getElementById('orders-day-sum');if(!box)return;
   var clr=document.getElementById('orders-date-clear');
   if(clr)clr.style.display=_dayFilter?'inline-flex':'none';
   if(!_dayFilter){box.style.display='none';return;}
   var sum=0,n=0;
-  (list||[]).forEach(function(o){sum+=(o.goods_discounted||o.goods_total||0);n++;});
+  (allOrders||[]).forEach(function(o){
+    if(o.order_date!==_dayFilter)return;
+    sum+=(o.goods_discounted||o.goods_total||0);n++;
+  });
   box.style.display='block';
-  box.innerHTML=n
-    ? '📅 <strong>'+_fmtDayRu(_dayFilter)+'</strong> — оформлено заказов: <strong>'+n+'</strong>, на сумму <strong style="font-size:17px">'+fmt(sum)+' ₽</strong>'
-      +'<div style="font-size:11.5px;opacity:.85;margin-top:3px">Сумма товаров со скидкой, без доставки и заноса. Деньги, фактически пришедшие в кассу, — в разделе «Учёт».</div>'
-    : '📅 <strong>'+_fmtDayRu(_dayFilter)+'</strong> — заказов не оформлялось.';
+  if(!n){box.innerHTML='📅 <strong>'+_fmtDayRu(_dayFilter)+'</strong> — заказов не оформлялось.';return;}
+  // если на экране видно не всё за этот день — говорим об этом прямо, чтобы
+  // расхождение «в сумме 5, а карточек 2» не выглядело ошибкой
+  var hint=(typeof shown==='number'&&shown<n)
+    ?'<div style="font-size:11.5px;opacity:.85;margin-top:3px">В списке ниже показаны '+shown+' из '+n+' — остальные скрыты вкладкой или фильтром.</div>'
+    :'';
+  box.innerHTML='📅 <strong>'+_fmtDayRu(_dayFilter)+'</strong> — оформлено заказов: <strong>'+n+'</strong>, на сумму <strong style="font-size:17px">'+fmt(sum)+' ₽</strong>'
+    +'<div style="font-size:11.5px;opacity:.85;margin-top:3px">Сумма товаров со скидкой, без доставки и заноса. Деньги, фактически пришедшие в кассу, — в разделе «Учёт».</div>'
+    +hint;
 }
 
 // ═══ v7.29: ПРОСРОЧЕННЫЕ ЗАКАЗЫ ═══════════════════════════════════════
