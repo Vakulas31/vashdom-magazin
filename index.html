@@ -279,8 +279,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
-  <button class="nav-btn" onclick="openDelivBook('')">🚚 Доставка</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.58</span>
+  <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
+  <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.60</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -594,7 +595,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <div class="card" style="border:1.5px solid var(--gold,#C9A227)">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div class="card-title" style="margin:0">🧠 Умный поиск по параметрам</div>
-      <button class="btn btn-outline" onclick="backfillAttrs()" id="ss-backfill-btn" style="padding:5px 10px;font-size:12px">🔧 Разобрать атрибуты</button>
+      <button class="btn btn-outline owner-only" onclick="backfillAttrs()" id="ss-backfill-btn" style="padding:5px 10px;font-size:12px">🔧 Разобрать атрибуты</button>
     </div>
     <p style="font-size:12px;color:var(--text2);margin:4px 0 8px">Тип и цвет — текстом («шкаф бежевый», «диван орех»). Размеры точнее задавать полями ниже (Высота/Ширина/Глубина, от–до) — так поиск не перепутает высоту с шириной. Можно и текстом: «шкаф высотой до 2100».</p>
     <div class="search-wrap" style="margin-bottom:6px">
@@ -641,7 +642,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
     </div>
 
-    <div>
+    <!-- v7.60: весь столбец «завхоза» — загрузка прайсов, спецификация тканей,
+         список загруженного и история — виден только владельцу. Продавцу
+         остаётся поиск и калькулятор. То же самое запрещено и в самой базе
+         (SQL 7.16), кнопки — просто чтобы не дразнить. -->
+    <div class="owner-only">
     <!-- Загрузка -->
     <div class="card">
       <div class="card-title">⬆️ Загрузить / обновить прайс</div>
@@ -1161,6 +1166,37 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
 </div>
+<!-- v7.59: история изменений заказа. При споре с клиентом или продавцом это
+     единственное, что помогает: кто, когда, что поменял, было → стало. -->
+<div class="modal-bg" id="modal-orderlog">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title" id="ol-title">🕘 История изменений</div>
+    <div id="ol-sum" style="font-size:12px;color:var(--text2);margin:-8px 0 12px"></div>
+    <div id="ol-body" style="max-height:56vh;overflow-y:auto;margin-bottom:14px"></div>
+    <button class="btn btn-outline" style="width:100%;justify-content:center" onclick="closeModal('modal-orderlog')">Закрыть</button>
+  </div>
+</div>
+<!-- v7.59: «Кому отвезти» — обратная сторона списка «Забрать у поставщика».
+     Что забирать у поставщиков, приложение показывало давно; что везти клиентам —
+     приходилось листать журнал. -->
+<div class="modal-bg" id="modal-toship">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">🚚 Кому отвезти</div>
+    <div id="toship-sum" style="font-size:12px;color:var(--text2);margin:-8px 0 10px"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="toship-chips">
+      <button class="chip chip-active" data-ts="week" onclick="setShipRange('week')">На этой неделе</button>
+      <button class="chip" data-ts="late" onclick="setShipRange('late')">⏰ Просрочено</button>
+      <button class="chip" data-ts="ready" onclick="setShipRange('ready')">Товар есть</button>
+      <button class="chip" data-ts="all" onclick="setShipRange('all')">Все</button>
+    </div>
+    <div style="font-size:11px;color:var(--text2);background:var(--alt);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5">Позиции по невыполненным заказам, которые ещё не у клиента. Сгруппированы по адресу: за одну поездку можно закрыть несколько заказов.</div>
+    <div id="toship-list" style="max-height:52vh;overflow-y:auto;margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" onclick="copyShipList()">📋 Копировать маршрут</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-toship')" style="margin-left:auto">Закрыть</button>
+    </div>
+  </div>
+</div>
 <!-- v7.48: прейскурант доставки по населённым пунктам -->
 <div class="modal-bg" id="modal-deliv">
   <div class="modal" style="max-width:760px">
@@ -1182,7 +1218,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
     <div id="db-list" style="max-height:50vh;overflow-y:auto;margin-bottom:12px"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn btn-outline owner-only" onclick="delivAddPlace()">➕ Добавить пункт</button>
+      <button class="btn btn-outline" onclick="delivAddPlace()">➕ Добавить пункт</button>
       <button class="btn btn-outline" onclick="closeModal('modal-deliv')" style="margin-left:auto">Закрыть</button>
     </div>
   </div>
@@ -1316,16 +1352,33 @@ function _applyRole(){
   var el=document.getElementById('tb-user');
   if(el&&!_isOwner)el.title='Продавец — касса и аналитика недоступны';
 }
+// v7.59: роль больше не читается «в пользу владельца» при любом сбое.
+// Раньше любая осечка — моргнула сеть, база ответила ошибкой — открывала
+// продавцу «Учёт», «Аналитику» и «Бэкап». Отличаем два разных случая:
+//  · таблицы ролей вообще нет (SQL 7.7 не выполнен) — тогда прав ещё никто не
+//    раздавал, и запирать владельца из собственного приложения нельзя;
+//  · таблица есть, но запрос не прошёл — считаем продавцом и говорим об этом.
+// Направление ошибки выбрано намеренно: лишний раз не пустить в кассу неприятно,
+// но поправимо, а лишний раз пустить — уже нет.
+function _roleTableMissing(e){
+  var m=String((e&&e.message)||e||'').toLowerCase();
+  return m.indexOf('app_roles')>=0&&(m.indexOf('does not exist')>=0||m.indexOf('not exist')>=0
+    ||m.indexOf('pgrst205')>=0||m.indexOf('404')>=0);
+}
 function loadMyRole(){
   var uid=_authUserId();
-  if(!uid){_isOwner=true;_applyRole();return Promise.resolve();}
+  if(!uid){
+    // без входа приложение и так закрыто экраном авторизации; прав не выдаём
+    _isOwner=false;_applyRole();return Promise.resolve();
+  }
   return sbGet('app_roles','select=role&user_id=eq.'+uid).then(function(r){
     // строки нет — значит человека в справочнике ролей не завели: он продавец
     _isOwner=!!(r&&r[0]&&r[0].role==='owner');
     _applyRole();
-  }).catch(function(){
-    // таблицы ролей ещё нет (SQL 7.7 не выполнен) — не запираем владельца
-    _isOwner=true;_applyRole();
+  }).catch(function(e){
+    if(_roleTableMissing(e)){_isOwner=true;_applyRole();return;}
+    _isOwner=false;_applyRole();
+    toast('⚠️ Не удалось проверить права — работаем как продавец. Обновите страницу или войдите заново','err',6000);
   });
 }
 // ═══ v7.42: НАСТРОЙКИ МАГАЗИНА ЖИВУТ В БАЗЕ ═══════════════════════════
@@ -1594,6 +1647,7 @@ window.addEventListener('DOMContentLoaded',function(){
 });
 
 function showPage(name){
+  if(!_pageAllowed(name))return; // v7.59: охрана раздела, а не кнопки меню
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('page-'+name).classList.add('active');
@@ -1626,13 +1680,30 @@ function checkPin(){
     var cb=_pinCb;_pinCb=null;if(cb)cb();
   }else{document.getElementById('pin-err').style.display='block';document.getElementById('pin-input').value='';}
 }
-function tryStats(){
-  if(!_isOwner){toast('📊 Аналитика доступна только владельцу','err');return;}
-  requirePin('📊 Аналитика',function(){showPage('stats');});
+// v7.60: одна застава на все действия, которые база теперь запрещает продавцу
+// (SQL 7.16). Без неё запрет выглядел бы как поломка: на запрещённое УДАЛЕНИЕ
+// сервер отвечает «готово, удалено 0 строк» — молча. Продавец видел бы
+// «🗑 Прайс удалён», а прайс оставался бы на месте.
+function ownerOnly(what){
+  if(_isOwner)return true;
+  toast('⛔ '+(what||'Это действие')+' — только для владельца','err',4500);
+  return false;
 }
-function tryCash(){
-  if(!_isOwner){toast('💰 Учёт доступен только владельцу','err');return;}
-  requirePin('💰 Учёт',function(){showPage('cash');});
+function tryStats(){showPage('stats');}
+function tryCash(){showPage('cash');}
+// v7.59: охрана переехала с КНОПКИ на сам раздел. Раньше проверка стояла в
+// tryCash/tryStats — то есть на кнопке меню, — и `showPage('cash')`, вызванный
+// из консоли браузера, открывал кассу без роли и без PIN. Теперь мимо охраны
+// в раздел не попасть, каким бы путём его ни звали.
+var _GUARDED={cash:{pin:'💰 Учёт',deny:'💰 Учёт доступен только владельцу'},
+              stats:{pin:'📊 Аналитика',deny:'📊 Аналитика доступна только владельцу'}};
+function _pageAllowed(name){
+  var g=_GUARDED[name];
+  if(!g)return true;
+  if(!_isOwner){toast(g.deny,'err');return false;}
+  if(pinValid())return true;
+  requirePin(g.pin,function(){showPage(name);});
+  return false;
 }
 
 function toast(msg,type,ms){
@@ -1641,6 +1712,61 @@ function toast(msg,type,ms){
   setTimeout(function(){t.classList.remove('show');},ms);
 }
 
+
+// ═══ v7.59: ИСТОРИЯ ИЗМЕНЕНИЙ ЗАКАЗА ══════════════════════════════════
+// «Кто и когда поменял сумму, снял отметку, закрыл заказ» — при споре с
+// клиентом или продавцом это единственное, что помогает. Пишет само
+// приложение в таблицу order_log (SQL 7.15). Записи нельзя ни изменить, ни
+// удалить — журнал, который можно переписать, ничего не доказывает.
+// Запись НИКОГДА не мешает основной работе: любая осечка глотается молча,
+// сохранение заказа из-за журнала не сорвётся.
+var _logOff=false; // таблицы ещё нет (SQL 7.15 не выполнен) — не долбимся зря
+function _who(){
+  try{return (JSON.parse(localStorage.getItem('vd_auth')||'{}').email)||'';}catch(e){return '';}
+}
+function _whoName(){try{return localStorage.getItem('vd_manager')||'';}catch(e){return '';}}
+function logOrder(order,action,changes,note){
+  if(_logOff||!order)return Promise.resolve();
+  var rows=[];
+  var base={order_id:order.id,order_number:String(order.order_number||''),
+    who:_who(),who_name:_whoName(),action:action};
+  if(changes&&changes.length){
+    changes.forEach(function(c){
+      rows.push(Object.assign({},base,{field:c.field,
+        old_val:(c.old==null?null:String(c.old)),new_val:(c.new==null?null:String(c.new)),note:c.note||null}));
+    });
+  }else{
+    rows.push(Object.assign({},base,{note:note||null}));
+  }
+  if(!rows.length)return Promise.resolve();
+  return sbPost('order_log',rows).catch(function(e){
+    var m=String((e&&e.message)||'').toLowerCase();
+    if(m.indexOf('order_log')>=0)_logOff=true; // таблицы нет — молчим до перезагрузки
+  });
+}
+// Сравнивает два заказа и возвращает список изменившихся полей человеческими словами
+var _LOG_FIELDS=[
+  {k:'client_name',n:'Клиент'},{k:'client_phone',n:'Телефон'},{k:'client_phone2',n:'Телефон 2'},
+  {k:'client_address',n:'Адрес'},{k:'delivery_date',n:'Дата доставки'},{k:'manager',n:'Менеджер'},
+  {k:'status',n:'Статус'},{k:'payment_method',n:'Способ оплаты'},{k:'discount_pct',n:'Скидка, %'},
+  {k:'prepayment',n:'Предоплата'},{k:'goods_total',n:'Товары'},{k:'goods_discounted',n:'Товары со скидкой'},
+  {k:'remainder',n:'Остаток'},{k:'delivery_cost',n:'Доставка'},{k:'lifting_cost',n:'Занос'},
+  {k:'delivery_paid',n:'Доставка оплачена'},{k:'delivery_our',n:'Наша доставка'},
+  {k:'delivery_type',n:'Тип доставки'},{k:'notes',n:'Примечание'}
+];
+function diffOrder(before,after){
+  var out=[];
+  if(!before||!after)return out;
+  _LOG_FIELDS.forEach(function(f){
+    var a=before[f.k],b=after[f.k];
+    var na=(a==null||a==='')?'':String(a), nb=(b==null||b==='')?'':String(b);
+    if(na===nb)return;
+    // числа сравниваем как числа: «5000» и 5000 — не изменение
+    if(isFinite(parseFloat(na))&&isFinite(parseFloat(nb))&&Math.round(parseFloat(na))===Math.round(parseFloat(nb)))return;
+    out.push({field:f.n,old:na,new:nb});
+  });
+  return out;
+}
 // v7.29: было limit=500 без единого предупреждения. При 33 заказах в месяц
 // потолок наступал примерно через 15 месяцев, и дальше самые старые заказы
 // просто переставали существовать для приложения: аналитика «за всё время»
@@ -1854,6 +1980,8 @@ function orderCard(o){
     '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Договор</button>'+
     '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px">📋 Акт</button>'+
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'+
+    // v7.59: история изменений — кто и когда что поменял
+    '<button class="btn btn-outline" onclick="openOrderLog('+o.id+')" style="padding:5px 10px;font-size:12px" title="Кто и когда менял этот заказ">🕘 История</button>'+
     doneBtn+closureBtn+
     '<button class="btn-danger-sm owner-only" onclick="askDelete('+o.id+')">🗑</button>'+
     '</div></div></div></div>';
@@ -1926,6 +2054,8 @@ function toggleItemDelivered(itemId,orderId){
         .then(function(){return sbPatch('orders',{remainder:backRem},'id=eq.'+o.id);})
         .then(function(){
           it.delivered_at=null;it.paid_amount=null;it.paid_method=null;it.paid_at=null;o.remainder=backRem;
+          try{logOrder(o,'item',[{field:'Отметка «отвезено»',old:'стояла',new:'снята',note:it.product_name},
+            {field:'Оплата позиции',old:fmt(paid)+' ₽',new:'удалена',note:it.product_name}]);}catch(e){}
           toast('↩️ Отметка и оплата удалены — долг заказа: '+fmt(backRem)+' ₽');
           _paintOrders();
         })
@@ -1934,6 +2064,7 @@ function toggleItemDelivered(itemId,orderId){
     }
     _patchItemDeliv({delivered_at:null,delivered_qty:null},itemId).then(function(){
       it.delivered_at=null;it.delivered_qty=null;
+      try{logOrder(o,'item',[{field:'Отметка «отвезено»',old:'стояла',new:'снята',note:it.product_name}]);}catch(e){}
       toast('↩️ Отметка «отвезено» снята');
       _paintOrders();
     }).catch(function(e){
@@ -1993,6 +2124,8 @@ function ipSaveNoPay(){
   var dq=_ipQty(f.it),q=Math.max(1,parseInt(f.it.qty)||1);
   _patchItemDeliv({delivered_at:d,delivered_qty:dq},_ipItemId).then(function(){
     f.it.delivered_at=d;if(_hasDelivQty)f.it.delivered_qty=dq;
+    try{logOrder(f.o,'item',[{field:'Отвезено клиенту',old:'',
+      new:(dq<q?(dq+' из '+q+' шт.'):'вся позиция')+' · '+fmtDate(d),note:f.it.product_name}]);}catch(e){}
     closeModal('modal-itempay');
     toast(dq<q
       ?'📦 Отмечено: «'+(f.it.product_name||'товар')+'» — отвезено '+dq+' из '+q+' шт.'
@@ -2017,6 +2150,8 @@ function ipSavePaid(){
     .then(function(){return sbPatch('orders',{remainder:newRem},'id=eq.'+f.o.id);})
     .then(function(){
       f.it.delivered_at=d;f.it.paid_amount=amt;f.it.paid_method=method;f.it.paid_at=d;f.o.remainder=newRem;
+      try{logOrder(f.o,'pay',[{field:'Оплата при доставке',old:'',new:fmt(amt)+' ₽ ('+method+')',note:f.it.product_name},
+        {field:'Остаток',old:fmt(rem),new:fmt(newRem)}]);}catch(e){}
       closeModal('modal-itempay');
       toast('💰 Получено '+fmt(amt)+' ₽ ('+method+'). Остаток долга за товары: '+fmt(newRem)+' ₽','ok',5000);
       _paintOrders();
@@ -2533,7 +2668,13 @@ function saveClose(){
   }
   var btn=document.getElementById('co-save-btn');
   btn.innerHTML='<span class="spinner"></span> Сохраняем...';btn.disabled=true;_closing=true;
+  var _oBefore=Object.assign({},o); // v7.59: снимок для журнала
   sbPatch('orders',patch,'id=eq.'+_closeOrderId).then(function(){
+    try{
+      var _sum=Math.round((patch.pay_cash||0)+(patch.pay_card||0)+(patch.pay_transfer||0));
+      logOrder(o,_closeEditMode?'reopen':'close',diffOrder(_oBefore,Object.assign({},o,patch)),
+        (_closeEditMode?'изменено закрытие: ':'заказ закрыт, получено ')+fmt(_sum)+' ₽');
+    }catch(e){}
     Object.assign(o,patch);
     closeModal('modal-close');
     toast(_closeEditMode?'✅ Данные закрытия обновлены':'🏁 Заказ выполнен и закрыт!');
@@ -3093,6 +3234,173 @@ function applyPayMethod(method){
     toast('✅ Заказ №'+num+': '+method,'ok');
     renderCash();
   }).catch(function(e){toast('❌ Не сохранилось: '+e.message,'err',5000);});
+}
+
+// ═══ v7.59: «КОМУ ОТВЕЗТИ» ════════════════════════════════════════════
+// Обратная сторона списка «Забрать у поставщика». Что забирать — приложение
+// показывало давно, а что везти клиентам, приходилось выяснять, листая журнал.
+// Группируем по АДРЕСУ: в Короче два заказа на одну улицу — это одна поездка,
+// а не две. Внутри адреса — заказы, внутри заказа — позиции, которых у клиента
+// ещё нет (считаем остаток, а не факт «что-то отвезли»).
+var _shipRange='week';
+function setShipRange(r){
+  _shipRange=r;
+  Array.prototype.forEach.call(document.querySelectorAll('#toship-chips .chip'),function(c){
+    c.classList.toggle('chip-active',c.dataset.ts===r);
+  });
+  renderShipList();
+}
+function openShipList(){_shipRange='week';setShipRange('week');document.getElementById('modal-toship').classList.add('open');}
+// Адрес как ключ поездки: без регистра, Ё и лишних пробелов
+function _shipAddrKey(a){return String(a||'').toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').replace(/[.,]/g,'').trim();}
+var _shipText='';
+function renderShipList(){
+  var today=new Date().toISOString().slice(0,10);
+  var weekEnd=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+  var byAddr={},позиций=0,заказов=0;
+  (allOrders||[]).forEach(function(o){
+    if(isDone(o))return;                       // заказ закрыт — везти нечего
+    if(/самовыв/i.test(o.delivery_type||''))return; // клиент забирает сам
+    var rows=(o.order_items||[]).filter(function(it){return remainQty(it)>0;});
+    if(!rows.length)return;
+    var dd=o.delivery_date||'';
+    var late=isLate(o);
+    var ready=rows.every(function(it){return it.availability==='Есть';});
+    if(_shipRange==='week'&&!(dd&&dd>=today&&dd<=weekEnd)&&!late)return;
+    if(_shipRange==='late'&&!late)return;
+    if(_shipRange==='ready'&&!ready)return;
+    var key=_shipAddrKey(o.client_address)||'без адреса';
+    if(!byAddr[key])byAddr[key]={addr:o.client_address||'адрес не указан',orders:[]};
+    byAddr[key].orders.push({o:o,rows:rows,late:late,ready:ready});
+    заказов++;позиций+=rows.length;
+  });
+  var keys=Object.keys(byAddr).sort(function(a,b){
+    // сначала просроченные, потом по ближайшей дате доставки
+    var A=byAddr[a],B=byAddr[b];
+    var aLate=A.orders.some(function(x){return x.late;}),bLate=B.orders.some(function(x){return x.late;});
+    if(aLate!==bLate)return aLate?-1:1;
+    var aD=A.orders.map(function(x){return x.o.delivery_date||'9999';}).sort()[0];
+    var bD=B.orders.map(function(x){return x.o.delivery_date||'9999';}).sort()[0];
+    return String(aD).localeCompare(String(bD));
+  });
+  var txt='Кому отвезти\n\n',html='';
+  if(!keys.length){
+    html='<div style="padding:18px;text-align:center;font-size:14px;color:var(--text2);background:var(--alt);border-radius:8px">'
+      +(_shipRange==='week'?'✅ На этой неделе везти нечего.':'✅ Ничего не нашлось.')
+      +'<div style="font-size:12px;margin-top:6px">Попробуйте вкладку «Все» — там всё, что ещё не у клиентов.</div></div>';
+    txt+='— пусто —\n';
+  }else{
+    html=keys.map(function(k){
+      var g=byAddr[k];
+      txt+='📍 '+g.addr+'\n';
+      var inner=g.orders.map(function(x){
+        var o=x.o;
+        var телефоны=[o.client_phone,o.client_phone2].filter(Boolean).join(', ');
+        txt+='  №'+o.order_number+' · '+(o.client_name||'')+(телефоны?' · '+телефоны:'')
+          +(o.delivery_date?' · срок '+fmtDate(o.delivery_date):'')+'\n';
+        var поз=x.rows.map(function(it){
+          var _left=remainQty(it),_all=itemQty(it),_partly=isPartlyDelivered(it);
+          var parts=[it.product_name];
+          if(it.color)parts.push(it.color);
+          if(it.dims)parts.push(it.dims);
+          txt+='     • '+parts.join(' · ')+(_all>1?' × '+_left+' шт.':'')+' — '+(it.availability||'')+'\n';
+          return '<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px dashed var(--border)">'
+            +'<div style="flex:1;font-size:13px;line-height:1.45"><strong>'+esc(it.product_name)+'</strong>'
+            +(parts.length>1?'<span style="color:var(--text2)"> · '+esc(parts.slice(1).join(' · '))+'</span>':'')
+            +(_all>1?' <span class="tag-qty">'+_left+' шт.</span>':'')
+            +(_partly?' <span class="pl pl-warn">остаток из '+_all+'</span>':'')+'</div>'
+            +'<span class="badge '+(it.availability==='Есть'?'badge-yes':'badge-order')+'" style="flex-shrink:0">'+esc(it.availability||'')+'</span></div>';
+        }).join('');
+        var долг=Math.round(orderDebt(o));
+        return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">'
+          +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+          +'<span onclick="closeModal(\'modal-toship\');openOrderByNumber(\''+String(o.order_number).replace(/'/g,"\\'")+'\')" '
+          +'style="cursor:pointer;color:#1565C0;font-size:12px;font-weight:700;border-bottom:1px dashed #90A4AE">№'+esc(o.order_number)+'</span>'
+          +'<span style="font-size:13px;font-weight:600">'+esc(o.client_name||'')+'</span>'
+          +(x.late?'<span class="pl pl-bad">⏰ просрочен</span>':(o.delivery_date?'<span class="pl pl-mut">📦 '+fmtDate(o.delivery_date)+'</span>':''))
+          +(x.ready?'<span class="pl pl-good">товар есть</span>':'<span class="pl pl-warn">не всё привезли</span>')
+          +(долг>0?'<span class="pl pl-bad">долг '+fmt(долг)+' ₽</span>':'')
+          +'</div>'
+          +(телефоны?'<div style="font-size:11.5px;color:var(--text2);margin-top:2px">📞 '+esc(телефоны)+'</div>':'')
+          +поз+'</div>';
+      }).join('');
+      txt+='\n';
+      var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(g.addr);
+      return '<div style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;padding:10px 12px">'
+        +'<div style="font-size:13px;font-weight:700">📍 '+esc(g.addr)
+        +' <a href="'+mapUrl+'" target="_blank" style="font-size:11px;font-weight:400;color:#1565C0;text-decoration:none">на карте</a></div>'
+        +(g.orders.length>1?'<div style="font-size:11.5px;color:#8a5a18;margin-top:2px">'+g.orders.length+' заказа по одному адресу — одна поездка</div>':'')
+        +inner+'</div>';
+    }).join('');
+  }
+  _shipText=txt;
+  document.getElementById('toship-sum').innerHTML=keys.length
+    ?('адресов: <strong>'+keys.length+'</strong> · заказов: <strong>'+заказов+'</strong> · позиций: <strong>'+позиций+'</strong>')
+    :'';
+  document.getElementById('toship-list').innerHTML=html;
+}
+function copyShipList(){
+  navigator.clipboard.writeText(_shipText).then(function(){toast('📋 Маршрут скопирован','ok');})
+  .catch(function(){toast('Не удалось скопировать','err');});
+}
+
+// ═══ v7.59: ПРОСМОТР ИСТОРИИ ИЗМЕНЕНИЙ ЗАКАЗА ═════════════════════════
+var _OL_ACTION={create:{t:'Заказ оформлен',i:'➕'},edit:{t:'Правка',i:'✏️'},
+  close:{t:'Заказ закрыт',i:'🏁'},reopen:{t:'Изменено закрытие',i:'🔐'},
+  delete:{t:'Заказ удалён',i:'🗑'},item:{t:'Отметка по товару',i:'📦'},
+  pay:{t:'Оплата при доставке',i:'💰'}};
+function openOrderLog(orderId){
+  var o=(allOrders||[]).find(function(x){return x.id===orderId;});
+  document.getElementById('ol-title').textContent='🕘 История заказа №'+((o&&o.order_number)||orderId);
+  document.getElementById('ol-sum').textContent='';
+  document.getElementById('ol-body').innerHTML='<div class="empty" style="padding:18px"><p>Загружаю…</p></div>';
+  document.getElementById('modal-orderlog').classList.add('open');
+  sbGet('order_log','select=*&order_id=eq.'+orderId+'&order=at.desc&limit=300').then(function(rows){
+    rows=rows||[];
+    if(!rows.length){
+      document.getElementById('ol-body').innerHTML='<div class="empty" style="padding:20px;text-align:center">'
+        +'<p style="font-weight:600">Записей пока нет</p>'
+        +'<p style="font-size:12.5px;color:var(--text2);line-height:1.5">История ведётся с версии 7.59. Всё, что происходило с заказом раньше, в неё не попало.</p></div>';
+      return;
+    }
+    // группируем по одному событию: несколько полей, изменённых разом, — это одна правка
+    var groups=[],last=null;
+    rows.forEach(function(r){
+      var key=String(r.at).slice(0,19)+'|'+r.action+'|'+(r.who||'');
+      if(!last||last.key!==key){last={key:key,at:r.at,action:r.action,who:r.who,who_name:r.who_name,rows:[]};groups.push(last);}
+      last.rows.push(r);
+    });
+    document.getElementById('ol-sum').innerHTML='записей: <strong>'+rows.length+'</strong> · событий: <strong>'+groups.length+'</strong>';
+    document.getElementById('ol-body').innerHTML=groups.map(function(g){
+      var a=_OL_ACTION[g.action]||{t:g.action,i:'•'};
+      var d=new Date(g.at);
+      var когда=isNaN(d)?String(g.at).slice(0,16)
+        :(String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear()
+          +' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'));
+      var кто=esc(g.who_name||'')||esc(String(g.who||'').split('@')[0])||'—';
+      var поля=g.rows.map(function(r){
+        if(!r.field)return r.note?'<div style="font-size:12.5px;color:var(--text2);padding:2px 0">'+esc(r.note)+'</div>':'';
+        var было=(r.old_val==null||r.old_val==='')?'<span style="color:var(--text2)">пусто</span>':esc(r.old_val);
+        var стало=(r.new_val==null||r.new_val==='')?'<span style="color:var(--text2)">пусто</span>':esc(r.new_val);
+        return '<div style="font-size:12.5px;padding:3px 0;border-top:1px dashed var(--border);line-height:1.5">'
+          +'<strong>'+esc(r.field)+'</strong>'+(r.note?' <span style="color:var(--text2)">· '+esc(r.note)+'</span>':'')
+          +'<br><span style="color:#9c3b2e">'+было+'</span> → <span style="color:#256b3c;font-weight:600">'+стало+'</span></div>';
+      }).join('');
+      return '<div style="border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:8px">'
+        +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+        +'<span style="font-size:13px;font-weight:700">'+a.i+' '+esc(a.t)+'</span>'
+        +'<span class="pl pl-mut">'+когда+'</span>'
+        +'<span class="pl pl-mut">👤 '+кто+'</span></div>'
+        +поля+'</div>';
+    }).join('');
+  }).catch(function(e){
+    var нет=/order_log/i.test(String(e&&e.message||''));
+    document.getElementById('ol-body').innerHTML='<div class="empty" style="padding:20px;text-align:center">'
+      +'<p style="font-weight:600">'+(нет?'История ещё не включена':'Не удалось загрузить')+'</p>'
+      +'<p style="font-size:12.5px;color:var(--text2);line-height:1.5">'
+      +(нет?'Выполните в базе <strong>SQL_обновление_7.15.sql</strong> — после этого приложение начнёт вести журнал.'
+           :esc(String(e&&e.message||'')))+'</p></div>';
+  });
 }
 function onPriceFile(input){
   var file=input.files[0]; if(!file)return;
@@ -4513,6 +4821,7 @@ function _markImportedSheets(){
 
 var _plModSys=null; // разметка листа «модульные системы» (v7.21)
 async function importPriceList(){
+  if(!ownerOnly('Загрузка прайсов'))return; // v7.60
   var supplier=(document.getElementById('pl-sup').value||'').trim();
   var factory=(document.getElementById('pl-factory').value||'').trim();
   var colName=document.getElementById('pl-col-name').value;
@@ -4583,6 +4892,7 @@ async function importPriceList(){
 
 // Импорт всех листов файла сразу: шаблон листа → иначе автоопределение заголовков
 async function importAllSheets(){
+  if(!ownerOnly('Загрузка прайсов'))return; // v7.60
   if(!_plWB)return;
   var supplier=(document.getElementById('pl-sup').value||'').trim();
   var factory=(document.getElementById('pl-factory').value||'').trim();
@@ -4778,6 +5088,7 @@ async function loadPriceSummary(){
 }
 
 async function deletePriceList(supplier){
+  if(!ownerOnly('Удаление прайса'))return; // v7.60
   if(!confirm('Удалить ВСЕ товары поставщика «'+supplier+'» (все фабрики)?'))return;
   try{
     await sbDel('price_items','supplier=eq.'+encodeURIComponent(supplier));
@@ -4786,6 +5097,7 @@ async function deletePriceList(supplier){
   }catch(e){toast('❌ Ошибка: '+e.message,'err');}
 }
 async function deleteFactory(supplier,factory){
+  if(!ownerOnly('Удаление прайса'))return; // v7.60
   if(!confirm('Удалить товары фабрики «'+factory+'» (поставщик «'+supplier+'»)?'))return;
   try{
     await sbDel('price_items','supplier=eq.'+encodeURIComponent(supplier)+'&factory=eq.'+encodeURIComponent(factory));
@@ -4868,7 +5180,7 @@ async function renderImportHistory(){
 }
 
 async function rollbackImport(id){
-  if(typeof _isOwner!=='undefined'&&!_isOwner){toast('↩ Откат загрузки доступен только владельцу','err');return;}
+  if(!ownerOnly('Откат загрузки прайса'))return; // v7.60
   var im=null;
   try{var r=await sbGet('price_imports','select=*&id=eq.'+id);im=r&&r[0];}
   catch(e){toast('❌ '+e.message,'err',5000);return;}
@@ -4987,6 +5299,7 @@ function onFabricSpecFile(input){
   reader.readAsArrayBuffer(file);
 }
 async function importFabricSpec(){
+  if(!ownerOnly('Обновление спецификации тканей'))return; // v7.60
   if(!_fabWB){toast('Сначала выберите файл спецификации','err');return;}
   var rows=_parseFabricSpec(_fabWB);
   if(!rows.length){toast('❌ В файле не найдены ткани с категориями','err',5000);return;}
@@ -5441,6 +5754,7 @@ function saveAttr(){
 }
 // Заполнение атрибутов у уже загруженных товаров через серверную функцию apply_attrs (батчами)
 async function backfillAttrs(){
+  if(!ownerOnly('Разбор атрибутов прайса'))return; // v7.60
   var btn=document.getElementById('ss-backfill-btn');if(btn.disabled)return;
   btn.disabled=true;var oldT=btn.textContent;
   try{
@@ -5749,6 +6063,7 @@ function addSupplierPrompt(){
 }
 
 function deleteSupplier(id,name){
+  if(!ownerOnly('Удаление поставщика из справочника'))return; // v7.60
   if(!confirm('Удалить «'+name+'» из списка поставщиков?\n\nНа уже сохранённые заказы это не влияет — там поставщик останется как записан.'))return;
   sbDel('suppliers','id=eq.'+id)
     .then(function(){return loadSuppliers(true);})
@@ -6327,6 +6642,7 @@ function printOrder(id){
 
 // ── УДАЛЕНИЕ С PIN-КОДОМ ────────────────────────────────
 function askDelete(id){
+  if(!ownerOnly('Удаление заказов'))return; // v7.60: база тоже не даст (SQL 7.16)
   var order=allOrders.find(function(o){return o.id===id;});
   if(!order)return;
   deleteOrderId=id;
@@ -6346,6 +6662,13 @@ function confirmDelete(){
   deleteOrderId=null;
 }
 function doDeleteOrder(id){
+  if(!ownerOnly('Удаление заказов'))return; // v7.60: и мимо кнопки тоже
+  // v7.59: снимок ДО удаления — иначе в журнале останется только «удалён id»,
+  // а чей это был заказ и на какую сумму, узнать будет негде
+  var _gone=allOrders.find(function(o){return o.id===id;});
+  if(_gone){try{logOrder(_gone,'delete',null,
+    'удалён заказ '+(_gone.client_name||'')+' на '+fmt(orderGoods(_gone))+' ₽'
+    +', позиций '+((_gone.order_items||[]).length)+', статус «'+(_gone.status||'')+'»');}catch(e){}}
   sbDel('order_items','order_id=eq.'+id).then(function(){
     return sbDel('orders','id=eq.'+id);
   }).then(function(){
@@ -7276,7 +7599,14 @@ function saveOrder(){
         return row;
       })});
     var idx=allOrders.findIndex(function(o){return o.id==orderId;});
+    var _before=idx>=0?allOrders[idx]:null;
     if(idx>=0)allOrders[idx]=local;else allOrders.unshift(local);
+    // v7.59: журнал изменений. Пишем ПОСЛЕ успешного сохранения и никогда не
+    // мешаем основной работе — logOrder глотает свои ошибки сам.
+    try{
+      if(_before)logOrder(local,'edit',diffOrder(_before,local));
+      else logOrder(local,'create',null,'заказ оформлен на '+fmt(orderGoods(local))+' ₽');
+    }catch(e){}
     toast('✅ Заказ сохранён!');
     // v7.34: РАНЬШЕ здесь стояло localStorage.setItem('vd_manager',manager) —
     // сохранение заказа перезаписывало «менеджера дня» тем, что оказалось в поле
@@ -8110,6 +8440,7 @@ function _mdLoad(){
 // Сохранение ставок. В базе строки на продавца может ещё не быть — тогда
 // PATCH вернёт пусто (v7.28 бросает на это ошибку) и мы вставляем POST'ом.
 function saveSalaryRates(){
+  if(!ownerOnly('Ставки продавцов'))return; // v7.60
   var box=document.getElementById('chart-salary');if(!box)return;
   var inputs=box.querySelectorAll('input[data-mgr]');
   var next={};
@@ -8221,6 +8552,7 @@ function _bkSave(text,name,mime){
   setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
 }
 async function exportBackup(){
+  if(!ownerOnly('Бэкап базы'))return; // v7.60: без прав копия вышла бы неполной и молча
   var today=new Date().toISOString().slice(0,10);
   var dump={exported_at:new Date().toISOString(),schema:null,tables:{}};
   var stat=[],missing=[];
@@ -9030,11 +9362,13 @@ function renderDelivBook(){
     box.innerHTML='<div style="padding:14px;font-size:13px;color:var(--text2);line-height:1.7">'
       +'«<strong>'+esc(q)+'</strong>» в прейскуранте нет.<br>'
       +'<a href="'+placeMapUrl(q)+'" target="_blank" rel="noopener">📏 Замерить расстояние в Яндекс.Картах</a>'
-      +(_isOwner?' · <a href="#" onclick="delivAddPlace(\''+safe+'\');return false">➕ добавить в справочник</a>':'')
+      +' · <a href="#" onclick="delivAddPlace(\''+safe+'\');return false">➕ добавить в справочник</a>'
       +'</div>';
     return;
   }
-  var own=!!_isOwner;
+  // v7.60.1: прейскурант доставки правит и продавец — решение владельца.
+  // Цена километра осталась за владельцем: это общая настройка (app_settings).
+  var own=true;
   var html='<table style="width:100%;border-collapse:collapse;font-size:12.5px">'
     +'<thead><tr style="background:var(--alt)">'
     +'<th style="text-align:left;padding:6px 8px">Населённый пункт</th>'
@@ -9064,7 +9398,6 @@ function renderDelivBook(){
 }
 // Сохранение одной клетки. price/km: null — не трогаем, '' — стираем.
 function delivSave(id,price,km){
-  if(!_isOwner){toast('Справочник правит только владелец','err');return;}
   var p=allPlaces.find(function(x){return x.id===id;});if(!p)return;
   var body={updated_at:new Date().toISOString(),updated_by:(_auth&&_auth.email)||null};
   if(price!==null){
@@ -9088,7 +9421,6 @@ function delivSave(id,price,km){
 }
 // preset — подставить название, если владелец нажал «добавить» после поиска
 function delivAddPlace(preset){
-  if(!_isOwner){toast('Справочник правит только владелец','err');return;}
   var name=prompt('Название населённого пункта (как в адресе, без «село»/«хутор»):',preset||'');
   if(name===null)return;
   name=String(name).trim();
