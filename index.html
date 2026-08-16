@@ -174,10 +174,21 @@ body.role-seller .owner-only{display:none!important}
 .order-card.done{border-color:#c6d9cb}
 /* ── МОБИЛЬНАЯ ВЕРСИЯ ─────────────────────────────────── */
 @media (max-width:700px){
-  .topbar{padding:0 8px;gap:6px;height:48px}
-  .topbar-logo{height:26px}
+  /* v7.58: на 375 px кнопка «Выход» начиналась на 379-й точке — нажать её было
+     нельзя, и вся страница из-за неё ездила вбок на 44 px. Шапка теперь
+     прокручивается сама, а не растягивает страницу. */
+  .topbar{padding:0 8px;gap:6px;height:48px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .topbar::-webkit-scrollbar{display:none}
+  .topbar-logo{height:26px;flex-shrink:0}
   #conn-status{display:none}
-  .topbar button{font-size:11px!important;padding:4px 8px!important}
+  .topbar button{font-size:11px!important;padding:4px 8px!important;flex-shrink:0}
+  /* имя пользователя на кнопке выхода съедает половину строки — на телефоне
+     оставляем один значок двери */
+  #tb-user{display:none}
+  /* «Выход» прижат к правому краю и не уезжает при прокрутке шапки: иначе до
+     него нельзя было добраться вообще */
+  .topbar > button:last-of-type{position:sticky;right:0;background:var(--dark)!important;
+    border-color:rgba(255,255,255,.35)!important;box-shadow:-10px 0 10px -6px rgba(0,0,0,.5);z-index:2}
   .nav{padding:0 4px;top:48px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .nav::-webkit-scrollbar{display:none}
   .nav-btn{padding:12px 10px;font-size:12px;white-space:nowrap;flex-shrink:0}
@@ -269,7 +280,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openDelivBook('')">🚚 Доставка</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.55</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.58</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -664,7 +675,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
         <div class="fg" style="margin-bottom:12px">
           <label>Поставщик * <span style="font-weight:400;color:var(--text2)">(выберите существующего или впишите нового)</span></label>
-          <input type="text" id="pl-sup" class="inp-gold" list="pl-sup-list" placeholder="напр. МТК, Добрый дом, БРАВО..." autocomplete="off" oninput="_plScopeNote()">
+          <input type="text" id="pl-sup" class="inp-gold" list="pl-sup-list" placeholder="напр. МТК, Добрый дом, БРАВО..." autocomplete="off" oninput="_plScopeNote();_plReapplySheetSel()">
           <datalist id="pl-sup-list"></datalist>
         </div>
 
@@ -910,6 +921,23 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <div id="cash-content"><div class="empty"><p>Загрузка...</p></div></div>
 </div>
 
+</div>
+
+<!-- v7.58: способ оплаты задним числом. В первые дни работы такой возможности
+     не было, и 117 600 ₽ поступлений остались «⚠️ не указан» — теперь их можно
+     разнести по наличным, карте и переводу прямо из «Учёта». -->
+<div class="modal-bg" id="modal-paymethod">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">💰 Каким способом получены деньги?</div>
+    <p id="pm-info" style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.5"></p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+      <button class="btn btn-outline" style="justify-content:flex-start" onclick="applyPayMethod('💵 Наличные')">💵 Наличными</button>
+      <button class="btn btn-outline" style="justify-content:flex-start" onclick="applyPayMethod('💳 Карта')">💳 Картой</button>
+      <button class="btn btn-outline" style="justify-content:flex-start" onclick="applyPayMethod('📲 Перевод')">📲 Переводом</button>
+    </div>
+    <p style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:12px">Способ запишется в заказ. Сумма поступления не изменится — изменится только то, в какую колонку она попадёт в «Учёте».</p>
+    <button class="btn btn-outline" style="width:100%;justify-content:center" onclick="closeModal('modal-paymethod')">Отмена</button>
+  </div>
 </div>
 
 <div class="modal-bg" id="modal-markup">
@@ -1426,6 +1454,35 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'
 // Признак «выполнен» тоже проверялся тремя способами (строгое равенство и
 // поиск подстроки), поэтому лишний пробел в статусе менял поведение.
 function isDone(o){return !!o&&String((o&&o.status)||'').indexOf('Выполнен')>=0;}
+// v7.57: ОДНА функция «сколько стоит товар в заказе».
+// Везде стояло `goods_discounted || goods_total` — «сумма со скидкой ИЛИ без».
+// При скидке 100 % сумма со скидкой равна нулю, ноль в JS считается «пусто», и
+// подставлялась цена БЕЗ скидки: товар отдан бесплатно, а в выручке, прибыли,
+// договоре и акте он продан за полную цену. Отличаем «поле не заполнено» от нуля.
+// Новый код обязан звать эту функцию, а не писать `||` заново.
+function orderGoods(o){
+  if(!o)return 0;
+  var d=o.goods_discounted;
+  if(d!==null&&d!==undefined&&d!=='')return Math.round(+d||0);
+  return Math.round(+o.goods_total||0);
+}
+// v7.57: сервер отдаёт максимум 1000 строк за запрос и об обрезке молчит.
+// Запросы с limit=2000 и больше выглядели надёжно, а тихо теряли всё сверх тысячи.
+// Так «Клиенты» показывали 1000 человек из 2106. Любой запрос, который МОЖЕТ
+// вернуть больше тысячи строк, обязан идти через эту функцию.
+// qs — строка запроса БЕЗ limit и offset (порядок сортировки указывать обязательно,
+// иначе порции могут перемешаться).
+async function sbGetAll(table,qs,cap){
+  var out=[],off=0,PAGE=1000,MAX=cap||50000;
+  for(;;){
+    var page=await sbGet(table,qs+'&limit='+PAGE+'&offset='+off);
+    out=out.concat(page||[]);
+    if(!page||page.length<PAGE)break;
+    off+=PAGE;
+    if(off>=MAX)break;
+  }
+  return out;
+}
 function orderDebt(o){
   if(!o)return 0;
   var goods=Math.max(0,Math.round(o.remainder||0));
@@ -1787,7 +1844,7 @@ function orderCard(o){
     '<div id="order-body-'+o.id+'" style="'+(_done?'display:none':'')+'">'+
     (itemsHtml||'')+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
-    '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(o.goods_discounted||o.goods_total||0)+' ₽</div></div>'+
+    '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(orderGoods(o))+' ₽</div></div>'+
     ftrDeliv+ftrPre+ftrItemPaid+ftrDebt+ftrClose+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
     // v7.54: бланки печатаются одинаково часто и одинаково безобидны — рамки
@@ -2076,6 +2133,78 @@ function renderOrders(orders){
   _ordersShown=Math.min(_ORDERS_PAGE,_lastFiltered.length);
   _paintOrders();
 }
+// ═══ v7.56: ПУСТОЙ СПИСОК ОБЪЯСНЯЕТ СЕБЯ ══════════════════════════════
+// «Заказов не найдено» при 92 заказах в базе выглядит как поломка. Владелец
+// дважды присылал скриншот пустой вкладки «На неделе» и спрашивал, что не так,
+// — а она просто отбирает по дате ДОСТАВКИ на ближайшие 7 дней, и у всех
+// заказов доставка в сентябре-октябре. Теперь экран говорит это словами и
+// показывает, куда нажать.
+
+// Ближайшая доставка среди невыполненных заказов
+function _nextDelivery(){
+  var t=new Date().toISOString().slice(0,10),best=null;
+  (allOrders||[]).forEach(function(o){
+    if(isDone(o)||!o.delivery_date||String(o.delivery_date)<t)return;
+    if(!best||String(o.delivery_date)<String(best.delivery_date))best=o;
+  });
+  return best;
+}
+function _emptyBox(title,note,btn){
+  return '<div class="empty" style="padding:26px 18px;text-align:center">'
+    +'<p style="font-size:15px;font-weight:600;margin-bottom:4px">'+title+'</p>'
+    +(note?'<p style="font-size:12.5px;color:var(--text2);line-height:1.55;max-width:520px;margin:0 auto">'+note+'</p>':'')
+    +(btn?'<div style="margin-top:12px">'+btn+'</div>':'')
+    +'</div>';
+}
+function _emptyOrdersHtml(){
+  var showAll='<button class="btn btn-outline" onclick="resetOrderFilters()">Показать все заказы</button>';
+  if(!(allOrders||[]).length)
+    return _emptyBox('Заказов пока нет','Первый заказ заводится кнопкой «➕ Новый заказ».');
+
+  // Сначала то, что владелец выставил руками: поиск, статус, менеджер, день
+  var q=(document.getElementById('orders-search')||{}).value||'';
+  var st=(document.getElementById('filter-status')||{}).value||'';
+  var mg=(document.getElementById('filter-manager')||{}).value||'';
+  var narrow=[];
+  if(q)narrow.push('поиск «'+esc(q)+'»');
+  if(st)narrow.push('статус');
+  if(mg)narrow.push('менеджер «'+esc(mg)+'»');
+  if(_dayFilter)narrow.push('день '+_fmtDayRu(_dayFilter));
+  if(narrow.length)
+    return _emptyBox('Под эти условия ничего не подошло',
+      'Сейчас список сужен: '+narrow.join(', ')+'. Заказы никуда не делись — снимите лишнее.',showAll);
+
+  // Пустая вкладка при пустых фильтрах — объясняем саму вкладку
+  if(_activeChip==='week'){
+    var nx=_nextDelivery();
+    return _emptyBox('На этой неделе доставок нет',
+      'Вкладка «На неделе» отбирает заказы по <strong>дате доставки</strong> в ближайшие 7 дней — а не по дате оформления. '
+      +(nx?'Ближайшая доставка — <strong>'+fmtDate(nx.delivery_date)+'</strong>, заказ №'+esc(nx.order_number)+'.'
+          :'Ни у одного незакрытого заказа дата доставки не проставлена.'),
+      (nx?'<button class="btn btn-outline" onclick="openOrderByNumber(\''+esc(nx.order_number)+'\')" style="margin-right:6px">Открыть заказ №'+esc(nx.order_number)+'</button>':'')+showAll);
+  }
+  if(_activeChip==='debt')
+    return _emptyBox('Долгов нет','Все заказы рассчитаны полностью — ни товар, ни доставка не висят.',showAll);
+  if(_activeChip==='late')
+    return _emptyBox('Просроченных заказов нет','Ни по одному заказу срок передачи товара не прошёл.',showAll);
+  if(_activeChip==='today')
+    return _emptyBox('Сегодня заказов ещё не оформляли','Как только оформите первый, он появится здесь и попадёт в сумму за день.',showAll);
+  if(_activeChip==='active')
+    return _emptyBox('Незакрытых заказов нет','Всё, что есть в журнале, уже выполнено.',showAll);
+  if(_activeChip==='done')
+    return _emptyBox('Выполненных заказов пока нет','Сюда заказ попадает после нажатия «✅ Выполнен».',showAll);
+  return _emptyBox('Заказов не найдено','');
+}
+// Снимает разом всё, что могло спрятать заказы
+function resetOrderFilters(){
+  var s=document.getElementById('orders-search');if(s)s.value='';
+  var fs=document.getElementById('filter-status');if(fs)fs.value='';
+  var fm=document.getElementById('filter-manager');if(fm)fm.value='';
+  _dayFilter='';_dayFromChip=false;
+  var fd=document.getElementById('orders-date');if(fd)fd.value='';
+  setChip('all');
+}
+
 function _paintOrders(){
   var orders=_lastFiltered;
   var _lateN=(typeof lateOrders==='function')?lateOrders().length:0;
@@ -2083,7 +2212,7 @@ function _paintOrders(){
     +(_lateN?' · ⏰ просрочено: '+_lateN:'');
   if(typeof _updateLateChip==='function')_updateLateChip(); // и при первой загрузке тоже
   var list=document.getElementById('orders-list');
-  if(!orders.length){list.innerHTML='<div class="empty"><p>Заказов не найдено</p></div>';return;}
+  if(!orders.length){list.innerHTML=_emptyOrdersHtml();return;}
   // Рендерим только первые _ordersShown карточек — крупные списки не тормозят ввод
   var html='';for(var i=0;i<_ordersShown&&i<orders.length;i++)html+=orderCard(orders[i]);
   if(_ordersShown<orders.length){
@@ -2127,15 +2256,33 @@ function setChip(chip){
   filterOrders();
 }
 
+// v7.57: одно приведение к общему виду для поиска по журналу — ё к е, пробелы
+// схлопнуты. Номер телефона отдельно превращаем в голые цифры, чтобы «89205653952»
+// находило «8-920-565-39-52» и наоборот.
+function _sNorm(s){return String(s==null?'':s).toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ');}
+function _digits(s){return String(s==null?'':s).replace(/\D/g,'');}
 function filterOrders(){
-  var q=document.getElementById('orders-search').value.toLowerCase().trim();
+  var qRaw=document.getElementById('orders-search').value.trim();
+  var q=_sNorm(qRaw).trim();
+  // Телефоном считаем только запрос БЕЗ букв: иначе размер «1544x900x346» тоже
+  // превратился бы в цифры и перестал находиться.
+  var qD=_digits(qRaw);
+  if(qD.length>=7&&/^[\d\s()+.\-]+$/.test(qRaw))q=qD;
   var st=document.getElementById('filter-status').value;
   var mg=document.getElementById('filter-manager').value;
   var today=new Date().toISOString().split('T')[0];
   var weekEnd=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
   var f=allOrders.filter(function(o){
-    var txt=[o.client_name,o.client_phone,o.client_phone2,o.client_address,o.notes,o.manager,o.order_number,o.status].join(' ').toLowerCase();
-    (o.order_items||[]).forEach(function(i){txt+=(' '+(i.product_name||'')+' '+(i.color||'')+' '+(i.supplier||'')+' '+(i.dims||'')).toLowerCase();});
+    // v7.57: три беды поиска чинятся здесь, одной строкой подготовки текста.
+    //  · «Серёжа» не находил 31 заказ, записанный как «Сережа» — приводим ё к е;
+    //  · «89205653952» не находил заказ с номером «8-920-565-39-52» — к тексту
+    //    добавляем номер одними цифрами (запрос тоже чистим ниже, в _ordQ);
+    //  · «Некрасовы» не находил ни одного заказа на 522 000 ₽, потому что поиск
+    //    смотрел только supplier из прайса, а карточка показывает
+    //    supplier_manual||supplier (правило v7.18) — теперь ищем по обоим.
+    var txt=_sNorm([o.client_name,o.client_phone,o.client_phone2,o.client_address,o.notes,o.manager,o.order_number,o.status].join(' ')
+      +' '+_digits(o.client_phone)+' '+_digits(o.client_phone2));
+    (o.order_items||[]).forEach(function(i){txt+=_sNorm(' '+(i.product_name||'')+' '+(i.color||'')+' '+(i.supplier||'')+' '+(i.supplier_manual||'')+' '+(i.dims||''));});
     var statusMatch=!st||(st==='__active__'?!isDone(o):o.status===st);
     var chipMatch=true;
     // v7.29: «с долгом» — та же формула, что в карточке, а не своя копия
@@ -2192,7 +2339,7 @@ function _renderDaySum(shown){
   var sum=0,n=0;
   (allOrders||[]).forEach(function(o){
     if(o.order_date!==_dayFilter)return;
-    sum+=(o.goods_discounted||o.goods_total||0);n++;
+    sum+=orderGoods(o);n++;
   });
   box.style.display='block';
   if(!n){box.innerHTML='📅 <strong>'+_fmtDayRu(_dayFilter)+'</strong> — заказов не оформлялось.';return;}
@@ -2270,13 +2417,16 @@ function openCloseModal(id,editMode){
     document.getElementById('co-comment').value='';
     // Переключатель доставки: показываем только если есть неоплаченная доставка/занос
     var db=document.getElementById('co-delivery-block');
-    if(_closeDelivCost>0){
-      db.style.display='block';
-      var isOur=o.delivery_our!==false; // по умолчанию наша
-      document.querySelector('input[name="co-deliv"][value="'+(isOur?'our':'ext')+'"]').checked=true;
-    }else{
-      db.style.display='none';
-    }
+    // v7.58: переключатель сбрасываем ВСЕГДА, даже когда блок скрыт. Раньше при
+    // скрытом блоке в нём оставался выбор от ПРЕДЫДУЩЕГО закрытия: закрыли один
+    // заказ со «сторонней» доставкой — и у следующего заказа с уже ОПЛАЧЕННОЙ
+    // доставкой (блок не показывается) молча сохранялось delivery_our=false.
+    // Деньги за доставку уходили из кассы в «мимо кассы», хотя владелец этого
+    // не выбирал и переключателя даже не видел.
+    var isOur=o.delivery_our!==false; // по умолчанию наша
+    var _rb=document.querySelector('input[name="co-deliv"][value="'+(isOur?'our':'ext')+'"]');
+    if(_rb)_rb.checked=true;
+    db.style.display=_closeDelivCost>0?'block':'none';
     document.getElementById('co-save-btn').innerHTML='✅ Закрыть заказ';
     coDeliveryToggle(); // проставит _closeTarget, co-cash, summary и заметку
   }
@@ -2372,7 +2522,11 @@ function saveClose(){
   if(!_closeEditMode){
     var isOur=_coDeliveryOur();
     var hasDeliv=((o.delivery_cost||0)+(o.lifting_cost||0))>0;
-    if(hasDeliv)patch.delivery_our=isOur;
+    // v7.58: пишем «наша/сторонняя» только если владелец ВИДЕЛ переключатель.
+    // Блок показывается лишь при неоплаченной доставке (_closeDelivCost>0);
+    // если доставка уже оплачена, выбор делать не из чего — и переписывать
+    // сохранённое значение нельзя.
+    if(hasDeliv&&_closeDelivCost>0)patch.delivery_our=isOur;
     // «Оплачено» помечаем только для нашей доставки (её деньги реально прошли через кассу).
     // Для сторонней доставки клиент платит курьеру напрямую — салон её не собирал.
     if(hasDeliv&&isOur&&o.delivery_paid!=='yes')patch.delivery_paid='yes';
@@ -2423,11 +2577,11 @@ function delivPrepaidSum(o,itemsPaidSum){
   // заказ №221249: товар 53 700, доставка 700, в предоплате 54 400 — и в
   // учёте появлялось 54 400 + ещё 700, то есть 700 ₽ из воздуха.
   // Излишек предоплаты над стоимостью товара и есть уже полученная доставка.
-  var over=Math.round((o.prepayment||0)-((o.goods_discounted||o.goods_total||0)));
+  var over=Math.round((o.prepayment||0)-(orderGoods(o)));
   if(over>0){deliv-=over;if(deliv<=0)return 0;}
   if(!o.closed_at)return deliv;             // заказ не закрыт — значит взяли при оформлении
   var payTotal=Math.round((o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0));
-  var goodsDebtAtClose=Math.round((o.goods_discounted||o.goods_total||0)-(o.prepayment||0)-(itemsPaidSum||0));
+  var goodsDebtAtClose=Math.round(orderGoods(o)-(o.prepayment||0)-(itemsPaidSum||0));
   if(goodsDebtAtClose<0)goodsDebtAtClose=0;
   // рубль допуска на округления
   return (payTotal<=goodsDebtAtClose+1)?deliv:0;
@@ -2437,10 +2591,13 @@ function renderCash(){
   var el=document.getElementById('cash-content');
   el.innerHTML='<div class="empty"><p>Загрузка данных...</p></div>';
   Promise.all([
-    sbGet('orders','select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,pay_cash,pay_card,pay_transfer,delivery_cost,lifting_cost,delivery_our,delivery_paid,goods_total,goods_discounted&or=(prepayment.gt.0,closed_at.not.is.null,delivery_paid.eq.yes)&order=order_date.desc,id.desc&limit=2000'),
+    // v7.57: постранично. Просили две тысячи строк, а сервер отдаёт максимум 1000 — на
+    // 1000-м поступлении «Учёт» начал бы молча терять старые деньги и уводить
+    // кассу в минус. Сейчас заказов 92, но мина была заложена.
+    sbGetAll('orders','select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,pay_cash,pay_card,pay_transfer,delivery_cost,lifting_cost,delivery_our,delivery_paid,goods_total,goods_discounted&or=(prepayment.gt.0,closed_at.not.is.null,delivery_paid.eq.yes)&order=order_date.desc,id.desc'),
     sbGet('cash_withdrawals','select=*&order=created_at.desc&limit=300'),
     // v6.7: оплаты позиций при доставке; если SQL 6.7 ещё не выполнен — тихо пропускаем
-    sbGet('order_items','select=order_id,paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc&limit=2000').catch(function(){return[];})
+    sbGetAll('order_items','select=order_id,paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc').catch(function(){return[];})
   ]).then(function(res){
     _cashRaw={orders:res[0]||[],wd:res[1]||[],pays:res[2]||[]};
     _renderCashUI(_cashRaw.orders,_cashRaw.wd,_cashRaw.pays);
@@ -2579,7 +2736,7 @@ function _renderCashUI(orders,withdrawals,itemPays){
       _flow(o.order_date,dKind,delivPre,o.order_number,o.client_name,'доставка при оформлении');
     }
     // v7.52: сколько доставки уже «спрятано» внутри предоплаты
-    var _delivInPre=Math.min(delivSum,Math.max(0,Math.round((o.prepayment||0)-(o.goods_discounted||o.goods_total||0))));
+    var _delivInPre=Math.min(delivSum,Math.max(0,Math.round((o.prepayment||0)-orderGoods(o))));
     if(delivSum>0){
       if(o.delivery_our===false){
         r.delivNote='<span style="color:#999">🚚 сторонняя доставка '+fmt(delivSum)+' ₽ — мимо кассы (справочно)</span>';
@@ -2810,6 +2967,7 @@ function _renderCashUI(orders,withdrawals,itemPays){
   // строке с датой заказа. Теперь строка = одно поступление со своей датой,
   // поэтому список сходится с цифрами наверху и с таблицей по месяцам.
   var KIND={cash:'💵 наличные',card:'💳 карта',transfer:'📲 перевод',other:'⚠️ не указан'};
+  window._cashKindNames=KIND;
   var jFlows=inPeriod.slice().sort(function(a,b){
     var c=String(b.date).localeCompare(String(a.date));
     return c||String(b.num).localeCompare(String(a.num));
@@ -2822,7 +2980,12 @@ function _renderCashUI(orders,withdrawals,itemPays){
         +(f.num?'<span onclick="openOrderByNumber(\''+String(f.num).replace(/'/g,"\\'")+'\')" title="Открыть заказ" style="cursor:pointer;color:#1565C0;border-bottom:1px dashed #90A4AE">№'+esc(f.num)+'</span>':'—')+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:13px">'+esc(f.client||'—')+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">'+esc(f.what)+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px'+(f.kind==='other'?';color:#E65100':'')+'">'+KIND[f.kind]+'</td>'
+      // v7.58: «не указан» — не приговор. Способ можно проставить задним числом:
+      // в первые дни работы такой возможности просто не было.
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px'+(f.kind==='other'?';color:#8a5a18':'')+'">'
+        +(f.kind==='other'&&f.num
+          ?'<button class="pl pl-warn" title="Указать, как эти деньги получены" onclick="askPayMethod(\''+String(f.num).replace(/'/g,"\\'")+'\')">⚠️ не указан · указать</button>'
+          :KIND[f.kind])+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;font-size:13px">'+fmt(f.amt)+' ₽</td>'
       +'</tr>';
   }).join('');
@@ -2898,6 +3061,39 @@ function undoWithdrawal(id,amount){
 // ── ПРАЙС-ЛИСТЫ ─────────────────────────────────────────
 var _plWB=null,_plData=[];
 
+
+// ═══ v7.58: СПОСОБ ОПЛАТЫ ЗАДНИМ ЧИСЛОМ ═══════════════════════════════
+// В «Учёте» 117 600 ₽ поступлений помечены «⚠️ не указан»: приложение тогда
+// ещё не спрашивало способ оплаты. Деньги настоящие, но в разрезе по наличным,
+// карте и переводу они стоят отдельной колонкой, и «Наличными + Картой +
+// Переводом» не сходится с «Итого». Теперь способ можно проставить задним
+// числом — из того же журнала поступлений, где он и не указан.
+var _pmOrderNum='';
+function askPayMethod(num){
+  var o=(allOrders||[]).find(function(x){return String(x.order_number)===String(num);})
+      ||((_cashRaw&&_cashRaw.orders)||[]).find(function(x){return String(x.order_number)===String(num);});
+  if(!o){toast('Заказ №'+num+' не найден','err');return;}
+  _pmOrderNum=String(num);
+  document.getElementById('pm-info').innerHTML='Заказ <strong>№'+esc(String(num))+'</strong>'
+    +(o.client_name?', '+esc(o.client_name):'')
+    +'<br>Предоплата <strong>'+fmt(o.prepayment||0)+' ₽</strong> от '+fmtDate(o.order_date)+'.';
+  document.getElementById('modal-paymethod').classList.add('open');
+}
+function applyPayMethod(method){
+  var num=_pmOrderNum;
+  if(!num)return;
+  var o=(allOrders||[]).find(function(x){return String(x.order_number)===String(num);})
+      ||((_cashRaw&&_cashRaw.orders)||[]).find(function(x){return String(x.order_number)===String(num);});
+  if(!o){toast('Заказ не найден','err');return;}
+  closeModal('modal-paymethod');
+  sbPatch('orders',{payment_method:method},'id=eq.'+o.id).then(function(){
+    o.payment_method=method;
+    var live=(allOrders||[]).find(function(x){return x.id===o.id;});
+    if(live)live.payment_method=method;
+    toast('✅ Заказ №'+num+': '+method,'ok');
+    renderCash();
+  }).catch(function(e){toast('❌ Не сохранилось: '+e.message,'err',5000);});
+}
 function onPriceFile(input){
   var file=input.files[0]; if(!file)return;
   if(typeof XLSX==='undefined'){
@@ -3006,6 +3202,10 @@ var _TPL_KEY='vashdom_price_templates';
 // руками. Теперь листы отмечаются галочками, а выбор запоминается по
 // поставщику — прайс приходит каждый месяц, отмечать заново незачем.
 var _PLSEL_KEY='vashdom_price_sheets';
+// v7.58: порог «это не цена». Было 99 999 999 ₽ — под него подходил любой мусор:
+// артикул, штрихкод, номер телефона из шапки. Самая дорогая кухня в прайсах —
+// около 300 000 ₽, пять миллионов с огромным запасом.
+var _PL_PRICE_MAX=5000000;
 // Служебные листы (оглавление, условия, снятое с производства) — не товары
 var _PL_SERVICE_RE=/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац|важная|маркетинг|позиции\s+снятые|расчет|расчёт|прайс-лист\s*$|лист\s*\d+\s*$)/i;
 function _plSelStore(){try{return JSON.parse(localStorage.getItem(_PLSEL_KEY)||'{}');}catch(e){return{};}}
@@ -3025,6 +3225,20 @@ function _plBuildSheetPicker(){
   }).join('');
   wrap.style.display='block';
   var f=document.getElementById('pl-sheetpick-find');if(f)f.value='';
+  plSheetPickCount();
+}
+// v7.58: галочки строятся сразу при выборе файла, когда поле «Поставщик» ещё
+// пустое, а сохраняются при импорте — уже под именем поставщика. Ключ на входе и
+// на выходе не совпадал, и «выбор запоминается» не работал. Теперь при вводе
+// поставщика заново применяем его сохранённый выбор.
+function _plReapplySheetSel(){
+  var wrap=document.getElementById('pl-sheetpick-wrap');
+  if(!wrap||wrap.style.display==='none'||!_plWB)return;
+  var saved=_plSelStore()[_plSelKey()];
+  if(!saved)return;
+  Array.prototype.forEach.call(document.querySelectorAll('.pl-sheetcb'),function(cb){
+    cb.checked=saved.indexOf(cb.value)>=0;
+  });
   plSheetPickCount();
 }
 function plSheetPickCount(){
@@ -3061,11 +3275,24 @@ function _plSaveSheetSel(list){
 function _getTplStore(){
   try{return JSON.parse(localStorage.getItem(_TPL_KEY)||'{}');}catch(e){return{};}
 }
+// v7.58: ключ шаблона листа = ПОСТАВЩИК + имя листа. Раньше ключом было только
+// имя листа: у двух поставщиков лист «Прайс» или «Лист1» — и шаблон одного молча
+// применялся к прайсу другого, подменяя в том числе поле «Поставщик».
+// Старые ключи (без поставщика) читаем как запасной вариант, чтобы уже настроенные
+// листы не пропали.
+function _tplKeyFor(sheetName){
+  var sup=String((document.getElementById('pl-sup')||{}).value||'').trim().toLowerCase();
+  return (sup?sup+'|':'')+String(sheetName||'');
+}
+function _tplGet(store,sheetName){
+  return store[_tplKeyFor(sheetName)]||store[sheetName]
+    ||store['sup:'+String((document.getElementById('pl-sup')||{}).value||'').trim().toLowerCase()];
+}
 function savePriceTemplate(){
   var sn=document.getElementById('pl-sheet').value;
   if(!sn)return;
   var store=_getTplStore();
-  store[sn]={
+  store[_tplKeyFor(sn)]={
     supplier:document.getElementById('pl-sup').value.trim(),
     start_row:document.getElementById('pl-startrow').value,
     col_name:document.getElementById('pl-col-name').value,
@@ -3079,12 +3306,12 @@ function savePriceTemplate(){
     kit_part:document.getElementById('pl-kitpart')?document.getElementById('pl-kitpart').checked:false
   };
   var supKey=(document.getElementById('pl-sup').value||'').trim().toLowerCase();
-  if(supKey)store['sup:'+supKey]=store[sn];
+  if(supKey)store['sup:'+supKey]=store[_tplKeyFor(sn)];
   localStorage.setItem(_TPL_KEY,JSON.stringify(store));
 }
 function applyPriceTemplate(sheetName){
   var store=_getTplStore();
-  var tpl=store[sheetName]||store['sup:'+((document.getElementById('pl-sup').value||'').trim().toLowerCase())];
+  var tpl=_tplGet(store,sheetName);
   var statusEl=document.getElementById('pl-tpl-status');
   if(!tpl){
     statusEl.style.display='none';
@@ -3446,8 +3673,8 @@ function _collectRows(data,cfg){
     if(_plIsDead(nameVal)||_plIsDead(artVal)){_drop.dead++;continue;}
     // Защита от переполнения numeric(12,2): цена мебели не бывает > 100 млн.
     // Больше — это не цена (артикул/штрихкод/склеенное число), строку пропускаем.
-    if(optNum<0||optNum>99999999){_drop.weird++;continue;}
-    if(retVal<0||retVal>99999999)retVal=0;
+    if(optNum<0||optNum>_PL_PRICE_MAX){_drop.weird++;continue;} // v7.58: было 99 999 999
+    if(retVal<0||retVal>_PL_PRICE_MAX)retVal=0;
     optNum=Math.round(optNum*100)/100;retVal=Math.round(retVal*100)/100;
     var _at=_extractAttrs(nameVal,artVal,'');
     var _cmp=[noteBuf,rowCompat].filter(Boolean).join(' · ').slice(0,900)||null;
@@ -3480,7 +3707,7 @@ function _plColNumericCount(data,startRow,c,strict){
     var v=(data[r]||[])[c];if(v===''||v==null)continue;seen++;
     if(/\d\s*[*x×х\/]\s*\d/.test(String(v)))continue; // размеры 800*800, 1900/2000 — не цена
     if(strict&&!_plIsPlainNumCell(v))continue;
-    var num=_plToNum(v);if(num>=50&&num<=100000000)n++; // цена, а не индекс/год
+    var num=_plToNum(v);if(num>=50&&num<=_PL_PRICE_MAX)n++; // цена, а не индекс/год
   }
   return n;
 }
@@ -3752,7 +3979,7 @@ function _collectModSys(data,cfg){
     var multi=active.length>1;
     for(var p=0;p<pc.length;p++){
       var val=_plToNum(row[pc[p]]);
-      if(val<50||val>99999999)continue;
+      if(val<50||val>_PL_PRICE_MAX)continue;
       if(active.length&&active.indexOf(pc[p])<0)continue;
       var lab=labels[pc[p]]||'';
       var pname=(head?head+' · ':'')+nm+(multi&&lab?' · '+lab:'');
@@ -3768,10 +3995,23 @@ function _collectModSys(data,cfg){
 }
 // ── МАТРИЧНЫЙ ПРАЙС (цены по размерам в столбцах: 800/900/1200…) ──
 function _plIsSize(v){var s=String(v==null?'':v).trim();if(!/^\d{2,4}$/.test(s))return false;var n=parseInt(s);return n>=50&&n<=2500;}
+// v7.58: похоже ли содержимое ячейки на НАЗВАНИЕ ТОВАРА, а не на подпись колонки
+function _plLooksProductName(v){
+  var s=String(v==null?'':v).trim();
+  return s.length>=8&&/[А-Яа-яЁёA-Za-z]{3}/.test(s);
+}
 // Ищет строку-шапку с размерами (≥3 числовых «размерных» ячейки) в первых 7 строках
 function _autoDetectMatrix(data){
+  // v7.58: на брендовых листах ДСВ («Марсель», «Гарда», «Квадро») строка ДАННЫХ
+  // принималась за шапку размеров: ширина 400, корпус 1339, фасад 504, цена 1843 —
+  // четыре числа в диапазоне 50–2500. Лист разворачивался в «товар × 4 размера»,
+  // и вместо 141 настоящего модуля получалось 630 строк с ценами корпуса и фасада
+  // вместо цены готового модуля. Побеждал этот разбор, потому что строк больше.
+  // Шапка размеров — это ШАПКА: в колонке названия у неё пусто или короткая
+  // подпись, а не «Верхний шкаф Марсель АНП 400».
   for(var r=0;r<Math.min(7,data.length);r++){
     var row=data[r]||[];var sc=[];
+    if(_plLooksProductName(row[0]))continue; // это строка товара, а не шапка
     for(var c=0;c<row.length;c++){if(_plIsSize(row[c]))sc.push({col:c,label:String(row[c]).trim()});}
     if(sc.length>=3){
       var firstSize=sc[0].col;var descCols=[];
@@ -4361,7 +4601,7 @@ async function importAllSheets(){
     // Собираем все варианты разбора и берём тот, что даёт больше валидных цен.
     // Так плохой сохранённый шаблон не мешает — автоопределение его перекроет.
     var cands=[];
-    var tpl=store[sn];
+    var tpl=_tplGet(store,sn);
     var det=_autoDetectSheet(data);
     // Сохранённый шаблон «матрица общего вида» (этап B) — используем его разметку колонок
     if(tpl&&tpl.matrix_multi&&tpl.var_cols&&tpl.var_cols.length&&tpl.col_name!==''&&tpl.col_name!=null){
@@ -4436,9 +4676,9 @@ async function importAllSheets(){
       if(p.kind==='multi')return; // шаблон матрицы вариантов уже сохранён — не затираем
       if(p.kind==='matrix'||!p.cfg){
         // матричный лист колонками не описать — помечаем, чтобы старый шаблон не мешал
-        st[p.sheetName]={supplier:supplier,factory:factory,matrix:true};
+        st[_tplKeyFor(p.sheetName)]={supplier:supplier,factory:factory,matrix:true};
       }else{
-        st[p.sheetName]={supplier:supplier,factory:factory,start_row:String(p.cfg.start),
+        st[_tplKeyFor(p.sheetName)]={supplier:supplier,factory:factory,start_row:String(p.cfg.start),
           col_name:String(p.cfg.colName),col_opt:String(p.cfg.colOpt),
           col_ret:(p.cfg.colRet===''||p.cfg.colRet==null)?'':String(p.cfg.colRet),
           col_art:(p.cfg.colArt===''||p.cfg.colArt==null)?'':String(p.cfg.colArt),
@@ -4446,7 +4686,7 @@ async function importAllSheets(){
       }
     });
     var firstFlat=plan.filter(function(p){return p.kind!=='matrix'&&p.cfg;})[0];
-    if(firstFlat)st['sup:'+supplier.toLowerCase()]=st[firstFlat.sheetName];
+    if(firstFlat)st['sup:'+supplier.toLowerCase()]=st[_tplKeyFor(firstFlat.sheetName)];
     localStorage.setItem(_TPL_KEY,JSON.stringify(st));
     var note=document.getElementById('pl-multi-note');
     note.style.display='block';
@@ -5891,7 +6131,7 @@ function printOrdersJournal(mode){
       return mark+parts.join(', ')+note+(Math.round(it.paid_amount||0)>0?' <span style="color:#1B5E20;font-size:7px;font-weight:700">💰'+fmt(it.paid_amount)+'₽</span>':'');
     }).join('<br>');
 
-    var goodsTotal=o.goods_discounted||o.goods_total||0;
+    var goodsTotal=orderGoods(o);
     var prepay=o.prepayment||0;
     var goodsDebt=o.remainder||0;
     var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
@@ -6003,7 +6243,7 @@ function printOrder(id){
   });
 
   // Деньги
-  var goodsTotal=o.goods_discounted||o.goods_total||0;
+  var goodsTotal=orderGoods(o);
   var prepay=o.prepayment||0;
   var goodsDebt=o.remainder||0;
   var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
@@ -6160,7 +6400,13 @@ function resetForm(){
 }
 // ═══ v6.8: авточерновик — форма сохраняется по мере набора ═══
 var _draftTimer=null;
-function _draftFieldIds(){return['f-client','f-phone','f-phone2','f-address','f-delivery-date','f-manager','f-discount','f-delivery','f-lifting','f-prepay','f-notes','f-payment','f-delivery-type','f-delivery-paid','f-credit'];}
+// v7.57: этаж, квартира и лифт добавлены. Раньше черновик хранил ПОСЧИТАННУЮ по ним
+// сумму заноса, но не сами поля. Продавец возвращался к черновику: занос 5 000 ₽
+// на месте, этаж пустой. Стоило тронуть лифт — recalcLift() пересчитывал от пустого
+// этажа и обнулял занос, вернуть его было уже нечем. Мебель ехала на пятый этаж
+// бесплатно. Правило: если черновик хранит результат — он обязан хранить и исходные
+// данные, из которых результат считается.
+function _draftFieldIds(){return['f-client','f-phone','f-phone2','f-address','f-floor','f-lift','f-delivery-date','f-manager','f-discount','f-delivery','f-lifting','f-prepay','f-notes','f-payment','f-delivery-type','f-delivery-paid','f-credit'];}
 function _draftSave(){
   if(document.getElementById('edit-order-id').value)return; // черновики только для НОВЫХ заказов
   var d={f:{},items:[],t:Date.now()};
@@ -6292,14 +6538,14 @@ function addFormItem(){
     '</div>'+
     '<div id="cat-row-'+id+'" style="display:none" class="form-row" style="margin-bottom:10px">'+
       '<div class="fg"><label>Категория ткани</label><select id="fi-cat-'+id+'" class="inp-gold" onchange="calcItemPrice('+id+')"><option value="">— категория —</option></select></div>'+
-      '<div class="fg"><label>Кол-во *</label><input type="number" id="fi-qty-'+id+'" value="1" min="1" class="inp-gold" oninput="calcItemPrice('+id+')"></div>'+
+      '<div class="fg"><label>Кол-во *</label><input type="number" id="fi-qty-'+id+'" value="1" min="1" step="1" class="inp-gold" oninput="_qtyFix(this);calcItemPrice('+id+')" onblur="_qtyFix(this,1);calcItemPrice('+id+')"></div>'+
     '</div>'+
     '<div id="avail-row-'+id+'" style="display:none;margin-bottom:10px">'+
       '<div class="fg"><label>Наличие</label><select id="fi-avail-cat-'+id+'" class="inp-gold"><option>Под заказ</option><option>Есть</option></select></div>'+
     '</div>'+
     '<div id="nocat-row-'+id+'" class="form-row" style="margin-bottom:10px">'+
       '<div class="fg"><label>Наличие</label><select id="fi-avail-'+id+'" class="inp-gold"><option>Есть</option><option>Под заказ</option></select></div>'+
-      '<div class="fg"><label>Кол-во *</label><input type="number" id="fi-qty2-'+id+'" value="1" min="1" class="inp-gold" oninput="calcItemPrice('+id+')"></div>'+
+      '<div class="fg"><label>Кол-во *</label><input type="number" id="fi-qty2-'+id+'" value="1" min="1" step="1" class="inp-gold" oninput="_qtyFix(this);calcItemPrice('+id+')" onblur="_qtyFix(this,1);calcItemPrice('+id+')"></div>'+
     '</div>'+
     '<div style="display:flex;gap:14px;margin-top:6px;align-items:center">'+
       '<div style="font-size:13px">Розн.: <strong id="fi-ret-'+id+'" style="color:#BF360C">—</strong></div>'+
@@ -6320,6 +6566,20 @@ function addFormItem(){
 // Считаем по ШТУКАМ: два одинаковых пенала несут дважды.
 // Вписали сумму руками — расчёт больше её не трогает (dataset.manual).
 function _liftRate(){return (typeof VD_SHOP!=='undefined'&&VD_SHOP.liftPerFloor)||500;}
+// v7.57: количество принимало что угодно и считало по-своему. Продавец вводил
+// «2.5» — на экране оставалось 2.5, а строка считалась как за 2 штуки; «0» и «-1»
+// оставались в поле, но цена бралась как за одну; «999999» давало итог
+// 23 299 976 700 ₽ без единого вопроса. Приводим поле к тому, по чему считаем.
+// force=true (уход из поля) — пустое поле превращаем в 1, чтобы не осталось дыры.
+function _qtyFix(el,force){
+  if(!el)return;
+  var raw=String(el.value||'').replace(',','.');
+  if(raw===''){if(force)el.value='1';return;}
+  var n=Math.floor(parseFloat(raw));
+  if(!isFinite(n)||n<1)n=1;
+  if(n>500){n=500;toast('⚠️ Больше 500 штук в одной строке не бывает — поставил 500','err',3500);}
+  if(String(n)!==String(el.value))el.value=String(n);
+}
 function _liftPieces(){
   var n=0;
   for(var i=1;i<=itemCount;i++){
@@ -6872,7 +7132,7 @@ function saveOrder(){
   // уже лежали в кассе. Одна и та же сумма считалась дважды.
   var _wasDone=found&&String(found.status||'').indexOf('Выполнен')>=0;
   if(_wasDone){
-    var _oldSum=Math.round(found.goods_discounted||found.goods_total||0);
+    var _oldSum=Math.round(orderGoods(found));
     if(_oldSum!==goodsDisc&&!confirm('Заказ уже выполнен и закрыт.\n\nСумма товаров меняется: '+fmt(_oldSum)+' → '+fmt(goodsDisc)+' ₽.\n\nСтатус «Выполнен» и долг останутся прежними — деньги в кассе уже посчитаны. Поменяется только состав заказа.\n\nПродолжить?')){
       _saving=false;btn.disabled=false;return;
     }
@@ -7094,6 +7354,26 @@ function editOrder(id){
     if(item.color)document.getElementById('fi-color-'+id2).value=item.color;
     if(item.dims)document.getElementById('fi-dims-'+id2).value=item.dims;
     if(item.supplier_manual)document.getElementById('fi-supplier-'+id2).value=item.supplier_manual;
+    // v7.58: показываем прямо в строке, что позиция уже у клиента и что за неё
+    // получены деньги. Раньше этого в форме видно не было — продавец правил или
+    // удалял отвезённую позицию, а предупреждение приходило только при сохранении,
+    // когда решение уже принято.
+    (function(){
+      var host=document.getElementById('fi-model-'+id2);
+      if(!host||!host.parentNode)return;
+      var marks=[];
+      var _dq=(item.delivered_qty==null)?null:parseInt(item.delivered_qty);
+      var _q=parseInt(item.qty)||1;
+      if(item.delivered_at)marks.push('<span class="pl pl-mut">✅ Отвезено'
+        +((_dq!=null&&_dq>0&&_dq<_q)?(' '+_dq+' из '+_q):'')+' '+fmtDate(item.delivered_at)+'</span>');
+      if(Math.round(item.paid_amount||0)>0)marks.push('<span class="pl pl-good">💰 получено '+fmt(item.paid_amount)+' ₽</span>');
+      if(!marks.length)return;
+      var box=document.createElement('div');
+      box.className='fi-marks';
+      box.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px';
+      box.innerHTML=marks.join('')+'<span style="font-size:11px;color:var(--text2);align-self:center">— правка снимет эти отметки</span>';
+      host.parentNode.insertBefore(box,host.nextSibling);
+    })();
     var qty=item.qty||1;
     var hasCat=item.fabric_category&&item.fabric_category!='';
     if(hasCat){
@@ -7234,13 +7514,37 @@ document.addEventListener('visibilitychange',function(){
   var today=new Date().toISOString().slice(0,10);
   if(localStorage.getItem('vd_manager_day')!==today)checkManagerDay();
 });
-function loadClients(){
-  return sbGet('clients','select=*&order=name.asc&limit=2500').then(function(rows){allClients=rows||[];});
+// v7.57: грузим ПОРЦИЯМИ. Раньше просили 2500 одним запросом, а сервер отдаёт
+// максимум 1000 и об обрезке не сообщает: в базе 2106 клиентов, список обрывался
+// на «Ладный Вадим Викторович», и всё, что дальше по алфавиту, поиском в этом
+// разделе не находилось. Лазарева Татьяна Васильевна с заказом №647285 просто
+// не существовала. Подпись «1000 клиентов» показывала размер порции.
+// Правило: если запрос может вернуть больше 1000 строк — читать постранично,
+// как это давно делает бэкап (_bkFetchAll).
+var _clientsTrunc=false;
+async function loadClients(){
+  var out=[],off=0,PAGE=1000;
+  _clientsTrunc=false;
+  for(;;){
+    var page=await sbGet('clients','select=*&order=name.asc&limit='+PAGE+'&offset='+off);
+    out=out.concat(page||[]);
+    if(!page||page.length<PAGE)break;
+    off+=PAGE;
+    if(off>=50000){_clientsTrunc=true;break;} // предохранитель от бесконечного цикла
+  }
+  allClients=out;
 }
 function renderClients(){
-  var q=document.getElementById('clients-search').value.toLowerCase();
-  var f=q?allClients.filter(function(c){return(c.name&&c.name.toLowerCase().indexOf(q)>=0)||(c.phone&&c.phone.indexOf(q)>=0);}):allClients;
-  document.getElementById('clients-count').textContent=f.length+' клиентов';
+  var q=_sNorm(document.getElementById('clients-search').value).trim();
+  var qD=_digits(q);
+  var f=q?allClients.filter(function(c){
+    if(c.name&&_sNorm(c.name).indexOf(q)>=0)return true;
+    // v7.57: телефон ищем по цифрам — «89001112233» находит «8-900-111-22-33»
+    if(qD.length>=3&&((c.phone&&_digits(c.phone).indexOf(qD)>=0)||(c.phone2&&_digits(c.phone2).indexOf(qD)>=0)))return true;
+    return false;
+  }):allClients;
+  document.getElementById('clients-count').textContent=(q?('найдено '+f.length+' из '+allClients.length):(allClients.length+' клиентов'))
+    +(_clientsTrunc?' · список обрезан, сообщите об этом':'');
   var html='';
   f.slice(0,100).forEach(function(c){
     html+='<div class="client-row" style="cursor:pointer" title="Показать историю заказов" onclick="openClientHistory('+_chArg(c.phone)+','+_chArg(c.name)+','+_chArg(c.phone2)+')">'+
@@ -7249,7 +7553,12 @@ function renderClients(){
       '<div style="font-size:12px;color:var(--text2)">'+(([c.phone,c.phone2,c.address].filter(Boolean).join(' · '))||'Нет данных')+'</div></div>'+
       '<div style="font-size:12px;color:var(--text2)">'+(c.orders_count||0)+' заказ(ов) <span style="color:#1565C0">📇</span></div></div>';
   });
-  document.getElementById('clients-list').innerHTML=html||'<div class="empty"><p>Клиентов не найдено</p></div>';
+  // v7.57: на экран влезает 100 строк — раньше об этом нигде не говорилось,
+  // и «первая сотня» выглядела как «все клиенты»
+  if(f.length>100)html+='<div style="text-align:center;padding:12px;font-size:12.5px;color:var(--text2)">'
+    +'Показаны первые 100 из '+f.length+' — начните вводить фамилию или телефон.</div>';
+  document.getElementById('clients-list').innerHTML=html||'<div class="empty" style="padding:22px"><p style="font-weight:600">Никого не нашли</p>'
+    +'<p style="font-size:12.5px;color:var(--text2)">Проверьте фамилию или телефон. В базе '+allClients.length+' клиентов.</p></div>';
 }
 var filterClients=_debounce(function(){renderClients();},180);
 // ═══ v6.6: история клиента (мини-CRM) ═══
@@ -7292,7 +7601,7 @@ function openClientHistory(phone,name,phone2){
   }
   var totalGoods=0,totalDebt=0,phones={},addr='',addrRank=-1,names={};
   list.forEach(function(o){
-    totalGoods+=(o.goods_discounted||o.goods_total||0);
+    totalGoods+=orderGoods(o);
     // v7.29: та же функция, что в карточке заказа, печати и аналитике
     totalDebt+=orderDebt(o);
     [o.client_phone,o.client_phone2].forEach(function(p){if(p)phones[p]=1;});
@@ -7318,7 +7627,7 @@ function openClientHistory(phone,name,phone2){
   list.forEach(function(o){
     var items=o.order_items||[];
     var isDone=o.status==='🏁 Выполнен';
-    var goods=o.goods_discounted||o.goods_total||0;
+    var goods=orderGoods(o);
     var itHtml=items.map(function(it){
       return '<div style="font-size:12px;color:var(--text2);padding:1px 0">• '+it.product_name
         +(it.color?' ('+it.color+')':'')+(it.qty>1?' × '+it.qty:'')
@@ -7404,7 +7713,9 @@ function ensureProducts(){
   _loadPriceSuppliers(); // v7.14: чтобы форма не дублировала старый каталог по загруженным прайсам
   if(window.loadFabricCats)loadFabricCats(); // v7.19: серверная спецификация тканей (если загружена)
   if(allProducts.length)return;
-  sbGet('products','select=*&has_fabric_cats=eq.false&limit=2000').then(function(rows){allProducts=rows||[];}).catch(function(e){console.error(e);});
+  // v7.57: постранично — в таблице 2198 строк, а сервер отдаёт по 1000 за раз,
+  // и старый каталог в подсказках формы молча обрывался
+  sbGetAll('products','select=*&has_fabric_cats=eq.false&order=id.asc').then(function(rows){allProducts=rows||[];}).catch(function(e){console.error(e);});
 }
 document.addEventListener('DOMContentLoaded',function(){
   var el=document.getElementById('page-new');
@@ -7481,7 +7792,7 @@ function renderStats(){
       // Раньше здесь было просто `debt+=o.remainder` — без доставки и заноса,
       // поэтому KPI «Долг к получению» был меньше суммы долгов в карточках,
       // и сойтись эти две цифры не могли никогда.
-      rev+=(o.goods_discounted||o.goods_total||0);debt+=orderDebt(o);
+      rev+=orderGoods(o);debt+=orderDebt(o);
       if(isDone(o))done++;
       (o.order_items||[]).forEach(function(it){ti++;if((it.price_opt||0)>0){cost+=itCost(it);ci++;}});
     });
@@ -7509,7 +7820,7 @@ function renderStats(){
     all.forEach(function(o){
       if(!o.order_date)return;var m=o.order_date.slice(0,7);
       if(!bm[m])bm[m]={n:0,rev:0,cost:0};
-      bm[m].n++;bm[m].rev+=(o.goods_discounted||o.goods_total||0);
+      bm[m].n++;bm[m].rev+=orderGoods(o);
       (o.order_items||[]).forEach(function(it){if((it.price_opt||0)>0)bm[m].cost+=itCost(it);});
     });
     var keys=Object.keys(bm).sort().slice(-12);
@@ -7559,7 +7870,7 @@ function renderStats(){
   var byMgr={};
   orders.forEach(function(o){
     var m=o.manager||'Не указан';if(!byMgr[m])byMgr[m]={n:0,rev:0,cost:0,done:0,days:0,dayN:0};
-    var g=byMgr[m];g.n++;g.rev+=(o.goods_discounted||o.goods_total||0);
+    var g=byMgr[m];g.n++;g.rev+=orderGoods(o);
     (o.order_items||[]).forEach(function(it){if((it.price_opt||0)>0)g.cost+=itCost(it);});
     if((o.status||'')==='🏁 Выполнен')g.done++;
     if(o.closed_at&&o.order_date){var dd=(new Date(o.closed_at)-new Date(o.order_date))/86400000;if(dd>=0&&dd<400){g.days+=dd;g.dayN++;}}
@@ -7578,9 +7889,24 @@ function renderStats(){
   });
   document.getElementById('chart-managers').innerHTML=mgHtml||'<p style="color:var(--text2);font-size:13px">Нет данных</p>';
   // Поставщики: выручка + прибыль + маржа
-  var bySup={};
-  orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var s=it.supplier||'Прочее';if(!bySup[s])bySup[s]={rev:0,cost:0};bySup[s].rev+=itSell(it);if((it.price_opt||0)>0)bySup[s].cost+=itCost(it);});});
-  var sups=Object.keys(bySup).map(function(k){var d=bySup[k],prof=d.rev-d.cost;return{label:k,val:d.rev,display:fmtK(d.rev)+' / '+fmtK(prof)+(d.rev?' ('+Math.round(prof/d.rev*100)+'%)':'')};}).sort(function(a,b){return b.val-a.val;});
+  // v7.57: берём поставщика ТАК ЖЕ, как карточка заказа — supplier_manual||supplier
+  // (правило v7.18). Раньше смотрели только supplier из прайса, а он заполнен лишь
+  // у 17 позиций из 137: 2 672 500 ₽ из 3 038 100 ₽ выручки падали в «Прочее», и
+  // разрез был бесполезен. Заодно сводим «Восход» и «ВОСХОД» в одного поставщика,
+  // показывая написание, которое встречается чаще.
+  var bySup={},supLabel={};
+  orders.forEach(function(o){(o.order_items||[]).forEach(function(it){
+    var raw=String(it.supplier_manual||it.supplier||'').trim();
+    var s=raw?_supNorm(raw):'Без поставщика';
+    if(raw){supLabel[s]=supLabel[s]||{};supLabel[s][raw]=(supLabel[s][raw]||0)+1;}
+    if(!bySup[s])bySup[s]={rev:0,cost:0};
+    bySup[s].rev+=itSell(it);if((it.price_opt||0)>0)bySup[s].cost+=itCost(it);
+  });});
+  function _supTitle(k){
+    var v=supLabel[k];if(!v)return k;
+    return Object.keys(v).sort(function(a,b){return v[b]-v[a];})[0];
+  }
+  var sups=Object.keys(bySup).map(function(k){var d=bySup[k],prof=d.rev-d.cost;return{label:_supTitle(k),val:d.rev,display:fmtK(d.rev)+' / '+fmtK(prof)+(d.rev?' ('+Math.round(prof/d.rev*100)+'%)':'')};}).sort(function(a,b){return b.val-a.val;});
   bar('chart-suppliers',sups,sups.length?Math.max.apply(null,sups.map(function(s){return s.val;})):1,'#9C27B0');
   // Топ товаров
   var byGood={};
@@ -7589,12 +7915,16 @@ function renderStats(){
   bar('chart-topgoods',goods,goods.length?goods[0].val:1,'#3949AB');
   // Топ клиентов
   var byCl={};
-  orders.forEach(function(o){var c=o.client_name||'—';if(!byCl[c])byCl[c]={n:0,rev:0};byCl[c].n++;byCl[c].rev+=(o.goods_discounted||o.goods_total||0);});
+  orders.forEach(function(o){var c=o.client_name||'—';if(!byCl[c])byCl[c]={n:0,rev:0};byCl[c].n++;byCl[c].rev+=orderGoods(o);});
   var cls=Object.keys(byCl).map(function(k){return{label:k,val:byCl[k].rev,display:byCl[k].n+' зак · '+fmtK(byCl[k].rev)+' ₽'};}).sort(function(a,b){return b.val-a.val;}).slice(0,10);
   bar('chart-topclients',cls,cls.length?cls[0].val:1,'#00897B');
   // Должники
   var byDebt={};
-  orders.forEach(function(o){if((o.remainder||0)>0){var c=o.client_name||'—';byDebt[c]=(byDebt[c]||0)+o.remainder;}});
+  // v7.58: та же формула, что у KPI «Долг к получению», в карточке и в печати.
+  // Здесь оставался голый remainder — без неоплаченной доставки и заноса, — и две
+  // цифры на одном экране расходились: 145 000 в «Должниках» против 146 300 в KPI.
+  // В v7.29 это уже чинили для KPI, а список должников забыли.
+  orders.forEach(function(o){var d=Math.round(orderDebt(o));if(d>0){var c=o.client_name||'—';byDebt[c]=(byDebt[c]||0)+d;}});
   var debts=Object.keys(byDebt).map(function(k){return{label:k,val:byDebt[k],display:fmtK(byDebt[k])+' ₽'};}).sort(function(a,b){return b.val-a.val;}).slice(0,12);
   bar('chart-debtors',debts,debts.length?debts[0].val:1,'#C62828');
   // Статусы
@@ -7631,7 +7961,7 @@ function renderStats(){
     '</div>';
   // География
   var byCity={};
-  orders.forEach(function(o){var c=_cityOf(o.client_address);if(!byCity[c])byCity[c]={n:0,rev:0};byCity[c].n++;byCity[c].rev+=(o.goods_discounted||o.goods_total||0);});
+  orders.forEach(function(o){var c=_cityOf(o.client_address);if(!byCity[c])byCity[c]={n:0,rev:0};byCity[c].n++;byCity[c].rev+=orderGoods(o);});
   var cities=Object.keys(byCity).map(function(k){return{label:k,val:byCity[k].rev,display:byCity[k].n+' зак · '+fmtK(byCity[k].rev)+' ₽'};}).sort(function(a,b){return b.val-a.val;}).slice(0,12);
   bar('chart-geo',cities,cities.length?cities[0].val:1,'#F9A825');
 }
@@ -7773,7 +8103,7 @@ function _loadRates(){
 }
 function _mdLoad(){
   if(_mdCache)return Promise.resolve(_mdCache);
-  return sbGet('manager_days','select=work_date,manager&limit=20000')
+  return sbGetAll('manager_days','select=work_date,manager&order=work_date.asc') // v7.57: постранично
     .then(function(r){_mdCache=r||[];return _mdCache;})
     .catch(function(){_mdCache=[];return _mdCache;});
 }
@@ -7810,7 +8140,7 @@ function _renderSalary(orders,range){
     function row(n){if(!by[n])by[n]={rev:0,n:0,days:0};return by[n];}
     (orders||[]).forEach(function(o){
       var n=(o.manager||'').trim();if(!n)return;
-      var g=row(n);g.rev+=(o.goods_discounted||o.goods_total||0);g.n++;
+      var g=row(n);g.rev+=orderGoods(o);g.n++;
     });
     var seen={};
     (md||[]).forEach(function(r){
@@ -8100,7 +8430,7 @@ function printContract(orderId){
   var d=o.order_date?new Date(o.order_date+'T00:00:00'):new Date();
   var mos=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
   var day=d.getDate(),mon=mos[d.getMonth()],yr=d.getFullYear();
-  var total=o.goods_discounted||o.goods_total||0;
+  var total=orderGoods(o);
   var prepay=o.prepayment||0;
   var goodsLeft=Math.max(0,Math.round(total-prepay));
   var delivCost=o.delivery_cost||0, liftCost=o.lifting_cost||0;
@@ -8203,11 +8533,21 @@ function printContract(orderId){
 function printAct(orderId){
   var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
   var items=o.order_items||[];
-  var total=o.goods_discounted||o.goods_total||0;
+  var total=orderGoods(o);
   var delivCost=o.delivery_cost||0, liftCost=o.lifting_cost||0, dTotal=delivCost+liftCost;
   // v7.37: остаток к оплате при передаче считаем сами, а не оставляем прочерк.
   // Товар минус предоплата плюс доставка с заносом, если они ещё не оплачены.
-  var actGoodsLeft=Math.max(0,Math.round(total-(o.prepayment||0)));
+  // v7.57: и МИНУС деньги, уже полученные за отдельные позиции при доставке.
+  // Заказ владельца №906572: товар 33 100, предоплата 10 000, за отвезённый комод
+  // клиент отдал картой ещё 9 800. Карточка показывала долг 13 300, а акт печатал
+  // «Получено при передаче 23 100» — документ на подпись требовал с клиента лишние
+  // 9 800 ₽.
+  // Считаем из ПЕРВИЧНЫХ сумм, а не из поля remainder: акт клиент проверяет
+  // калькулятором по напечатанному столбику, и столбик обязан сходиться сам с собой.
+  // Поле remainder ведёт приложение, оно может отстать от жизни — в договоре и акте
+  // такой зависимости быть не должно.
+  var actPaidItems=items.reduce(function(s,it){return s+Math.round(+it.paid_amount||0);},0);
+  var actGoodsLeft=Math.max(0,Math.round(total-(o.prepayment||0)-actPaidItems));
   var actDelivDue=(dTotal>0&&o.delivery_paid!=='yes'&&o.delivery_our!==false)?dTotal:0;
   var actDue=actGoodsLeft+actDelivDue;
   var mos=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
@@ -8249,6 +8589,9 @@ function printAct(orderId){
     +'<table>'
     +'<tr><td>Стоимость Товара по Договору</td><td class="r" style="width:22%">'+fmt(total)+' руб.</td></tr>'
     +((o.prepayment||0)>0?'<tr><td>Внесено предоплаты</td><td class="r">− '+fmt(o.prepayment)+' руб.</td></tr>':'')
+    // v7.57: строка обязана быть видна клиенту — иначе столбик не сходится:
+    // 33 100 − 10 000 = 23 100, а «Получено при передаче» 13 300
+    +(actPaidItems>0?'<tr><td>Оплачено при доставке товара</td><td class="r">− '+fmt(actPaidItems)+' руб.</td></tr>':'')
     +(dTotal>0?'<tr><td>'+(delivCost>0&&liftCost>0?'Доставка и занос':(liftCost>0?'Занос':'Доставка'))+_delivPayMark(o,dTotal)+'</td><td class="r">'+fmt(dTotal)+' руб.</td></tr>':'')
     +'<tr class="tfoot"><td>Получено при передаче Товара</td><td class="r">'+fmt(actDue)+' руб.</td></tr>'
     +'</table>'
@@ -8309,11 +8652,24 @@ function runDataCheck(){
       var pr=+it.price_retail||0, pd=(it.price_discounted!=null?+it.price_discounted:pr);
       sumRet+=pr*q;sumDisc+=pd*q;
       if(pr>0&&!(+it.price_opt>0))G.noopt.rows.push({num:num,note:(it.product_name||'позиция')+' · '+fmt(pr)+' ₽'});
-      else if(+it.price_opt>0&&+it.price_opt>=pr&&pr>0)G.lowopt.rows.push({num:num,note:(it.product_name||'позиция')+' · опт '+fmt(it.price_opt)+' ≥ розн. '+fmt(pr)});
+      else if(+it.price_opt>0&&+it.price_opt>=pr&&pr>0){
+        // v7.58: узнаём почерк старой ошибки — опт посчитан от ВСЕЙ СТРОКИ, а не
+        // за штуку. Признак: опт ÷ количество даёт ровно ту оптовую цену, которую
+        // приложение вывело бы из розницы за штуку. Четыре такие позиции нашлись
+        // в заказах 561208, 399604 и 942387 — аналитика считала их убыточными.
+        // Такую позицию можно поправить одной кнопкой, не трогая цену для клиента.
+        // Записываем ровно то значение, которое приложение вывело бы само сейчас
+        // (optFromRetail от цены за штуку), а деление опта на количество — только
+        // признак, что беда именно эта, а не настоящая продажа без наценки.
+        var _fix=(q>1&&Math.abs(Math.round(+it.price_opt/q)-optFromRetail(pr))<=1)?optFromRetail(pr):0;
+        G.lowopt.rows.push({num:num,itemId:it.id,fixOpt:_fix,
+          note:(it.product_name||'позиция')+' · опт '+fmt(it.price_opt)+' ≥ розн. '+fmt(pr)
+            +(_fix?' · при количестве '+q+' опт посчитан за всю строку, за штуку должно быть '+fmt(_fix)+' ₽':'')});
+      }
       if(q>1&&pr>0&&pr%100!==0)G.fracunit.rows.push({num:num,note:(it.product_name||'позиция')+' · '+fmt(pr)+' ₽ × '+q+' шт'});
     });
     if(items.length){
-      var goods=+o.goods_discounted||+o.goods_total||0;
+      var goods=orderGoods(o);
       var diff=_dcRound(sumDisc-goods);
       if(goods>0&&Math.abs(diff)>1)
         G.total.rows.push({num:num,note:'позиции '+fmt(sumDisc)+' ₽, в заказе '+fmt(goods)+' ₽ — разница '+(diff>0?'+':'')+fmt(diff)+' ₽'});
@@ -8323,7 +8679,7 @@ function runDataCheck(){
     var d=+o.discount_pct;
     if(isFinite(d)&&(d<0||d>100))G.disc.rows.push({num:num,note:'скидка '+d+' %'});
     // v7.52: излишек предоплаты сверх товаров + доставки и заноса
-    var _g=Math.round(+o.goods_discounted||+o.goods_total||0);
+    var _g=Math.round(orderGoods(o));
     var _dl=Math.round((+o.delivery_cost||0)+(+o.lifting_cost||0));
     var _ov=Math.round((+o.prepayment||0)-_g-_dl);
     if(_g>0&&_ov>1)
@@ -8331,7 +8687,12 @@ function runDataCheck(){
         +(_dl>0?' и доставке '+fmt(_dl)+' ₽':'')+' — лишних '+fmt(_ov)+' ₽'});
   });
   var bad=groups.reduce(function(s,g){return s+g.rows.length;},0);
-  var html='<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Проверено заказов: <strong>'+checked+'</strong>'
+  // v7.58: сверка «Учёт против Аналитики». Обе цифры считаются разными путями и
+  // сегодня сходятся — но если разойдутся, владелец узнает об этом случайно.
+  // Пусть приложение сверяет само и молчит, пока всё хорошо.
+  var _sv=_crossCheckMoney();
+  var html=(_sv?_sv.html:'')
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Проверено заказов: <strong>'+checked+'</strong>'
     +(_ordersTruncated?' (загружены последние '+_ORDERS_LIMIT+' — более старые в приложение не попали)':'')+'</div>';
   if(!bad){
     html+='<div style="background:#E8F5E9;color:#1B5E20;border-radius:7px;padding:11px 13px;font-size:13px">✅ Расхождений не найдено.</div>';
@@ -8345,7 +8706,13 @@ function runDataCheck(){
         +'<div style="font-size:11.5px;color:var(--text2);margin:4px 0 7px;line-height:1.5">'+esc(g.why)+'</div>'
         +'<div style="font-size:12px;line-height:1.7">'
         +g.rows.slice(0,25).map(function(r){
-          return '<div><span style="color:#1565C0;cursor:pointer;text-decoration:underline" onclick="openOrderByNumber(\''+String(r.num).replace(/'/g,"\\'")+'\')">№ '+esc(r.num)+'</span> — '+esc(r.note)+'</div>';
+          // v7.58: если приложение точно знает, каким должен быть опт, — даёт кнопку.
+          // Раньше отчёт только показывал беду, а править нужно было руками в карточке.
+          var _btn=(r.fixOpt&&r.itemId)
+            ?' <button class="pl pl-warn" style="margin-left:4px" title="Записать оптовую цену за штуку. Цена для клиента не изменится" '
+              +'onclick="fixItemOpt('+r.itemId+','+r.fixOpt+',this)">✔ поправить опт на '+fmt(r.fixOpt)+' ₽</button>'
+            :'';
+          return '<div style="padding:2px 0"><span style="color:#1565C0;cursor:pointer;text-decoration:underline" onclick="openOrderByNumber(\''+String(r.num).replace(/'/g,"\\'")+'\')">№ '+esc(r.num)+'</span> — '+esc(r.note)+_btn+'</div>';
         }).join('')
         +(g.rows.length>25?'<div style="color:var(--text2)">…и ещё '+(g.rows.length-25)+'</div>':'')
         +'</div></div>';
@@ -8440,6 +8807,62 @@ function initials(n){if(!n)return'?';return n.trim().split(/\s+/).slice(0,2).map
 function hideAc(id,delay){setTimeout(function(){var el=document.getElementById(id);if(el)el.style.display='none';},delay||200);}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
+
+// ═══ v7.58: ПОЧИНИТЬ ОПТОВУЮ ЦЕНУ ОДНОЙ КНОПКОЙ ═══════════════════════
+// «Проверка данных» находит позиции, где опт посчитан от всей строки, а не за
+// штуку (заказы 561208, 399604, 942387 — четыре позиции на 29 468 ₽ мнимого
+// убытка). Меняем ТОЛЬКО price_opt: цена для клиента, сумма заказа и договор
+// остаются как были, поправляется лишь себестоимость в аналитике.
+function fixItemOpt(itemId,newOpt,btn){
+  if(!itemId||!(newOpt>0))return;
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  sbPatch('order_items',{price_opt:newOpt},'id=eq.'+itemId).then(function(){
+    // поправим и в памяти, чтобы аналитика пересчиталась без перезагрузки
+    (allOrders||[]).forEach(function(o){(o.order_items||[]).forEach(function(it){
+      if(it.id===itemId)it.price_opt=newOpt;
+    });});
+    if(btn){btn.className='pl pl-good';btn.textContent='✔ поправлено: '+fmt(newOpt)+' ₽';}
+    toast('✅ Оптовая цена записана: '+fmt(newOpt)+' ₽','ok');
+    if(typeof renderStats==='function')renderStats();
+  }).catch(function(e){
+    if(btn){btn.disabled=false;btn.textContent='✔ поправить опт';}
+    toast('❌ Не сохранилось: '+e.message,'err',5000);
+  });
+}
+
+// ═══ v7.58: СВЕРКА «УЧЁТ ПРОТИВ АНАЛИТИКИ» ════════════════════════════
+// Долг к получению в аналитике и долги по карточкам считаются по одной формуле
+// (orderDebt), но приходят разными путями; выручка и сумма позиций — тем более.
+// Раньше расхождение можно было заметить только глазами, случайно. Теперь
+// «Проверка данных» сверяет их сама и пишет об этом, только если не сошлось.
+function _crossCheckMoney(){
+  var list=allOrders||[];
+  if(!list.length)return null;
+  var строк=[];
+  // 1. Долг: сумма по карточкам против того, что покажет KPI
+  var долгПоЗаказам=0;
+  list.forEach(function(o){долгПоЗаказам+=Math.round(orderDebt(o));});
+  // 2. Выручка: поле заказа против суммы позиций
+  var поЗаказам=0,поПозициям=0,расходятся=0;
+  list.forEach(function(o){
+    var g=orderGoods(o);
+    var s=(o.order_items||[]).reduce(function(a,i){
+      var q=parseInt(i.qty==null?i.quantity:i.qty)||1;
+      return a+Math.round((+i.price_discounted||+i.price_retail||0)*q);
+    },0);
+    поЗаказам+=g;
+    if((o.order_items||[]).length){поПозициям+=s;if(Math.abs(s-g)>1)расходятся++;}
+  });
+  if(!расходятся&&Math.abs(поЗаказам-поПозициям)<=1)return {html:''};
+  if(расходятся){
+    строк.push('Сумма позиций не сходится с итогом заказа у <strong>'+расходятся+'</strong> '
+      +(расходятся===1?'заказа':'заказов')+': по позициям '+fmt(поПозициям)+' ₽, в заказах '+fmt(поЗаказам)+' ₽ (разница '
+      +fmt(Math.abs(поПозициям-поЗаказам))+' ₽). Подробности ниже, в разделе «Итог заказа не сходится с суммой позиций».');
+  }
+  if(!строк.length)return {html:''};
+  return {html:'<div style="background:#fbf0e2;border:1px solid #e6c284;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.55;color:#8a5a18">'
+    +'<strong>⚖️ Сверка денег</strong><br>'+строк.join('<br>')+'</div>', долг:долгПоЗаказам};
+}
 // ═══ v7.48: СПРАВОЧНИК ДОСТАВКИ ПО НАСЕЛЁННЫМ ПУНКТАМ ═══════════════════
 // До этого прейскурант был бумажным листом на прилавке: печатные цены и
 // поверх них цены шариковой ручкой. Лист один, компьютеров несколько, а
