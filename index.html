@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.60</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.61</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1754,6 +1754,73 @@ var _LOG_FIELDS=[
   {k:'delivery_paid',n:'Доставка оплачена'},{k:'delivery_our',n:'Наша доставка'},
   {k:'delivery_type',n:'Тип доставки'},{k:'notes',n:'Примечание'}
 ];
+// v7.61: ТОВАРЫ внутри заказа. Раньше журнал сравнивал только 19 полей самого
+// заказа, а правки по позициям — самые частые — не попадали никуда. Заказ
+// №854152 показал это в лоб: запись «Правка» есть, содержания нет.
+var _LOG_ITEM_FIELDS=[
+  {k:'product_name',n:'название'},
+  {k:'color',       n:'цвет'},
+  {k:'dims',        n:'размеры'},
+  {k:'qty',         n:'количество'},
+  {k:'price_discounted', n:'цена'},
+  {k:'price_opt',   n:'закупка'},
+  {k:'availability',n:'наличие'}
+];
+function _itemLabel(it){
+  if(!it)return '';
+  var q=Math.max(1,Math.round(+(it.qty||it.quantity||1)));
+  var цена=Math.round(+(it.price_discounted||it.price_retail||0))*q;
+  return [String(it.product_name||'без названия'),
+          String(it.color||''),
+          q>1?(q+' шт'):'',
+          цена?(fmt(цена)+' ₽'):''
+         ].filter(function(x){return x;}).join(' · ');
+}
+function _itemSup(it){
+  return String((it&&(it.supplier_manual||it.supplier))||'').trim();
+}
+// Ключ позиции: id из базы, если он есть. У только что добавленной строки его
+// нет — тогда сверяем по названию и цвету, иначе одна и та же строка выглядела
+// бы как «убрали и добавили».
+function _itemKey(it,i){
+  if(it&&it.id!=null)return 'id:'+it.id;
+  return 'nm:'+String((it&&it.product_name)||'').toLowerCase().trim()+'|'+String((it&&it.color)||'').toLowerCase().trim()+'|'+i;
+}
+function diffItems(before,after){
+  var out=[];
+  if(!before||!after)return out;
+  var A=before.order_items||[], B=after.order_items||[];
+  var mapA={},mapB={};
+  A.forEach(function(it,i){mapA[_itemKey(it,i)]=it;});
+  B.forEach(function(it,i){mapB[_itemKey(it,i)]=it;});
+  // убрали
+  Object.keys(mapA).forEach(function(k){
+    if(!mapB[k])out.push({field:'Убран товар',old:_itemLabel(mapA[k]),new:''});
+  });
+  // добавили
+  Object.keys(mapB).forEach(function(k){
+    if(!mapA[k])out.push({field:'Добавлен товар',old:'',new:_itemLabel(mapB[k])});
+  });
+  // изменили
+  Object.keys(mapB).forEach(function(k){
+    var a=mapA[k],b=mapB[k];
+    if(!a||!b)return;
+    _LOG_ITEM_FIELDS.forEach(function(fl){
+      var na=(a[fl.k]==null||a[fl.k]==='')?'':String(a[fl.k]);
+      var nb=(b[fl.k]==null||b[fl.k]==='')?'':String(b[fl.k]);
+      if(na===nb)return;
+      if(isFinite(parseFloat(na))&&isFinite(parseFloat(nb))&&Math.round(parseFloat(na))===Math.round(parseFloat(nb)))return;
+      var деньги=(fl.k==='price_discounted'||fl.k==='price_opt');
+      out.push({field:'Товар: '+fl.n,
+        old:деньги&&na?fmt(Math.round(+na))+' ₽':na,
+        new:деньги&&nb?fmt(Math.round(+nb))+' ₽':nb,
+        note:String(a.product_name||b.product_name||'')});
+    });
+    var sa=_itemSup(a),sb=_itemSup(b);
+    if(sa!==sb)out.push({field:'Товар: поставщик',old:sa,new:sb,note:String(a.product_name||'')});
+  });
+  return out;
+}
 function diffOrder(before,after){
   var out=[];
   if(!before||!after)return out;
@@ -3378,6 +3445,20 @@ function openOrderLog(orderId){
         :(String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear()
           +' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'));
       var кто=esc(g.who_name||'')||esc(String(g.who||'').split('@')[0])||'—';
+      // v7.61: сводка прямо в шапке события — что именно трогали, видно не
+      // вчитываясь. Заказ №854152 показал обратное: «Правка» и пустота под ней.
+      var _имена=[],_плюс=0,_минус=0;
+      g.rows.forEach(function(r){
+        if(!r.field)return;
+        if(r.field==='Добавлен товар'){_плюс++;return;}
+        if(r.field==='Убран товар'){_минус++;return;}
+        var им=r.field.indexOf('Товар: ')===0?('товар — '+r.field.slice(7)):r.field;
+        if(_имена.indexOf(им)<0)_имена.push(им);
+      });
+      if(_плюс)_имена.push('+'+_плюс+' товар'+(_плюс>1?'а':''));
+      if(_минус)_имена.push('−'+_минус+' товар'+(_минус>1?'а':''));
+      var свод=_имена.length?_имена.slice(0,3).join(', ')+(_имена.length>3?' и ещё '+(_имена.length-3):'')
+        :(g.rows.some(function(r){return r.note;})?'':'без изменений');
       var поля=g.rows.map(function(r){
         if(!r.field)return r.note?'<div style="font-size:12.5px;color:var(--text2);padding:2px 0">'+esc(r.note)+'</div>':'';
         var было=(r.old_val==null||r.old_val==='')?'<span style="color:var(--text2)">пусто</span>':esc(r.old_val);
@@ -3389,6 +3470,7 @@ function openOrderLog(orderId){
       return '<div style="border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:8px">'
         +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
         +'<span style="font-size:13px;font-weight:700">'+a.i+' '+esc(a.t)+'</span>'
+        +(свод?'<span style="font-size:12px;color:var(--text2)">· '+esc(свод)+'</span>':'')
         +'<span class="pl pl-mut">'+когда+'</span>'
         +'<span class="pl pl-mut">👤 '+кто+'</span></div>'
         +поля+'</div>';
@@ -7604,7 +7686,7 @@ function saveOrder(){
     // v7.59: журнал изменений. Пишем ПОСЛЕ успешного сохранения и никогда не
     // мешаем основной работе — logOrder глотает свои ошибки сам.
     try{
-      if(_before)logOrder(local,'edit',diffOrder(_before,local));
+      if(_before)logOrder(local,'edit',diffOrder(_before,local).concat(diffItems(_before,local)));
       else logOrder(local,'create',null,'заказ оформлен на '+fmt(orderGoods(local))+' ₽');
     }catch(e){}
     toast('✅ Заказ сохранён!');
