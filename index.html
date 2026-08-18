@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.61</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.62</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -3693,7 +3693,9 @@ function savePriceTemplate(){
     modular:document.getElementById('pl-modular').checked,
     matrix_multi:document.getElementById('pl-matrix-on')?document.getElementById('pl-matrix-on').checked:false,
     var_cols:(document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked)?_plMatrixCols():[],
-    kit_part:document.getElementById('pl-kitpart')?document.getElementById('pl-kitpart').checked:false
+    kit_part:document.getElementById('pl-kitpart')?document.getElementById('pl-kitpart').checked:false,
+    descCols:_plDetDesc||[], // v7.62: описательные колонки живут вместе с шаблоном
+    dimOrder:_plDetDimOrder||''
   };
   var supKey=(document.getElementById('pl-sup').value||'').trim().toLowerCase();
   if(supKey)store['sup:'+supKey]=store[_tplKeyFor(sn)];
@@ -3749,6 +3751,8 @@ function onPriceSheetChange(){
   var store=_getTplStore();
   var tpl=store[sn]||store['sup:'+((document.getElementById('pl-sup').value||'').trim().toLowerCase())];
   var det=_autoDetectSheet(_plData);
+  _plDetDesc=(tpl&&tpl.descCols)||(det&&det.descCols)||null; // v7.62
+  _plDetDimOrder=(tpl&&tpl.dimOrder)||(det&&det.dimOrder)||'';
   var se=document.getElementById('pl-tpl-status');
   // Сравниваем шаблон и автоопределение по числу валидных цен — берём лучший.
   // Так устаревший/битый шаблон («Столбец 1 / Столбец 1») не мешает.
@@ -3782,6 +3786,8 @@ function onPriceSheetChange(){
     return;
   }
   if(det){
+    _plDetDesc=det.descCols||null; // v7.62
+    _plDetDimOrder=det.dimOrder||'';
     document.getElementById('pl-startrow').value=det.headerRow+2;
     document.getElementById('pl-cascade').checked=!!det.cascade;
     _buildPriceColSelects();
@@ -3941,7 +3947,11 @@ function _extractDoors(low){
   if(/четыр[её]хдвер|четыр[её]хствор/.test(low))return 4;
   return null;
 }
-function _extractAttrs(name,article,dims){
+// v7.62: порядок чисел в габаритах. По умолчанию Ш×В×Г — так написано в
+// большинстве прайсов. Но если шапка колонки прямо говорит «Размеры В*Ш*Г»
+// (прайс корпусной мебели), верим ей: иначе у полки 220*1500*184 высотой
+// становились 1500 мм, и поиск «высотой до 400» её не находил.
+function _extractAttrs(name,article,dims,order){
   var txt=[dims,article,name].filter(Boolean).join(' ');
   var low=txt.toLowerCase();
   // Габариты
@@ -3950,7 +3960,13 @@ function _extractAttrs(name,article,dims){
   if(m){
     var a=parseInt(m[1]),b=parseInt(m[2]),c=m[3]?parseInt(m[3]):null;
     var ok=function(n){return n>=100&&n<=4000;};
-    if(ok(a))w=a; if(ok(b))h=b; if(c!=null&&ok(c))d=c;
+    var ord=(order&&/^[ВШГ]{2,3}$/.test(order))?order:'ШВГ';
+    var vals=[a,b,c];
+    for(var _i=0;_i<3;_i++){
+      var _v=vals[_i],_L=ord.charAt(_i);
+      if(_v==null||!ok(_v)||!_L)continue;
+      if(_L==='Ш')w=_v; else if(_L==='В')h=_v; else if(_L==='Г')d=_v;
+    }
   }
   // Тип
   var ptype=null;
@@ -4066,7 +4082,7 @@ function _collectRows(data,cfg){
     if(optNum<0||optNum>_PL_PRICE_MAX){_drop.weird++;continue;} // v7.58: было 99 999 999
     if(retVal<0||retVal>_PL_PRICE_MAX)retVal=0;
     optNum=Math.round(optNum*100)/100;retVal=Math.round(retVal*100)/100;
-    var _at=_extractAttrs(nameVal,artVal,'');
+    var _at=_extractAttrs(nameVal,artVal,'',cfg.dimOrder);
     var _cmp=[noteBuf,rowCompat].filter(Boolean).join(' · ').slice(0,900)||null;
     rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory,sheet_name:cfg.sheetName||'',compatibility:_cmp,dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
   }
@@ -4121,6 +4137,34 @@ function _plLooksCascade(data,startRow,colName,colOpt){
   }
   return priceNoName>both&&priceNoName>=2;
 }
+// v7.62: текст заголовка колонки для опознания. Шапка часто идёт с пояснением
+// в скобках или со второй строкой: «Изделие\n(Для просмотра фото — кликните…)»,
+// «Размеры\nВ*Ш*Г». Раньше такая ячейка была длиннее 35 знаков и отбрасывалась
+// целиком — колонка названия не находилась, и весь лист уезжал в структурный
+// разбор. На прайсе «Корпусная мебель» это давало 1324 товара с именами «49»,
+// «50», «51» по 49–51 ₽: и названием, и ценой становилась колонка «№».
+function _plHdrText(v){
+  var s=String(v==null?'':v).replace(/\s+/g,' ').trim();
+  var head=s.split(/[(\[]/)[0].trim();   // до пояснения в скобках
+  return head||s;
+}
+function _plHdrRaw(v){return String(v==null?'':v).replace(/\s+/g,' ').trim();}
+// v7.62: колонка «№ п/п» — не цена и не название. Числа идут подряд и растут на
+// единицу; у настоящей цены так не бывает. Без этой проверки структурный разбор
+// брал порядковый номер за оптовую цену.
+function _plLooksCounter(data,c){
+  var prev=null,step1=0,tot=0;
+  for(var r=0;r<data.length&&tot<400;r++){
+    var v=(data[r]||[])[c];
+    if(v===''||v==null)continue;
+    if(!_plIsPlainNumCell(v))continue;
+    var n=_plToNum(v);
+    if(!isFinite(n))continue;
+    if(prev!==null&&Math.round(n-prev)===1)step1++;
+    prev=n;tot++;
+  }
+  return tot>=10&&step1>=tot*0.8;
+}
 function _autoDetectSheet(data){
   // v7.21: шапку ищем в первых 40 строках, а не 15. У Асконы («ЭКОНОМ_PRIME» и др.)
   // настоящая шапка «Наименование МЦ | Размер | Оптовая цена» стоит в 22-й строке —
@@ -4130,13 +4174,16 @@ function _autoDetectSheet(data){
     var d={name:-1,ret:-1,art:-1};var priceCands=[];var nameCands=[];
     for(var i=0;i<row.length;i++){
       // Заголовок колонки — короткая ячейка. Длинные тексты (приветствия, примечания) — не заголовки.
-      var hl=String(row[i]||'').toLowerCase().trim();if(!hl||hl.length>35)continue;
+      var hl=_plHdrText(row[i]).toLowerCase();if(!hl||hl.length>35)continue;
       // название: «полное наименование» важнее «модели» (модель — это код: T-9904NSL),
       // а «наименование/модель» важнее «продукция/товар» (продукция/товар бывает кодом/категорией)
       if(/наимен|номенклатур|название|издели|product|^name/.test(hl))nameCands.push({c:i,pri:4});
       else if(/модель/.test(hl))nameCands.push({c:i,pri:3});
       else if(/продукц|товар/.test(hl))nameCands.push({c:i,pri:1});
-      if(d.ret<0&&/розн|retail|продаж/.test(hl))d.ret=i;
+      // v7.62: «РРЦ» — рекомендованная розничная цена. В заказ всё равно идёт
+      // цена по НАШЕЙ наценке от опта, но пусть будет видно, что советует фабрика.
+      // «РРЦ МР» (для маркетплейсов) не берём — первой найденной хватает.
+      if(d.ret<0&&/розн|retail|продаж|^ррц/.test(hl))d.ret=i;
       if(d.art<0&&/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант|размер/.test(hl))d.art=i;
       // ценовые кандидаты: приоритет «опт», затем «цена/стоимость» (розницу исключаем)
       if(/опт|\bopt\b|закуп|себест|wholesale/.test(hl))priceCands.push({c:i,pri:2});
@@ -4152,7 +4199,7 @@ function _autoDetectSheet(data){
     // Из ценовых кандидатов берём колонку с реальными (ненулевыми) ценами, приоритет «опт».
     // Так «Общая стоимость = 0» не побеждает настоящую «Цена».
     var opt=-1,best=-1;
-    priceCands.forEach(function(p){if(p.c===d.name)return;var cnt=_plColNumericCount(data,r+1,p.c);if(cnt>=3&&(cnt*10+p.pri)>best){best=cnt*10+p.pri;opt=p.c;}});
+    priceCands.forEach(function(p){if(p.c===d.name)return;if(_plLooksCounter(data,p.c))return;var cnt=_plColNumericCount(data,r+1,p.c);if(cnt>=3&&(cnt*10+p.pri)>best){best=cnt*10+p.pri;opt=p.c;}});
     // Фолбэк: подходящей ценовой колонки по заголовку нет → первая числовая правее названия/характеристики
     if(opt<0){
       var minCol=Math.max(d.name,d.art)+1;
@@ -4160,7 +4207,25 @@ function _autoDetectSheet(data){
     }
     if(opt>=0&&opt!==d.name){
       var cascade=_plLooksCascade(data,r+1,d.name,opt);
-      return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):'',cascade:cascade};
+      // v7.62: колонки с описанием товара (размеры, цвет, отделка, материал) кладём
+      // в характеристику. Иначе «220*1500*184» из отдельной колонки пропадало, и
+      // умному поиску нечем было отличить полку 1500 от полки 1800.
+      var _desc=[],_dimOrd='';
+      for(var _dc=0;_dc<row.length;_dc++){
+        if(_dc===d.name||_dc===opt||_dc===d.art||_dc===d.ret)continue;
+        var _dh=_plHdrText(row[_dc]).toLowerCase();
+        if(!_dh||_dh.length>35)continue;
+        if(!/размер|габарит|цвет|отделк|материал|исполнен|фасад/.test(_dh))continue;
+        if(/размер|габарит/.test(_dh)&&!_dimOrd){
+          // «Размеры В*Ш*Г», «Размеры ВхШхГ» — шапка сама говорит порядок чисел
+          var _om=_plHdrRaw(row[_dc]).toUpperCase().match(/([ВШГ])\s*[X\u0425*×]\s*([ВШГ])(?:\s*[X\u0425*×]\s*([ВШГ]))?/);
+          if(_om)_dimOrd=(_om[1]+_om[2]+(_om[3]||''));
+        }
+        var _dn=0;
+        for(var _dr=r+1;_dr<data.length&&_dn<3;_dr++){var _dv=(data[_dr]||[])[_dc];if(_dv!==''&&_dv!=null)_dn++;}
+        if(_dn>=3)_desc.push(_dc);
+      }
+      return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):'',cascade:cascade,descCols:_desc,dimOrder:_dimOrd||''};
     }
   }
   // ── Запасной СТРУКТУРНЫЙ детектор ──────────────────────────────────────
@@ -4171,7 +4236,7 @@ function _autoDetectSheet(data){
   for(var _c=0;_c<_ncols;_c++){var _n=_plColNumericCount(data,0,_c,true);_numc[_c]=_n;if(_n>_maxNum)_maxNum=_n;}
   if(_maxNum>=3){
     var _thr=_maxNum*0.6,_dense=[];
-    for(var _c2=0;_c2<_ncols;_c2++)if(_numc[_c2]>=_thr)_dense.push(_c2);
+    for(var _c2=0;_c2<_ncols;_c2++)if(_numc[_c2]>=_thr&&!_plLooksCounter(data,_c2))_dense.push(_c2); // v7.62: «№ п/п» — не цена
     if(_dense.length){
       var _opt=_dense[0],_ret=_dense[_dense.length-1];
       // имя: ЛЕВЕЙШАЯ колонка (до цен), где текста заметно больше, чем чисел — обычно это
@@ -4201,6 +4266,9 @@ function _autoDetectSheet(data){
       }
       // первая строка с ценой в опт-колонке → данные начинаются со строки выше (заголовок группы)
       var _firstNum=-1;for(var _r4=0;_r4<data.length;_r4++){if(_plToNum((data[_r4]||[])[_opt])>=50){_firstNum=_r4;break;}}
+      // v7.62: если названием и ценой оказалась ОДНА колонка, разбор не состоялся.
+      // Лучше честно ничего не предложить, чем залить каталог мусором.
+      if(_nameC===_opt)return null;
       if(_firstNum>0){
         // Описательные колонки МЕЖДУ именем и ценами (напр. у кроватей Браво: рисунки
         // обивки «абстракция,вертикаль,зигзаг…» и «N ВАРИАНТ») — забираем в артикул,
@@ -4902,6 +4970,11 @@ function _markImportedSheets(){
 }
 
 var _plModSys=null; // разметка листа «модульные системы» (v7.21)
+// v7.62: описательные колонки (размеры/цвет/материал), найденные автоопределением
+// для ТЕКУЩЕГО листа. Раньше они доезжали только до «Все листы сразу», а при
+// загрузке одного листа кнопкой молча терялись.
+var _plDetDesc=null;
+var _plDetDimOrder='';  // объявленный в шапке порядок габаритов, напр. «ВШГ»
 async function importPriceList(){
   if(!ownerOnly('Загрузка прайсов'))return; // v7.60
   var supplier=(document.getElementById('pl-sup').value||'').trim();
@@ -4931,7 +5004,8 @@ async function importPriceList(){
       colRet:document.getElementById('pl-col-ret').value,
       colArt:document.getElementById('pl-col-art').value,
       cascade:document.getElementById('pl-cascade').checked,
-      modular:document.getElementById('pl-modular').checked};
+      modular:document.getElementById('pl-modular').checked,
+      descCols:_plDetDesc,dimOrder:_plDetDimOrder}; // v7.62
     rows=_collectRows(_plData,cfg);
   }
   // Фолбэк: колонки не выбраны или ничего не собралось → пробуем матрицу (цены по размерам)
@@ -5003,13 +5077,13 @@ async function importAllSheets(){
     // v7.21: автоопределение идёт ПЕРВЫМ — при равном числе товаров выигрывает оно,
     // а не сохранённый (возможно, ошибочный) шаблон листа.
     if(det){
-      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,modular:_plModularOn(),descCols:det.descCols,supplier:supplier,sheetName:sn};
+      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,modular:_plModularOn(),descCols:det.descCols,dimOrder:det.dimOrder||'',supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgA),src:'автоопределение'+(det.cascade?' (каскад)':''),cfg:cfgA,kind:'flat'});
     }
     if(tpl&&!tpl.matrix_multi&&tpl.col_name!==''&&tpl.col_opt!==''&&!tpl.matrix){
       // descCols (рисунки обивки и т.п.) наследуем от автоопределения, чтобы старый
       // сохранённый шаблон не терял описательные столбцы при переимпорте.
-      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),descCols:(tpl.descCols||(det&&det.descCols)),supplier:supplier,sheetName:sn};
+      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),descCols:(tpl.descCols||(det&&det.descCols)),dimOrder:(tpl.dimOrder||(det&&det.dimOrder)||''),supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgT),src:'по шаблону',cfg:cfgT,kind:'flat'});
     }
     var m=_autoDetectMatrix(data);
