@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.64</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.65</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -4499,7 +4499,26 @@ function _collectMatrix(data,m,supplier,sheetName){
   }
   return rows;
 }
-function _plValidCount(rows){var n=0;for(var i=0;i<rows.length;i++)if((rows[i].price_opt||0)>=50)n++;return n;}
+// v7.65: «валидной» строка считается, только если у неё есть и цена, и ОСМЫСЛЕННОЕ
+// название. Раньше считалась одна цена — и разбор с мусорными названиями выигрывал
+// у правильного просто потому, что строк в нём больше. Так и вышло 18.08.2026:
+// сохранённый (ещё до v7.62) шаблон листа давал 1324 «товара» с именами «49»,
+// «50», «51», автоопределение — 1308 настоящих, и побеждал шаблон.
+function _plNameMeaningful(n){
+  var s=String(n==null?'':n).trim();
+  if(s.length<3)return false;
+  if(/^[\d\s.,\-\/]+$/.test(s))return false; // «49», «1 200», «12-14» — это номер, а не название
+  return true;
+}
+function _plValidCount(rows){
+  var n=0;
+  for(var i=0;i<rows.length;i++){
+    if((rows[i].price_opt||0)<50)continue;
+    if(!_plNameMeaningful(rows[i].product_name))continue;
+    n++;
+  }
+  return n;
+}
 
 // ── МАТРИЦА ОБЩЕГО ВИДА (этап B): цены вариантов в нескольких колонках ──
 // Категории тканей («1кат», «до 300р»), варианты фасадов («двери Д+Д»), жёсткости
@@ -4792,7 +4811,7 @@ function _plNameStats(rows){
     var n=String(rows[i].product_name==null?'':rows[i].product_name).trim();
     if(!n)continue;
     tot++;
-    if(/^[\d\s.,\-\/]+$/.test(n)||n.length<3){
+    if(!_plNameMeaningful(n)){
       bad++;
       if(ex.length<6&&ex.indexOf(n)<0)ex.push(n);
     }
