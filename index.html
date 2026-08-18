@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.62</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.64</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -4506,6 +4506,19 @@ function _plValidCount(rows){var n=0;for(var i=0;i<rows.length;i++)if((rows[i].p
 // матрасов («Мягкий/Оптима/Жесткий»), группы цветов — каждая отмеченная колонка
 // разворачивается в отдельный вариант товара.
 // Служебные колонки (вес/объём и т.п.) — их НЕ авто-отмечаем как ценовые
+// v7.63: колонка — «другая цена ТОГО ЖЕ товара», а не вариант. РРЦ, РРЦ МР,
+// «Стоимость», «Итого» описывают тот же самый товар другими деньгами; сделать из
+// них варианты — значит размножить каждую позицию втрое. Прайс корпусной мебели
+// так и загрузился: «Тумба ТВ Парус-4 белый» три раза — ОПТ, РРЦ и РРЦ МР.
+// Сравниваем ВЕСЬ заголовок целиком: «Цена 2 кат.» или «Стоимость 3 кат» —
+// это настоящие варианты, их трогать нельзя.
+function _plIsAltPriceHdr(s){
+  var t=_plHdrText(s).toLowerCase().replace(/[.,]/g,' ').replace(/\s+/g,' ').trim();
+  if(/^ррц( мр| маркетплейс\w*)?$/.test(t))return true;
+  if(/^(розница|розничная( цена)?|рекомендованная( розничная)?( цена)?|rrp|msrp)$/.test(t))return true;
+  if(/^(стоимость|сумма|итого)$/.test(t))return true;
+  return false;
+}
 function _plIsServiceHdr(s){
   return /вес|\bкг\b|объем|объём|\bм3\b|мест|кол-во|колич|шт\.|наценк|скидк|экономия|№|артикул|^код|высота|глубина|габарит|размер|остат|наличи/i.test(String(s||''));
 }
@@ -4568,7 +4581,9 @@ function _plBuildMatrixCols(preset){
     var dense=_plColNumericCount(_plData,start-1,c);
     if(dense<1)continue; // колонки совсем без чисел не предлагаем
     var lbl=String(hdr[c]||'').trim()||('Столбец '+(c+1));
-    var on=preset?preset.indexOf(c)>=0:(dense>=3&&!_plIsServiceHdr(lbl)&&_plColPriceLike(_plData,start-1,c));
+    // v7.63: РРЦ и «Стоимость» галочкой сами не отмечаются — но в списке остаются,
+    // если у кого-то это и правда варианты, он поставит галочку руками.
+    var on=preset?preset.indexOf(c)>=0:(dense>=3&&!_plIsServiceHdr(lbl)&&!_plIsAltPriceHdr(lbl)&&_plColPriceLike(_plData,start-1,c));
     html+='<label style="display:flex;align-items:center;gap:4px;background:var(--card,#fff);border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer">'
       +'<input type="checkbox" class="pl-mx-col" value="'+c+'"'+(on?' checked':'')+'> '+lbl.slice(0,26).replace(/</g,'&lt;')+'</label>';
   }
@@ -4652,6 +4667,7 @@ function _autoDetectMulti(data){
   for(var c2=0;c2<Math.min(40,maxc);c2++){
     if(c2===colName||String(colArt)===String(c2))continue;
     if(_plIsServiceHdr(String(hdr[c2]||'')))continue;
+    if(_plIsAltPriceHdr(hdr[c2]))continue; // v7.63: РРЦ — не вариант товара
     // Текстовые колонки (модели «Smart 1222») — не ценовые, даже если в тексте есть
     // числа. Текст считаем ПОСЛЕ первой цены в колонке: строки-описания многострочной
     // шапки (ФСМ: «Блок Bonnel», состав) выше первой цены — не в счёт.
@@ -4762,6 +4778,37 @@ function _rausApply(rows,sheetName){
     }
   });
   return hit;
+}
+// ═══ v7.64: ПРЕДОХРАНИТЕЛЬ «НАЗВАНИЯ-НОМЕРА» ══════════════════════════
+// 18.08.2026 в базу молча уехали 1324 «товара» с именами «49», «50», «51»:
+// колонкой названия оказался порядковый номер строки. Само по себе это уже
+// починено (v7.62), но выбрать не ту колонку можно и руками — а разбирать
+// потом полторы тысячи мусорных строк в боевой базе очень дорого.
+// Поэтому перед отправкой смотрим на сами названия: если это в основном числа
+// или огрызки в один-два знака — останавливаемся и показываем примеры.
+function _plNameStats(rows){
+  var bad=0,tot=0,ex=[];
+  for(var i=0;i<rows.length;i++){
+    var n=String(rows[i].product_name==null?'':rows[i].product_name).trim();
+    if(!n)continue;
+    tot++;
+    if(/^[\d\s.,\-\/]+$/.test(n)||n.length<3){
+      bad++;
+      if(ex.length<6&&ex.indexOf(n)<0)ex.push(n);
+    }
+  }
+  return {tot:tot,bad:bad,ex:ex,share:tot?bad/tot:0};
+}
+// true — можно грузить. false — владелец отказался.
+function _plNamesLookOk(rows,где){
+  var st=_plNameStats(rows);
+  if(st.bad<5||st.share<0.3)return true;
+  return confirm('⚠️ Похоже, выбрана не та колонка с названием'+(где?' ('+где+')':'')+'.\n\n'
+    +'Из '+st.tot+' товаров у '+st.bad+' вместо названия стоят числа или огрызки:\n'
+    +st.ex.join(', ')+'\n\n'
+    +'Обычно так выглядит колонка «№» — порядковый номер строки. Такие товары\n'
+    +'нельзя будет найти в поиске, а старый прайс при загрузке уже заменится.\n\n'
+    +'Всё равно загрузить?');
 }
 // v6.6: тип цены (опт/РРЦ/акция) и срок действия — на весь импортируемый файл
 function _plPriceKindApply(rows){
@@ -5017,6 +5064,7 @@ async function importPriceList(){
     if(colName===''||colOpt===''){toast('⚠️ Выберите колонку с названием и оптовой ценой','err');return;}
     toast('⚠️ Нет данных — проверьте номер строки и колонки','err');return;
   }
+  if(!_plNamesLookOk(rows,'лист «'+sheetName+'»'))return; // v7.64
   var kitOn=document.getElementById('pl-kitpart')&&document.getElementById('pl-kitpart').checked;
   rows.forEach(function(r){r.factory=factory;if(kitOn)r.kit_part=true;});
   var rausHit=_rausApply(rows,sheetName); // РАУС: корпус+фасад (после kit_part — сбрасывает пометку у полных цен)
@@ -5107,6 +5155,10 @@ async function importAllSheets(){
   });
   var total=plan.reduce(function(s,p){return s+p.rows.length;},0);
   if(!total){toast('⚠️ Ни на одном листе не найдены товары — настройте листы вручную по одному','err',6000);return;}
+  // v7.64: лист, где вместо названий числа, дальше не пускаем без подтверждения
+  for(var _pi=0;_pi<plan.length;_pi++){
+    if(!_plNamesLookOk(plan[_pi].rows,'лист «'+plan[_pi].sheetName+'»'))return;
+  }
   var scopeLbl=factory?('фабрики «'+factory+'» (поставщик «'+supplier+'»)'):('поставщика «'+supplier+'» БЕЗ фабрики');
   // v7.2.1: показываем реальные цифры из базы, чтобы случайно не стереть лишнее
   var curNote='';
