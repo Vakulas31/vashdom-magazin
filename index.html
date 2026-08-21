@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.65</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.66</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -3968,6 +3968,39 @@ function _extractAttrs(name,article,dims,order){
       if(_L==='Ш')w=_v; else if(_L==='В')h=_v; else if(_L==='Г')d=_v;
     }
   }
+  // v7.66: габариты СЛОВАМИ — «Ширина 44 см  Глубина 56 см  Высота 85 см».
+  // Так пишет РИАЛ (стулья, диванчики): числа есть, но не через «х», и умный
+  // поиск «стул высотой до 90» не находил ничего. Берём ПЕРВОЕ вхождение слова:
+  // «Ширина ПМ 44 см» (посадочное место) в габариты не попадает — после слова
+  // сразу должно идти число. Сантиметры переводим в миллиметры, как везде в базе.
+  if(w==null&&h==null&&d==null){
+    var _u=function(num,unit){
+      var n=parseInt(num);if(!isFinite(n))return null;
+      if(/^мм$/i.test(unit||''))return (n>=100&&n<=4000)?n:null;
+      if(n<400)n=n*10;                 // 44 см → 440 мм
+      return (n>=100&&n<=4000)?n:null;
+    };
+    var _find=function(re){var m=txt.match(re);return m?_u(m[2],m[3]):null;};
+    // ВНИМАНИЕ: \w в JS не знает кириллицы — «ширин\w*» не поймает «ширина».
+    // Хвост слова перечисляем явно: [а-яё]*
+    var _ln=_find(/(длин[а-яё]*)\s*[:\-]?\s*(\d{2,4})(?:[.,]\d+)?\s*(см|мм)?/i);
+    var _wd=_find(/(ширин[а-яё]*)\s*[:\-]?\s*(\d{2,4})(?:[.,]\d+)?\s*(см|мм)?/i);
+    var _dp=_find(/(глубин[а-яё]*)\s*[:\-]?\s*(\d{2,4})(?:[.,]\d+)?\s*(см|мм)?/i);
+    var _ht=_find(/(высот[а-яё]*)\s*[:\-]?\s*(\d{2,4})(?:[.,]\d+)?\s*(см|мм)?/i);
+    var _di=_find(/(диаметр[а-яё]*)\s*[:\-]?\s*(\d{2,4})(?:[.,]\d+)?\s*(см|мм)?/i);
+    if(_di!=null){w=_di;d=_di;}
+    // «Длина 60 см  Ширина 37 см  Высота 48 см» — так РИАЛ описывает пуфы и
+    // банкетки: глубины там нет, её роль играет ширина. Если названы обе, длина
+    // идёт в ширину изделия, а ширина — в глубину; иначе получалась бы тумба
+    // шириной 60 см и вовсе без глубины.
+    if(_ln!=null&&_wd!=null&&_dp==null){w=_ln;d=_wd;}
+    else{
+      if(_ln!=null)w=_ln;
+      if(_wd!=null)w=_wd;
+      if(_dp!=null)d=_dp;
+    }
+    if(_ht!=null)h=_ht;
+  }
   // Тип
   var ptype=null;
   for(var i=0;i<_PTYPES.length;i++){if(new RegExp(_PTYPES[i][0]).test(low)){ptype=_PTYPES[i][1];break;}}
@@ -4215,7 +4248,10 @@ function _autoDetectSheet(data){
         if(_dc===d.name||_dc===opt||_dc===d.art||_dc===d.ret)continue;
         var _dh=_plHdrText(row[_dc]).toLowerCase();
         if(!_dh||_dh.length>35)continue;
-        if(!/размер|габарит|цвет|отделк|материал|исполнен|фасад/.test(_dh))continue;
+        // v7.66: «Ткани» — тоже описание товара. У РИАЛ один и тот же стул идёт
+        // двумя строками с разной ценой, и различает их ТОЛЬКО колонка тканей:
+        // «ФРЕД · САВАННА 3160» и «ФРЕД · ДРИМ, Федерика, Велютто 3240».
+        if(!/размер|габарит|цвет|отделк|материал|исполнен|фасад|ткан|обивк|опор/.test(_dh))continue;
         if(/размер|габарит/.test(_dh)&&!_dimOrd){
           // «Размеры В*Ш*Г», «Размеры ВхШхГ» — шапка сама говорит порядок чисел
           var _om=_plHdrRaw(row[_dc]).toUpperCase().match(/([ВШГ])\s*[X\u0425*×]\s*([ВШГ])(?:\s*[X\u0425*×]\s*([ВШГ]))?/);
@@ -5623,7 +5659,9 @@ function _gsCatalog(q,box){
         +'<div style="flex:1;min-width:0">'
         +'<div style="font-size:13px;font-weight:600">'+p.name
         +' <span style="background:#E8EAF6;color:#3949AB;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">📚 '+(p.factory||'каталог')+'</span></div>'
-        +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
+        // v7.66: строка-описание может быть длинной (у РИАЛ в характеристике габариты,
+      // опоры и ткани разом) — в списке она в одну строку, полный текст по наведению
+      +(sub?'<div title="'+esc(sub)+'" style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
         +(p.price?'<div style="font-size:13px;font-weight:700">'+fmt(p.price)+' ₽</div><div style="font-size:9px;color:var(--text2)">цена сайта</div>':'<div style="font-size:11px;color:var(--text2)">без цены</div>')
