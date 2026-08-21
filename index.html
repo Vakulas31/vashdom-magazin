@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.66</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.67</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -5119,6 +5119,33 @@ async function importPriceList(){
     if(colName===''||colOpt===''){toast('⚠️ Выберите колонку с названием и оптовой ценой','err');return;}
     toast('⚠️ Нет данных — проверьте номер строки и колонки','err');return;
   }
+  // v7.67: на листе может быть НЕСКОЛЬКО цен у одного товара (у РИАЛ — по
+  // столешнице: Ультра М / HPL пластик / Стекло). Кнопка «Импортировать этот
+  // лист» брала только одну колонку: 71 позиция вместо 257, а столы, у которых
+  // цена стоит лишь в «Стекле» (керамика, фотопечать), терялись совсем — их
+  // строка выглядела как «без цены». Галочку «Цены в нескольких колонках» надо
+  // было вспомнить самому. Теперь спрашиваем прямо, с цифрами.
+  if(!isMulti&&!_plModSys){
+    var _mu=_autoDetectMulti(_plData);
+    if(_mu&&_mu.varCols&&_mu.varCols.length>=2){
+      var _mrows=_collectMulti(_plData,{supplier:supplier,sheetName:sheetName,
+        start:_mu.headerRow+2,colName:_mu.colName,colArt:_mu.colArt,varCols:_mu.varCols});
+      var _mv=_plValidCount(_mrows),_pv=_plValidCount(rows);
+      if(_mv>=Math.round(_pv*1.3)&&_mv>_pv+5){
+        var _hdr=_plData[_mu.headerRow]||[];
+        var _lbl=_mu.varCols.map(function(c){return '«'+_plHdrText(_hdr[c]).slice(0,28)+'»';}).join(', ');
+        var _one=_plHdrText(_hdr[parseInt(colOpt)]).slice(0,28);
+        if(confirm('На этом листе у одного товара несколько цен — колонки: '+_lbl+'.\n\n'
+          +'ОК — загрузить каждую цену отдельным товаром: '+_mv+' позиций.\n'
+          +'Отмена — взять только колонку «'+_one+'»: '+_pv+' позиций'
+          +(_mv>_pv?' (остальные '+(_mv-_pv)+' в каталог не попадут).':'.'))){
+          var _mx=document.getElementById('pl-matrix-on');
+          if(_mx){_mx.checked=true;document.getElementById('pl-matrix-cols').style.display='block';_plBuildMatrixCols(_mu.varCols);}
+          rows=_mrows;isMulti=true;
+        }
+      }
+    }
+  }
   if(!_plNamesLookOk(rows,'лист «'+sheetName+'»'))return; // v7.64
   var kitOn=document.getElementById('pl-kitpart')&&document.getElementById('pl-kitpart').checked;
   rows.forEach(function(r){r.factory=factory;if(kitOn)r.kit_part=true;});
@@ -5203,7 +5230,16 @@ async function importAllSheets(){
     }
     var best=null;
     cands.forEach(function(c){if(!best||_plValidCount(c.rows)>_plValidCount(best.rows))best=c;});
-    if(!best||!best.rows.length){report.push({sheet:sn,count:0,note:'не удалось определить колонки — импортируйте вручную'});return;}
+    // v7.67: «годных» строк ноль — значит это не прайс. Со «Складских тканей»
+    // РИАЛа так уехала строка «Велютто ВЕЛЮР» за 24 ₽: числа 52/16/32/24 — это
+    // номера цветов, а не цены.
+    var _bv=best?_plValidCount(best.rows):0;
+    if(!best||!best.rows.length||_bv===0){
+      report.push({sheet:sn,count:0,note:(best&&best.rows.length)
+        ?'нет ни одной строки с названием и ценой — похоже, служебный лист, пропущен'
+        :'не удалось определить колонки — импортируйте вручную'});
+      return;
+    }
     plan.push({sheetName:sn,rows:best.rows,cfg:best.cfg,kind:best.kind,kit:!!(tpl&&tpl.kit_part)});
     var rh=_rausApply(best.rows,sn); // РАУС: корпус+фасад по коду модуля
     report.push({sheet:sn,count:best.rows.length,note:best.src+(rh?', ➕корпус у '+rh:''),drop:_plDropText(best.rows._drop)});
