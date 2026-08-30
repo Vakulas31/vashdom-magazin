@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.67</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.68</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -3695,7 +3695,9 @@ function savePriceTemplate(){
     var_cols:(document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked)?_plMatrixCols():[],
     kit_part:document.getElementById('pl-kitpart')?document.getElementById('pl-kitpart').checked:false,
     descCols:_plDetDesc||[], // v7.62: описательные колонки живут вместе с шаблоном
-    dimOrder:_plDetDimOrder||''
+    dimOrder:_plDetDimOrder||'',
+    col_var:_plDetVar||'',   // v7.68: колонка исполнения
+    cat_col:_plDetCat||''    // v7.68: колонка разделов прайса
   };
   var supKey=(document.getElementById('pl-sup').value||'').trim().toLowerCase();
   if(supKey)store['sup:'+supKey]=store[_tplKeyFor(sn)];
@@ -3753,6 +3755,8 @@ function onPriceSheetChange(){
   var det=_autoDetectSheet(_plData);
   _plDetDesc=(tpl&&tpl.descCols)||(det&&det.descCols)||null; // v7.62
   _plDetDimOrder=(tpl&&tpl.dimOrder)||(det&&det.dimOrder)||'';
+  _plDetVar=(tpl&&tpl.col_var!=null?tpl.col_var:((det&&det.colVar)||'')); // v7.68
+  _plDetCat=(tpl&&tpl.cat_col!=null?tpl.cat_col:((det&&det.catCol)||''));
   var se=document.getElementById('pl-tpl-status');
   // Сравниваем шаблон и автоопределение по числу валидных цен — берём лучший.
   // Так устаревший/битый шаблон («Столбец 1 / Столбец 1») не мешает.
@@ -3788,6 +3792,7 @@ function onPriceSheetChange(){
   if(det){
     _plDetDesc=det.descCols||null; // v7.62
     _plDetDimOrder=det.dimOrder||'';
+    _plDetVar=det.colVar||'';_plDetCat=det.catCol||''; // v7.68
     document.getElementById('pl-startrow').value=det.headerRow+2;
     document.getElementById('pl-cascade').checked=!!det.cascade;
     _buildPriceColSelects();
@@ -3798,6 +3803,12 @@ function onPriceSheetChange(){
     if(se){
       se.style.cssText='display:block;background:#E3F2FD;color:#0D47A1;border:1px solid #90CAF9;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';
       se.innerHTML='🔍 Колонки определены автоматически (строка данных '+(det.headerRow+2)+') — проверьте и жмите «Импортировать этот лист».';
+      // v7.68: выгрузка 1С — рассказываем, что именно приложение узнало
+      var _hdr68=_plData[det.headerRow]||[];
+      var _n68=[];
+      if(det.colVar!=='')_n68.push('исполнение из колонки «'+esc(_plHdrText(_hdr68[parseInt(det.colVar)]).slice(0,24))+'» пойдёт в название товара («кухня Маша · венге/дуб сонома»)');
+      if(det.catCol!=='')_n68.push('разделы прайса («01.03 КУХОННЫЕ ГАРНИТУРЫ») станут категорией');
+      if(_n68.length)se.innerHTML+='<br>🧾 Похоже на выгрузку 1С: '+_n68.join('; ')+'.';
       // Подсказка: если рядом ещё ≥2 ценовых колонки — вероятно, это варианты (ткани/размеры/фасады)
       var _mu=_autoDetectMulti(_plData);
       if(_mu&&_mu.varCols.length>=2)se.innerHTML+='<br>💡 Вижу ещё '+_mu.varCols.length+' колонок с ценами — если это варианты (категории тканей, размеры, фасады), включите «Цены в нескольких колонках».';
@@ -4043,7 +4054,7 @@ function _collectRows(data,cfg){
   var rows=[];
   var _drop=_plNewDrop();
   try{Object.defineProperty(rows,'_drop',{value:_drop,enumerable:false});}catch(e){rows._drop=_drop;}
-  var currentGroupName='',groupIsHeader=false;
+  var currentGroupName='',groupIsHeader=false,currentSection='';
   var noteBuf='',groupStart=0; // примечание-совместимость текущей группы (этап C)
   for(var i=cfg.start-1;i<data.length;i++){
     var row=data[i]||[];
@@ -4054,10 +4065,17 @@ function _collectRows(data,cfg){
     // Описательные колонки между именем и ценой (рисунки обивки, «N ВАРИАНТ») — в артикул,
     // чтобы они искались и были видны (напр. «вертикаль» у кроватей Браво).
     if(cfg.descCols&&cfg.descCols.length){
-      var _dp=[];for(var _k=0;_k<cfg.descCols.length;_k++){var _dv=_plClean(row[cfg.descCols[_k]]);if(_dv&&!/^\d+([.,]\d+)?$/.test(_dv))_dp.push(_dv);}
+      // v7.68: «000052145» — это КОД исполнения, а не число: ведущий ноль
+      // отличает его от количества/веса, которые в характеристике не нужны.
+      var _dp=[];for(var _k=0;_k<cfg.descCols.length;_k++){var _dv=_plClean(row[cfg.descCols[_k]]);if(_dv&&(!/^\d+([.,]\d+)?$/.test(_dv)||/^0\d/.test(_dv)))_dp.push(_dv);}
       if(_dp.length){var _ds=_dp.join(' · ');artVal=artVal?artVal+' · '+_ds:_ds;}
     }
     var rowCategory='',rowCompat='';
+    // v7.68: строка-раздел выгрузки 1С — запоминаем и вешаем на следующие товары
+    if(cfg.catCol!==''&&cfg.catCol!=null&&!nameVal&&!optNum){
+      var _sv=_plClean(row[parseInt(cfg.catCol)]);
+      if(_sv&&_plLooksSection(_sv))currentSection=_sv;
+    }
     if(cfg.cascade){
       if(nameVal&&!optNum){
         if(!_plIsNoteRow(nameVal)){
@@ -4102,6 +4120,11 @@ function _collectRows(data,cfg){
         else if(nameVal&&optNum&&!rowCategory){currentGroupName=nameVal;groupIsHeader=false;}
       }
     }
+    // v7.68: исполнение («венге/дуб сонома») — в название товара
+    if(cfg.colVar!==''&&cfg.colVar!=null&&nameVal&&optNum){
+      var _vv=_plClean(row[parseInt(cfg.colVar)]);
+      if(_vv&&_vv!==nameVal&&nameVal.indexOf(_vv)<0)nameVal=nameVal+' · '+_vv;
+    }
     if(nameVal||optNum)_drop.scanned++;
     if(!nameVal||!optNum){
       // пустые строки-разделители не считаем потерей — только те, где что-то было
@@ -4117,7 +4140,7 @@ function _collectRows(data,cfg){
     optNum=Math.round(optNum*100)/100;retVal=Math.round(retVal*100)/100;
     var _at=_extractAttrs(nameVal,artVal,'',cfg.dimOrder);
     var _cmp=[noteBuf,rowCompat].filter(Boolean).join(' · ').slice(0,900)||null;
-    rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory,sheet_name:cfg.sheetName||'',compatibility:_cmp,dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
+    rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory||currentSection,sheet_name:cfg.sheetName||'',compatibility:_cmp,dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
   }
   return rows;
 }
@@ -4198,13 +4221,47 @@ function _plLooksCounter(data,c){
   }
   return tot>=10&&step1>=tot*0.8;
 }
+// v7.68: строка-раздел прайса: «01.03 КУХОННЫЕ ГАРНИТУРЫ», «ПРОДУКЦИЯ»,
+// «09. КОМОДЫ И ТУМБЫ». Отделки («белый», «дуб крафт золотой») разделами НЕ
+// считаем — они пишутся строчными и попадают в исполнение товара.
+function _plLooksSection(s){
+  var t=String(s==null?'':s).replace(/\s+/g,' ').trim();
+  if(t.length<3||t.length>80)return false;
+  if(/^\d{1,2}[.\d]*\s+[А-ЯЁA-Z]{2}/.test(t))return true;
+  return /[А-ЯЁA-Z]{3}/.test(t)&&t===t.toUpperCase();
+}
+// Колонка разделов: ЛЕВЕЕ названия, значения стоят на строках без товара
+function _plFindSectionCol(data,startRow,colName,colOpt){
+  var best=-1,bestN=0;
+  for(var c=0;c<colName&&c<12;c++){
+    var n=0;
+    for(var r=startRow;r<data.length;r++){
+      var row=data[r]||[];
+      if(String(row[colName]==null?'':row[colName]).trim())continue; // строка товара
+      if(_plToNum(row[colOpt]))continue;
+      if(_plLooksSection(row[c]))n++;
+    }
+    if(n>bestN){bestN=n;best=c;}
+  }
+  return bestN>=2?best:-1;
+}
+// Повторяются ли названия товаров на листе (≥15 % строк — дубли)
+function _plDupNames(data,startRow,colName){
+  var seen={},dup=0,tot=0;
+  for(var r=startRow;r<data.length;r++){
+    var v=_plClean((data[r]||[])[colName]);
+    if(!v)continue;
+    tot++;if(seen[v])dup++;else seen[v]=1;
+  }
+  return tot>=10&&dup>=tot*0.15;
+}
 function _autoDetectSheet(data){
   // v7.21: шапку ищем в первых 40 строках, а не 15. У Асконы («ЭКОНОМ_PRIME» и др.)
   // настоящая шапка «Наименование МЦ | Размер | Оптовая цена» стоит в 22-й строке —
   // до этого её не видели, включался структурный запасной разбор и брал не ту колонку.
   for(var r=0;r<Math.min(40,data.length);r++){
     var row=data[r]||[];
-    var d={name:-1,ret:-1,art:-1};var priceCands=[];var nameCands=[];
+    var d={name:-1,ret:-1,art:-1,vr:-1};var priceCands=[];var nameCands=[];
     for(var i=0;i<row.length;i++){
       // Заголовок колонки — короткая ячейка. Длинные тексты (приветствия, примечания) — не заголовки.
       var hl=_plHdrText(row[i]).toLowerCase();if(!hl||hl.length>35)continue;
@@ -4218,6 +4275,11 @@ function _autoDetectSheet(data){
       // «РРЦ МР» (для маркетплейсов) не берём — первой найденной хватает.
       if(d.ret<0&&/розн|retail|продаж|^ррц/.test(hl))d.ret=i;
       if(d.art<0&&/артикул|арт\.|^код(?![а-яa-z])|sku|характер|вариант|размер/.test(hl))d.art=i;
+      // v7.68: колонка ИСПОЛНЕНИЯ выгрузки 1С («Характеристика»: «венге/дуб сонома»,
+      // «белый/бетонный камень»). Один и тот же товар идёт в прайсе несколько раз,
+      // и отличает строки ТОЛЬКО она: без неё в каталоге четыре «кухня Маша» по
+      // разной цене, и продавец не знает, какая какая.
+      if(d.vr<0&&/^характеристик|^исполнен|^модификац/.test(hl))d.vr=i;
       // ценовые кандидаты: приоритет «опт», затем «цена/стоимость» (розницу исключаем)
       if(/опт|\bopt\b|закуп|себест|wholesale/.test(hl))priceCands.push({c:i,pri:2});
       else if(/цена|стоимость|price|руб/.test(hl)&&!/розн|retail|продаж/.test(hl))priceCands.push({c:i,pri:1});
@@ -4251,7 +4313,10 @@ function _autoDetectSheet(data){
         // v7.66: «Ткани» — тоже описание товара. У РИАЛ один и тот же стул идёт
         // двумя строками с разной ценой, и различает их ТОЛЬКО колонка тканей:
         // «ФРЕД · САВАННА 3160» и «ФРЕД · ДРИМ, Федерика, Велютто 3240».
-        if(!/размер|габарит|цвет|отделк|материал|исполнен|фасад|ткан|обивк|опор/.test(_dh))continue;
+        // v7.68: «Хар код» — код исполнения, по которому поставщик принимает
+        // заказ («000052145»). Продавцу его надо продиктовать, значит он должен
+        // быть виден и находиться поиском.
+        if(!/размер|габарит|цвет|отделк|материал|исполнен|фасад|ткан|обивк|опор|^хар\.?\s?код|^код\s*характер/.test(_dh))continue;
         if(/размер|габарит/.test(_dh)&&!_dimOrd){
           // «Размеры В*Ш*Г», «Размеры ВхШхГ» — шапка сама говорит порядок чисел
           var _om=_plHdrRaw(row[_dc]).toUpperCase().match(/([ВШГ])\s*[X\u0425*×]\s*([ВШГ])(?:\s*[X\u0425*×]\s*([ВШГ]))?/);
@@ -4261,7 +4326,20 @@ function _autoDetectSheet(data){
         for(var _dr=r+1;_dr<data.length&&_dn<3;_dr++){var _dv=(data[_dr]||[])[_dc];if(_dv!==''&&_dv!=null)_dn++;}
         if(_dn>=3)_desc.push(_dc);
       }
-      return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):'',cascade:cascade,descCols:_desc,dimOrder:_dimOrd||''};
+      // v7.68: колонка РАЗДЕЛОВ прайса — слева от товаров, на отдельных строках
+      // без цены («01.03 КУХОННЫЕ ГАРНИТУРЫ», «02.01 ИК АЙДЕН», «09. КОМОДЫ И
+      // ТУМБЫ»). Раньше такие строки просто пропадали, и весь прайс приезжал
+      // без категории — в поиске под названием было пусто.
+      var _cat=cascade?-1:_plFindSectionCol(data,r+1,d.name,opt);
+      // Исполнение приклеиваем к названию, только если названия ПОВТОРЯЮТСЯ:
+      // у прайса, где каждый товар уникален, суффикс — лишний шум.
+      // Если исполнение и так видно в характеристике (та же колонка ушла в артикул
+      // или в описание) — второй раз в название его не тащим: у БРАВО и ВВ Мебели
+      // это давало «ГАММА диван · СТАНДАРТ, 1 ВАРИАНТ винный» при том же тексте
+      // строкой ниже.
+      var _vr=(d.vr>=0&&d.vr!==d.name&&d.vr!==opt&&d.vr!==d.art&&_desc.indexOf(d.vr)<0
+        &&_plDupNames(data,r+1,d.name))?d.vr:-1;
+      return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):'',cascade:cascade,descCols:_desc,dimOrder:_dimOrd||'',colVar:(_vr>=0?String(_vr):''),catCol:(_cat>=0?String(_cat):'')};
     }
   }
   // ── Запасной СТРУКТУРНЫЙ детектор ──────────────────────────────────────
@@ -4954,6 +5032,53 @@ async function _plSnapshot(filters,maxId){
   return{rows:out,count:count};
 }
 
+// ═══ v7.68: ЗАМЕНА ПО ФАЙЛУ, А НЕ ТОЛЬКО ПО ЛИСТУ ═══════════════════════
+// Выгрузки из 1С у всех поставщиков лежат на листе с одним и тем же именем —
+// «Лист_1», «TDSheet», «Sheet1». А прайсов у поставщика несколько: корпусная
+// мебель, мягкая, матрасы, кухни. Область замены считалась как
+// «поставщик + фабрика + имя листа», поэтому загрузка ВТОРОГО файла молча
+// стирала товары ПЕРВОГО: в каталоге оставался только последний загруженный
+// прайс. Симптом — «загрузил, а ищет не все товары».
+// Теперь у каждого файла своя полка: ярлык файла (имя без дат и номеров версий)
+// сравнивается с тем, что записано у уже загруженных строк.
+function _plFileTag(fname){
+  var s=String(fname||'').replace(/\.[a-z0-9]+$/i,'');
+  s=s.replace(/\(\d+\)/g,' ');                              // «(1)» от повторного скачивания
+  s=s.replace(/\d{1,2}[.\-_ ]\d{1,2}[.\-_ ]\d{2,4}/g,' ');   // даты: 01.06.26
+  s=s.replace(/\bот\b/gi,' ').replace(/[_\-]+/g,' ');
+  s=s.replace(/\d+/g,' ');                                   // номера версий
+  s=s.replace(/\s+/g,' ').trim().toLowerCase();
+  return s.slice(0,60);
+}
+// Куда класть строки этого файла и что при этом заменять.
+// Возвращает {sheet:'имя полки'} — имя листа либо «лист · ярлык файла».
+async function _plSheetScope(base,sheetName,tag){
+  var plain={sheet:sheetName};
+  if(!tag)return plain;                                    // имя файла неизвестно
+  if(!(await _plBatchReady()))return plain;                // нет колонки source_file — по-старому
+  var suff=(sheetName+' · '+tag).slice(0,120);
+  var enc=encodeURIComponent;
+  try{
+    // у файла уже есть своя полка — обновляем именно её
+    var own=await _sbOnce('GET','price_items',null,'select=id&'+base+'&sheet_name=eq.'+enc(suff)+'&limit=1');
+    if(own&&own.length)return{sheet:suff};
+    var ex=await _sbOnce('GET','price_items',null,'select=source_file&'+base+'&sheet_name=eq.'+enc(sheetName)+'&limit=400');
+    if(!ex||!ex.length)return plain;                       // на листе пусто — заменять нечего
+    var tags={},unknown=0,files={};
+    ex.forEach(function(r){
+      var t=_plFileTag(r.source_file);
+      if(t){tags[t]=1;files[r.source_file]=1;}else unknown++;
+    });
+    if(tags[tag]||unknown)return plain;                    // тот же файл (или строки без пометки)
+    var names=Object.keys(files).slice(0,3).join('», «');
+    if(confirm('⚠️ У этого поставщика на листе «'+sheetName+'» уже загружено '+ex.length+' товаров'
+      +(ex.length>=400?'+':'')+' из другого файла:\n«'+names+'»\n\n'
+      +'Сейчас грузится файл «'+(_plFileName||'')+'».\n\n'
+      +'ОК — это ТОТ ЖЕ прайс, только новее: заменить прежние товары.\n'
+      +'Отмена — это ДРУГОЙ прайс того же поставщика: прежние оставить, новые добавить рядом.'))return plain;
+    return{sheet:suff};
+  }catch(e){return plain;}
+}
 // batches: [{sheetName, rows}]; replaceWhole=true — заменить все данные фабрики
 // (если фабрика пустая — заменяются только товары поставщика БЕЗ фабрики)
 async function _importBatches(supplier,factory,batches,replaceWhole){
@@ -4979,7 +5104,16 @@ async function _importBatches(supplier,factory,batches,replaceWhole){
     if(replaceWhole||_plDeletedSupplier!==delKey)filters=[base];
   }else{
     // точечно обновляем только импортируемые листы этой фабрики
-    for(var b=0;b<batches.length;b++)filters.push(base+'&sheet_name=eq.'+encodeURIComponent(batches[b].sheetName||''));
+    var _tag=_plFileTag(_plFileName);
+    for(var b=0;b<batches.length;b++){
+      var _sc=await _plSheetScope(base,batches[b].sheetName||'',_tag);
+      if(_sc.sheet!==batches[b].sheetName){
+        // прайс живёт отдельной полкой — переписываем метку листа у его строк
+        batches[b].shelf=_sc.sheet;
+        batches[b].rows.forEach(function(r){if('sheet_name' in r)r.sheet_name=_sc.sheet;});
+      }
+      filters.push(base+'&sheet_name=eq.'+encodeURIComponent(_sc.sheet));
+    }
   }
 
   // Безопасный порядок возможен, только когда выполнен SQL_обновление_7.11
@@ -5050,7 +5184,8 @@ async function _importBatches(supplier,factory,batches,replaceWhole){
     try{await sb('POST','rpc/price_imports_trim',null);}catch(e){}
   }
   _plLastImport={rows:all.length,deleted:snap.count,skipped:skipped,safe:true,
-    rollback:!!(snap.rows&&snap.rows.length)};
+    rollback:!!(snap.rows&&snap.rows.length),
+    shelf:batches.map(function(b){return b.shelf;}).filter(Boolean)[0]||null};
   batches.forEach(function(b){_plImportedSheets[b.sheetName]=b.rows.length;});
   _markImportedSheets();
 }
@@ -5062,6 +5197,7 @@ function _plResultNote(){
   else p.push('⚠ выполните SQL_обновление_7.11 — пока загрузка идёт по-старому, без страховки и отката');
   if(L.skipped)p.push('отброшено строк файла: '+L.skipped);
   if(L.safe&&!L.rollback&&L.deleted)p.push('откат недоступен: заменённых строк слишком много');
+  if(L.shelf)p.push('прежний прайс поставщика сохранён, этот файл лежит отдельно: «'+L.shelf+'»'); // v7.68
   return p.join(' · ');
 }
 function _markImportedSheets(){
@@ -5077,6 +5213,8 @@ var _plModSys=null; // разметка листа «модульные сист
 // загрузке одного листа кнопкой молча терялись.
 var _plDetDesc=null;
 var _plDetDimOrder='';  // объявленный в шапке порядок габаритов, напр. «ВШГ»
+// v7.68: колонка исполнения («Характеристика») и колонка разделов прайса
+var _plDetVar='',_plDetCat='';
 async function importPriceList(){
   if(!ownerOnly('Загрузка прайсов'))return; // v7.60
   var supplier=(document.getElementById('pl-sup').value||'').trim();
@@ -5107,7 +5245,8 @@ async function importPriceList(){
       colArt:document.getElementById('pl-col-art').value,
       cascade:document.getElementById('pl-cascade').checked,
       modular:document.getElementById('pl-modular').checked,
-      descCols:_plDetDesc,dimOrder:_plDetDimOrder}; // v7.62
+      descCols:_plDetDesc,dimOrder:_plDetDimOrder, // v7.62
+      colVar:_plDetVar,catCol:_plDetCat};            // v7.68
     rows=_collectRows(_plData,cfg);
   }
   // Фолбэк: колонки не выбраны или ничего не собралось → пробуем матрицу (цены по размерам)
@@ -5207,13 +5346,13 @@ async function importAllSheets(){
     // v7.21: автоопределение идёт ПЕРВЫМ — при равном числе товаров выигрывает оно,
     // а не сохранённый (возможно, ошибочный) шаблон листа.
     if(det){
-      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,modular:_plModularOn(),descCols:det.descCols,dimOrder:det.dimOrder||'',supplier:supplier,sheetName:sn};
+      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,modular:_plModularOn(),descCols:det.descCols,dimOrder:det.dimOrder||'',colVar:det.colVar||'',catCol:det.catCol||'',supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgA),src:'автоопределение'+(det.cascade?' (каскад)':''),cfg:cfgA,kind:'flat'});
     }
     if(tpl&&!tpl.matrix_multi&&tpl.col_name!==''&&tpl.col_opt!==''&&!tpl.matrix){
       // descCols (рисунки обивки и т.п.) наследуем от автоопределения, чтобы старый
       // сохранённый шаблон не терял описательные столбцы при переимпорте.
-      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),descCols:(tpl.descCols||(det&&det.descCols)),dimOrder:(tpl.dimOrder||(det&&det.dimOrder)||''),supplier:supplier,sheetName:sn};
+      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),descCols:(tpl.descCols||(det&&det.descCols)),dimOrder:(tpl.dimOrder||(det&&det.dimOrder)||''),colVar:(tpl.col_var!=null?tpl.col_var:((det&&det.colVar)||'')),catCol:(tpl.cat_col!=null?tpl.cat_col:((det&&det.catCol)||'')),supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgT),src:'по шаблону',cfg:cfgT,kind:'flat'});
     }
     var m=_autoDetectMatrix(data);
@@ -5291,7 +5430,8 @@ async function importAllSheets(){
           col_name:String(p.cfg.colName),col_opt:String(p.cfg.colOpt),
           col_ret:(p.cfg.colRet===''||p.cfg.colRet==null)?'':String(p.cfg.colRet),
           col_art:(p.cfg.colArt===''||p.cfg.colArt==null)?'':String(p.cfg.colArt),
-          cascade:!!p.cfg.cascade,modular:!!p.cfg.modular};
+          cascade:!!p.cfg.cascade,modular:!!p.cfg.modular,
+          col_var:(p.cfg.colVar==null?'':String(p.cfg.colVar)),cat_col:(p.cfg.catCol==null?'':String(p.cfg.catCol))};
       }
     });
     var firstFlat=plan.filter(function(p){return p.kind!=='matrix'&&p.cfg;})[0];
@@ -5811,12 +5951,14 @@ function _gsRenderRows(rows,q,box,note){
     var opt=p.price_opt||0;
     var ret=opt?retailFromOpt(opt):(p.price_retail||0);
     var sub=[(p.factory||''),p.supplier,(p.category||''),(p.article||'')].filter(Boolean).join(' · ');
+    var tip=goodsTipHtml('gs-tip-'+i,p.product_name,p.article); // v7.68
     html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:13px;font-weight:600">'+p.product_name
-      +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+_kindBadge(p)+'</div>'
+      +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+_kindBadge(p)+tip.btn+'</div>'
       +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
       +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')
+      +tip.box
       +'</div>'
       +'<div style="text-align:right;flex-shrink:0">'
       +(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
@@ -5996,11 +6138,12 @@ function _ssRun(q){
       var dparts=[];if(p.dim_w)dparts.push('Ш'+p.dim_w);if(p.dim_h)dparts.push('В'+p.dim_h);if(p.dim_d)dparts.push('Г'+p.dim_d);
       var dstr=dparts.join('×');
       var sub=[(p.factory||''),p.supplier,(p.ptype||''),(p.doors?p.doors+'-дв.':''),(dstr?dstr+' мм':''),(p.color||''),(p.material||'')].filter(Boolean).join(' · ');
+      var tip=goodsTipHtml('ss-tip-'+i,p.product_name,p.article); // v7.68
       html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
         +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+p.product_name
-        +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+_kindBadge(p)+'</div>'
+        +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+_kindBadge(p)+tip.btn+'</div>'
         +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
-        +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')+'</div>'
+        +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')+tip.box+'</div>'
         +'<div style="text-align:right;flex-shrink:0">'+(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
         +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')+'</div>'
         +_webBtn('_ssLast',i)
@@ -6394,6 +6537,154 @@ function suggestSuppliers(){
       .then(function(){renderSupPicker();toast('✅ Добавлено поставщиков: '+fresh.length);})
       .catch(function(e){toast('❌ '+((e&&e.message)||e),'err',6000);});
   });
+}
+// ═══ v7.68: ПОДСКАЗКИ ПО СОСТАВНЫМ ТОВАРАМ ════════════════════════════════
+// В прайсе стоит одна строка и одна цена, но продаётся не «вся вещь». Кровать —
+// это каркас: основание и матрас идут отдельно, а на ширине от 1400 мм нужна
+// ещё траверса. Кухня в прайсе — корпуса с фасадами, без столешницы и мойки.
+// Продавцы (особенно новые) об этом забывают, клиент узнаёт при сборке — и это
+// уже конфликт, а не продажа. Поэтому у каждого такого товара в результатах
+// поиска стоит значок ⓘ: что входит в цену, что докупается отдельно, как это
+// правильно называется у поставщика и что спросить у клиента.
+//
+// Порядок в списке важен: первое совпадение выигрывает, поэтому частные случаи
+// («основание», «фасад для кухни») стоят ВЫШЕ общих («кровать», «кухня»).
+var _GOODS_TIPS=[
+{re:/траверс/i,t:'🔩 Траверса',
+ v:'Центральная опорная балка под ламели, ставится вдоль кровати посередине, обычно с одной-двумя ножками в пол.',
+ o:'Нужна кроватям шириной от 1400 мм. Без неё основание прогибается, а гарантия на кровать не действует.',
+ n:'Правильно: «траверса» (у части фабрик — «центральная перекладина», «усилитель основания»).',
+ q:'Уточнить: ширина спального места и сколько опор идёт в комплекте.'},
+{re:/ламел|латофлекс|лат[аы]\b/i,t:'🪵 Ламели (латы)',
+ v:'Гнутоклееные берёзовые планки, на которых лежит матрас. Продаются поштучно или комплектом на основание.',
+ o:'Отдельно: латодержатели (пластиковые карманы), траверса — если основание широкое.',
+ n:'Правильно: «ламель», в прайсах встречается «латы», «латодержатель».',
+ q:'Уточнить: ширина ламели (53/63 мм) и длина — они у фабрик разные.'},
+{re:/основани/i,t:'🛏 Основание кровати',
+ v:'Рама с ламелями, кладётся внутрь каркаса кровати. Бывает на ножках и без.',
+ o:'Отдельно: матрас, траверса (от 1400 мм), подъёмный механизм.',
+ n:'Правильно: «основание ортопедическое». Не путать с каркасом кровати — это разные позиции.',
+ q:'Уточнить: размер спального места и высота — основание с ножками поднимает кровать.'},
+{re:/наматрасник|топпер/i,t:'🧺 Наматрасник / топпер',
+ v:'Тонкий слой поверх матраса: защищает от загрязнения или добавляет мягкости.',
+ o:'Отдельно: чехол на матрас, простыня на резинке.',
+ n:'Топпер — это про комфорт (толщина 3–8 см), наматрасник — про защиту.',
+ q:'Уточнить: размер матраса и высота бортика (на резинке или на молнии).'},
+{re:/матрас/i,t:'🛌 Матрас',
+ v:'Цена за матрас в стандартном чехле. Жёсткость сторон бывает разной — это отдельная характеристика.',
+ o:'Отдельно: основание или кровать, наматрасник, съёмный чехол.',
+ n:'«Независимый пружинный блок» ≠ «Боннель» (зависимые пружины) — цена и срок службы разные.',
+ q:'Уточнить: размер, вес спящих, жёсткость, нужна ли доставка в день сборки кровати.'},
+{re:/кроват/i,t:'🛏 Кровать',
+ v:'Цена в прайсе почти всегда за КАРКАС: изголовье, изножьe и царги (боковины).',
+ o:'Отдельно докупают: основание с ламелями, траверсу (кровати от 1400 мм), матрас, подъёмный механизм, бельевой ящик.',
+ n:'Правильно: «царга» — боковина, «основание ортопедическое» — рама с ламелями, «траверса» — центральная балка с ножкой.',
+ q:'Спросить у клиента: размер спального места, нужны ли основание и матрас, высота изголовья (встанет ли под окно).'},
+{re:/шкаф[\s-]*купе|купе/i,t:'🚪 Шкаф-купе',
+ v:'В цену входит корпус и двери-купе с роликовой системой и направляющими.',
+ o:'Отдельно бывают: наполнение (штанги, полки, ящики, обувница, брючница), зеркало или пескоструй на дверь, доводчики.',
+ n:'«Направляющие» — верхний и нижний рельс; система бывает опорная (нижняя) и подвесная.',
+ q:'Спросить: высота потолка и ниши, сколько дверей, нужно ли зеркало, глубина (стандарт 600 мм).'},
+{re:/фасад|^корпус\b|корпус\s+(софия|для|кухн)/i,t:'🧩 Часть комплекта, а не готовая вещь',
+ v:'Это отдельная деталь: корпус (короб без фасадов) или фасад (дверца). Сами по себе не собираются.',
+ o:'К корпусу нужен фасад того же размера, к фасаду — корпус. Плюс ручки и петли, если фабрика их не кладёт.',
+ n:'«Корпус 1,6 м» + «фасад для кухни 1,6 низ» + «фасад для кухни 1,6 верх» — это ОДНА кухня из трёх строк прайса.',
+ q:'Проверить: совпадают ли размер и низ/верх, и посчитаны ли обе части в заказе.'},
+{re:/кухн|гарнитур/i,t:'🍽 Кухонный гарнитур',
+ v:'Цена за корпуса с фасадами по указанной длине (например, 2,0 м) — то, что висит и стоит.',
+ o:'Отдельно: столешница, стеновая панель (фартук), мойка и смеситель, цоколь, карниз, сушка, доводчики, встраиваемая техника.',
+ n:'«Верх» — навесные шкафы, «низ» — напольные. Длина в названии (1,6 / 2,0) — это длина всего гарнитура.',
+ q:'Спросить: длина стены, сторона мойки и плиты, высота верхних шкафов, нужна ли столешница.'},
+{re:/шкаф|шифоньер|пенал/i,t:'🚪 Шкаф распашной',
+ v:'Корпус с фасадами на петлях, внутри штанга и полки по схеме фабрики.',
+ o:'Отдельно: антресоль (верхний ярус), дополнительные полки, ручки у части фабрик, зеркало на фасад.',
+ n:'«Распашной» — двери на петлях, «купе» — на роликах. Антресоль считается отдельной позицией.',
+ q:'Спросить: высота потолка (влезет ли с антресолью), сколько дверей, нужно ли зеркало.'},
+{re:/диван|софа|тахта|канапе/i,t:'🛋 Диван',
+ v:'Цена зависит от КАТЕГОРИИ ткани и механизма — в прайсе обычно указана самая дешёвая категория.',
+ o:'Отдельно или за доплату: категория ткани выше базовой, независимый пружинный блок, декоративные подушки, банкетка/пуф в пару.',
+ n:'Механизмы: «еврокнижка», «дельфин», «аккордеон», «тик-так» (пантограф). Ящик для белья есть не у всех.',
+ q:'Спросить: спальное место нужно каждый день или для гостей, сторона угла (левый/правый), категория ткани, есть ли животные.'},
+{re:/кресл/i,t:'🪑 Кресло',
+ v:'Цена за кресло в базовой категории ткани, как и у дивана.',
+ o:'Отдельно: категория ткани выше базовой, механизм качания/реклайнер, пуф под ноги.',
+ n:'Кресло «в пару к дивану» шьётся из той же ткани — заказывать обе позиции одной категорией.',
+ q:'Спросить: та же ткань, что у дивана, или контраст.'},
+{re:/стенк|гостин|прихож|детск|спальн|модульн|^мс\s|^мс-/i,t:'🧱 Модульная композиция',
+ v:'В прайсе цена за ОДИН модуль, а не за всю композицию с картинки.',
+ o:'Собирается из модулей: шкаф, витрина, тумба ТВ, полка, антресоль, комод — каждый своей строкой.',
+ n:'Буквенно-цифровой код («ВШ06-1100», «КМ06-1200», «СТЛ06-600») — это конкретный модуль: тип, серия и ширина в мм.',
+ q:'Спросить: длина стены и высота потолка, затем собрать список модулей и посчитать общую ширину.'},
+{re:/витрин|сервант|горк/i,t:'🪟 Витрина',
+ v:'Корпус со стеклянными фасадами. Подсветка — почти всегда отдельная позиция.',
+ o:'Отдельно: LED-подсветка с блоком питания, стеклянные полки вместо ЛДСП.',
+ n:'«Витрина» — со стеклом, «пенал» — глухой. Стекло бывает прозрачное и матовое.',
+ q:'Спросить: нужна ли подсветка и есть ли рядом розетка.'},
+{re:/комод|тумб/i,t:'🗄 Комод / тумба',
+ v:'Готовое изделие: корпус, ящики или дверцы, ручки и ножки обычно в комплекте.',
+ o:'Отдельно: зеркало или надстройка к комоду, доводчики ящиков.',
+ n:'«Тумба ТВ» и «тумба прикроватная» — разные позиции, различаются шириной в названии.',
+ q:'Спросить: ширина места, сколько ящиков, направление открывания дверцы.'},
+{re:/стол\s*компьютерн|стол\s*письмен|стол\s*туалетн|^стол[\s-]/i,t:'🖥 Стол',
+ v:'Цена за столешницу с опорами или каркасом — в том виде, как на фото.',
+ o:'Отдельно: надстройка, тумба, полка под клавиатуру, стулья.',
+ n:'У раздвижных столов длина указывается «в сложенном / разложенном» виде.',
+ q:'Спросить: сколько человек садится, нужна ли тумба, сторона тумбы (лево/право).'},
+{re:/стол/i,t:'🍽 Стол обеденный',
+ v:'Цена только за стол. Стулья к нему в прайсе всегда отдельными строками.',
+ o:'Отдельно: стулья, вставка для раздвижного стола, защитное покрытие.',
+ n:'«Стол-трансформер» — журнальный, поднимается до обеденного; «раздвижной» — удлиняется вставкой.',
+ q:'Спросить: сколько посадочных мест, раздвижной или нет, форма (прямоугольный/овальный).'},
+{re:/стул|табурет|банкетк|пуф/i,t:'🪑 Стулья и мелкая мягкая мебель',
+ v:'Цена за одну штуку. Отличаются они часто ТОЛЬКО тканью и опорами — смотрите характеристику в строке.',
+ o:'Отдельно: комплект из 2/4/6 штук считается умножением, скидка за комплект бывает не у всех.',
+ n:'«Опоры» — ножки (металл, дерево, хром). Ткань указывается категорией или названием («Саванна», «Велютто»).',
+ q:'Спросить: сколько штук, цвет опор, ткань в тон столу или дивану.'},
+{re:/стеллаж|полк|антресол/i,t:'🧺 Стеллаж, полка, антресоль',
+ v:'Отдельный модуль. Антресоль ставится НА шкаф и без него не используется.',
+ o:'Отдельно: дополнительные полки, крепёж к стене (у высоких стеллажей обязателен).',
+ n:'Антресоль подбирается строго по ширине шкафа — «антресоль 800» к шкафу 800 мм.',
+ q:'Спросить: высота потолка (антресоль добавляет 300–500 мм), нужен ли крепёж к стене.'},
+{re:/зеркал|трюмо/i,t:'🪞 Зеркало',
+ v:'Цена за само зеркало. Крепление обычно в комплекте, подсветка — нет.',
+ o:'Отдельно: подсветка, рама, крепёж к нестандартной стене (гипсокартон).',
+ n:'Зеркало «к комоду» подбирается по ширине комода.',
+ q:'Спросить: куда вешаем (стена или на комод), нужна ли подсветка.'},
+{re:/вешалк|обувниц/i,t:'🧥 Прихожая: вешалка и обувница',
+ v:'Отдельные модули прихожей, продаются поштучно.',
+ o:'Отдельно: зеркало, банкетка, полка для головных уборов.',
+ n:'«Панель с крючками» и «шкаф для верхней одежды» — разные позиции.',
+ q:'Спросить: ширина стены в прихожей, нужна ли обувница с сиденьем.'}
+];
+// Подсказка по названию товара. Возвращает объект или null.
+function goodsTip(name,article){
+  var s=String(name==null?'':name)+' '+String(article==null?'':article);
+  for(var i=0;i<_GOODS_TIPS.length;i++)if(_GOODS_TIPS[i].re.test(s))return _GOODS_TIPS[i];
+  return null;
+}
+// Кнопка ⓘ + скрытая карточка подсказки. id — уникальный на странице.
+function goodsTipHtml(id,name,article){
+  var t=goodsTip(name,article);
+  if(!t)return{btn:'',box:''};
+  var row=function(lbl,txt){
+    return '<div style="display:flex;gap:6px;margin-top:3px"><span style="flex-shrink:0;color:var(--text2);min-width:96px">'+lbl+'</span><span>'+esc(txt)+'</span></div>';
+  };
+  return{
+    btn:' <button type="button" title="Из чего состоит и что докупить" onclick="toggleGoodsTip(event,\''+id+'\')" '
+      +'style="background:#EDE7F6;color:#4527A0;border:1px solid #D1C4E9;border-radius:10px;font-size:10px;font-weight:700;'
+      +'padding:1px 7px;cursor:pointer;vertical-align:middle;white-space:nowrap">ⓘ состав</button>',
+    box:'<div id="'+id+'" style="display:none;font-size:11px;line-height:1.45;color:#311B92;background:#F5F2FC;'
+      +'border:1px solid #D1C4E9;border-radius:6px;padding:6px 9px;margin-top:4px;white-space:normal">'
+      +'<div style="font-weight:700;font-size:12px">'+esc(t.t)+'</div>'
+      +row('В цене:',t.v)+row('Отдельно:',t.o)+row('Как правильно:',t.n)
+      +row('Уточнить:',String(t.q).replace(/^(спросить у клиента|спросить|уточнить|проверить)\s*:\s*/i,''))
+      +'</div>'
+  };
+}
+function toggleGoodsTip(ev,id){
+  if(ev&&ev.stopPropagation)ev.stopPropagation();
+  var el=document.getElementById(id);if(!el)return;
+  el.style.display=(el.style.display==='none')?'block':'none';
 }
 function qrDataUrl(text,size){
   // QR генерируется ЛОКАЛЬНО встроенной библиотекой (data:URL) — печатается всегда,
