@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.68</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.69</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -871,7 +871,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </div>
   <!-- v7.40: расчёт зарплаты. Смены берутся из «Отработанных дней»,
        оборот — товар со скидкой по заказам продавца, по дате оформления. -->
-  <div class="card" style="margin-top:16px"><div class="card-title">💵 Зарплата продавцов — за выбранный период</div><div id="chart-salary"></div></div>
+  <div class="card" style="margin-top:16px"><div class="card-title">💵 Зарплата продавцов — за выбранный период</div><div id="chart-salary"></div>
+    <!-- v7.69: заметки об отпускных — в той же карточке, что и зарплата -->
+    <div id="chart-vacations" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)"></div></div>
   </details>
 
   <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🏆 Товары и клиенты <span style="font-weight:400;font-size:11px">(нажмите, чтобы развернуть)</span></summary>
@@ -8735,6 +8737,7 @@ function renderStats(){
     return '<div class="stat-card"><div class="stat-label">'+k.l+'</div><div class="stat-val" style="font-size:18px;'+(k.c?'color:'+k.c:'')+'">'+k.v+'</div>'+(k.s?'<div style="font-size:11px;color:var(--text2)">'+k.s+'</div>':'')+(k.d||'')+'</div>';
   }).join('');
   _renderSalary(orders,range); // v7.40: зарплата — до раннего выхода «нет данных»
+  _renderVacations();          // v7.69: отпуска и отпускные — рядом с зарплатой
   // ── ПО МЕСЯЦАМ: таблица за последние 12 месяцев (НЕ зависит от выбранного периода) ──
   (function(){
     var el=document.getElementById('chart-months');if(!el)return;
@@ -9114,6 +9117,158 @@ function _renderSalary(orders,range){
     el.innerHTML=h;
   });
 }
+// ═══ v7.69: ОТПУСКА И ОТПУСКНЫЕ ══════════════════════════════════════
+// Зачем. По ст. 136 ТК РФ отпускные платят НЕ ПОЗДНЕЕ ЧЕМ ЗА ТРИ ДНЯ до
+// начала отпуска. Держать это в голове — значит однажды забыть: за просрочку
+// положена компенсация работнику и штраф на ИП. Здесь отметка живёт рядом
+// с зарплатой: кто, когда отдыхал, сколько отпускных и КОГДА выплачены.
+// Это журнал заметок, а не расчётчик: суммы владелец ставит сам.
+// Данные лежат в staff_vacations (SQL_обновление_7.17), продавцу закрыты.
+var _vac=null;        // строки staff_vacations
+var _vacInDb=true;    // false — таблицы ещё нет, SQL 7.17 не выполнен
+function _vacLoad(force){
+  if(_vac&&!force)return Promise.resolve(_vac);
+  return _sbOnce('GET','staff_vacations',null,'select=id,manager,date_from,date_to,days,amount,paid_on&order=date_from.desc&limit=500')
+    .then(function(rows){_vac=rows||[];_vacInDb=true;return _vac;})
+    .catch(function(){_vac=[];_vacInDb=false;return _vac;});
+}
+// Список имён для подсказки: те, кто выходил на смены, плюс те, кому отпуск
+// уже отмечали. Имя всё равно можно вписать руками.
+function _vacNames(){
+  var m={};
+  (_mdCache||[]).forEach(function(r){var n=(r.manager||'').trim();if(n)m[n]=1;});
+  (_vac||[]).forEach(function(r){var n=(r.manager||'').trim();if(n)m[n]=1;});
+  return Object.keys(m).sort();
+}
+// «Не позднее чем за три дня» — считаем от первого дня отпуска. Если срок
+// упал на выходной, платить надо РАНЬШЕ, поэтому день только отодвигаем назад.
+function _vacDueDate(from){
+  if(!from)return '';
+  var d=new Date(String(from).slice(0,10)+'T00:00:00');
+  if(isNaN(d))return '';
+  d.setDate(d.getDate()-3);
+  while(d.getDay()===0||d.getDay()===6)d.setDate(d.getDate()-1);
+  return d.toISOString().slice(0,10);
+}
+function _vacDays(from,to){
+  if(!from||!to)return null;
+  var a=new Date(String(from).slice(0,10)+'T00:00:00'),b=new Date(String(to).slice(0,10)+'T00:00:00');
+  if(isNaN(a)||isNaN(b))return null;
+  var n=Math.round((b-a)/86400000)+1;
+  return n>0?n:null;
+}
+function _renderVacations(){
+  var el=document.getElementById('chart-vacations');if(!el)return;
+  // Продавцу блок не показываем совсем: база всё равно его не отдаст.
+  if(!_isOwner){el.innerHTML='';return;}
+  el.innerHTML='<p style="color:var(--text2);font-size:13px">Загрузка...</p>';
+  Promise.all([_vacLoad(),_mdLoad()]).then(function(){
+    var td='padding:7px 8px;border-bottom:1px solid var(--border);';
+    var th='text-align:right;'+td+'font-size:11px;color:var(--text2);font-weight:600';
+    var inp='padding:3px 5px;font-size:12.5px;border:1px solid var(--border);border-radius:5px';
+    var h='<div style="font-weight:700;font-size:13px;margin-bottom:8px">🏖 Отпуска и отпускные</div>';
+    if(!_vacInDb){
+      el.innerHTML=h+'<div style="font-size:12px;color:#C62828">Таблица отпусков в базе ещё не заведена. Выполните <strong>SQL_обновление_7.17.sql</strong> в Supabase — и заметки появятся.</div>';
+      return;
+    }
+    if(!(_vac||[]).length){
+      h+='<p style="color:var(--text2);font-size:12.5px;margin:0 0 10px">Записей пока нет. Добавьте первую — приложение запомнит, когда и сколько выплачено.</p>';
+    }else{
+      h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;min-width:640px">'
+        +'<tr><th style="text-align:left;'+td+'font-size:11px;color:var(--text2);font-weight:600">Продавец</th>'
+        +'<th style="text-align:left;'+td+'font-size:11px;color:var(--text2);font-weight:600">Отпуск</th>'
+        +'<th style="'+th+'">Дней</th><th style="'+th+'">Отпускные, ₽</th>'
+        +'<th style="'+th+'">Выплачено</th><th style="'+td+'"></th></tr>';
+      _vac.forEach(function(r){
+        var due=_vacDueDate(r.date_from);
+        h+='<tr><td style="'+td+'font-weight:700">'+esc(r.manager||'')+'</td>'
+          +'<td style="'+td+'">'+fmtDate(r.date_from)+(r.date_to?' — '+fmtDate(r.date_to):'')
+          +(due?'<div style="font-size:11px;color:var(--text2);font-weight:400">заплатить до '+fmtDate(due)+'</div>':'')+'</td>'
+          +'<td style="text-align:right;'+td+'">'+(r.days==null?'—':r.days)+'</td>'
+          +'<td style="text-align:right;'+td+'"><input type="number" min="0" step="100" style="'+inp+';width:92px;text-align:right" data-vid="'+r.id+'" data-vk="amount" value="'+(r.amount==null?'':r.amount)+'"></td>'
+          +'<td style="text-align:right;'+td+'"><input type="date" style="'+inp+';width:132px" data-vid="'+r.id+'" data-vk="paid_on" value="'+(r.paid_on?String(r.paid_on).slice(0,10):'')+'"></td>'
+          +'<td style="text-align:right;'+td+'"><button class="btn btn-outline" style="padding:2px 8px;font-size:12px" title="Удалить запись" onclick="vacDelete('+r.id+')">✕</button></td></tr>';
+      });
+      h+='</table></div>'
+        +'<div style="margin-top:8px"><button class="btn btn-outline" style="padding:6px 12px;font-size:12px" onclick="vacSaveMarks()">💾 Сохранить отметки</button></div>';
+    }
+    // ── форма добавления ──
+    var names=_vacNames();
+    h+='<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)">'
+      +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Добавить отпуск</div>'
+      +'<datalist id="vac-names">'+names.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'
+      +'<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'
+      +'<label style="font-size:11px;color:var(--text2)">Продавец<br><input id="vac-mgr" list="vac-names" style="'+inp+';width:150px" placeholder="имя"></label>'
+      +'<label style="font-size:11px;color:var(--text2)">С<br><input id="vac-from" type="date" style="'+inp+';width:140px" oninput="vacDaysAuto()"></label>'
+      +'<label style="font-size:11px;color:var(--text2)">По<br><input id="vac-to" type="date" style="'+inp+';width:140px" oninput="vacDaysAuto()"></label>'
+      +'<label style="font-size:11px;color:var(--text2)">Дней<br><input id="vac-days" type="number" min="1" step="1" style="'+inp+';width:62px;text-align:right"></label>'
+      +'<label style="font-size:11px;color:var(--text2)">Отпускные, ₽<br><input id="vac-amount" type="number" min="0" step="100" style="'+inp+';width:100px;text-align:right"></label>'
+      +'<label style="font-size:11px;color:var(--text2)">Выплачено<br><input id="vac-paid" type="date" style="'+inp+';width:140px"></label>'
+      +'<button class="btn btn-outline" style="padding:6px 12px;font-size:12px" onclick="vacAdd()">➕ Записать</button>'
+      +'</div>'
+      +'<div style="margin-top:8px;font-size:11px;color:var(--text2)">Отпускные по закону выплачивают не позднее чем за три дня до начала отпуска (ст. 136 ТК РФ). «Выплачено» можно оставить пустым и проставить, когда отдадите деньги.</div>'
+      +'</div>';
+    el.innerHTML=h;
+  });
+}
+// Дни считаем сами, но оставляем поле правимым: часть отпуска может идти
+// с переносом праздников, и владелец знает лучше.
+function vacDaysAuto(){
+  var f=document.getElementById('vac-from'),t=document.getElementById('vac-to'),d=document.getElementById('vac-days');
+  if(!f||!t||!d)return;
+  var n=_vacDays(f.value,t.value);
+  if(n!=null&&!d.value)d.value=n;
+}
+function vacAdd(){
+  if(!ownerOnly('Отметки об отпускных'))return;
+  var g=function(id){var e=document.getElementById(id);return e?String(e.value||'').trim():'';};
+  var mgr=g('vac-mgr'),from=g('vac-from'),to=g('vac-to'),days=g('vac-days'),amount=g('vac-amount'),paid=g('vac-paid');
+  if(!mgr){toast('Впишите продавца','err',4000);return;}
+  if(!from){toast('Укажите первый день отпуска','err',4000);return;}
+  if(to&&to<from){toast('«По» раньше, чем «С» — проверьте даты','err',4500);return;}
+  var n=days?parseInt(days,10):_vacDays(from,to);
+  var body={manager:mgr,date_from:from,date_to:to||null,
+    days:(n&&n>0)?n:null,
+    amount:amount!==''?parseFloat(String(amount).replace(',','.')):null,
+    paid_on:paid||null};
+  sbPost('staff_vacations',body).then(function(){
+    toast('✅ Отпуск записан');
+    _vac=null;_renderVacations();
+  }).catch(function(e){
+    var m=(e&&e.message)||'';
+    if(/staff_vacations|does not exist|relation|schema/i.test(m))toast('❌ Сначала выполните SQL_обновление_7.17 в Supabase','err',7000);
+    else toast('❌ Не записалось: '+m.slice(0,120),'err',6000);
+  });
+}
+// Сохраняем только то, что владелец действительно поменял: лишние PATCH
+// по всем строкам — это лишний повод получить ошибку на ровном месте.
+function vacSaveMarks(){
+  if(!ownerOnly('Отметки об отпускных'))return;
+  var el=document.getElementById('chart-vacations');if(!el)return;
+  var byId={};(_vac||[]).forEach(function(r){byId[r.id]=r;});
+  var changed={};
+  Array.prototype.forEach.call(el.querySelectorAll('input[data-vid]'),function(inp){
+    var id=inp.getAttribute('data-vid'),k=inp.getAttribute('data-vk');
+    var v=String(inp.value||'').trim();
+    var was=byId[id]?byId[id][k]:null;
+    var now=(k==='amount')?(v===''?null:parseFloat(v.replace(',','.'))):(v||null);
+    var wasN=(k==='amount')?(was==null?null:+was):(was?String(was).slice(0,10):null);
+    if(String(now)!==String(wasN))(changed[id]=changed[id]||{})[k]=now;
+  });
+  var ids=Object.keys(changed);
+  if(!ids.length){toast('Менять нечего — всё уже так и записано','ok',4000);return;}
+  Promise.all(ids.map(function(id){return sbPatch('staff_vacations',changed[id],'id=eq.'+id);}))
+    .then(function(){toast('💾 Отметки сохранены');_vac=null;_renderVacations();})
+    .catch(function(e){toast('❌ Не сохранилось: '+((e&&e.message)||'').slice(0,120),'err',6000);});
+}
+function vacDelete(id){
+  if(!ownerOnly('Отметки об отпускных'))return;
+  var r=(_vac||[]).filter(function(x){return String(x.id)===String(id);})[0];
+  if(!confirm('Удалить запись об отпуске'+(r?(' — '+r.manager+', '+fmtDate(r.date_from)):'')+'?\n\nОтменить это будет нельзя.'))return;
+  sbDel('staff_vacations','id=eq.'+id).then(function(){
+    toast('Запись удалена');_vac=null;_renderVacations();
+  }).catch(function(e){toast('❌ Не удалилось: '+((e&&e.message)||'').slice(0,120),'err',6000);});
+}
 // v7.25: полная копия — ВСЕ таблицы базы, двумя файлами:
 //   .json — точная копия для восстановления (типы и пустые значения не портятся),
 //   .xlsx — та же копия, но её можно открыть глазами.
@@ -9134,7 +9289,8 @@ var _BK_TABLES=[
   {t:'staff_rates',      sheet:'Ставки продавцов'}, // v7.40
   {t:'price_imports',    sheet:'Загрузки прайсов'},  // v7.41
   {t:'app_settings',     sheet:'Настройки'},         // v7.42
-  {t:'delivery_places',  sheet:'Доставка'}           // v7.48: прейскурант по пунктам
+  {t:'delivery_places',  sheet:'Доставка'},          // v7.48: прейскурант по пунктам
+  {t:'staff_vacations',  sheet:'Отпуска продавцов'}  // v7.69
 ];
 function _bkSave(text,name,mime){
   var blob=new Blob([text],{type:mime});
@@ -9159,7 +9315,7 @@ async function exportBackup(){
   }
   // v7.43: пропущенная незаменимая таблица — это дыра в копии. Раньше о ней
   // сообщалось мелким шрифтом в конце тоста, и её никто не замечал.
-  var _BK_IMPORTANT=['orders','order_items','clients','cash_withdrawals','manager_days','staff_rates','app_roles','app_settings','price_imports'];
+  var _BK_IMPORTANT=['orders','order_items','clients','cash_withdrawals','manager_days','staff_rates','staff_vacations','app_roles','app_settings','price_imports'];
   var lost=missing.filter(function(t){return _BK_IMPORTANT.indexOf(t)>=0;});
   if(lost.length&&!confirm('В копию НЕ ПОПАЛИ таблицы: '+lost.join(', ')+'.\n\n'
     +'Это данные, которые нельзя восстановить руками. Скачать неполную копию всё равно?'))return;
