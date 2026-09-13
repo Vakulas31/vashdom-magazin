@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.69</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.70</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -438,14 +438,30 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <span onclick="setPrepayPct(0)" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#78909C">Без предоплаты</span>
       </div>
     </div>
+    <!-- v7.70: предоплату можно принять сразу несколькими способами —
+         часть наличными, часть переводом. Поле «Предоплата» выше остаётся
+         общей суммой, а эти три — её разбивкой. Старое поле «способ оплаты»
+         никуда не делось: оно скрыто и заполняется само, чтобы бланки и
+         старые заказы работали как раньше. -->
+    <div class="fg" id="f-payment-wrap" style="margin-top:12px">
+      <label>Чем получена предоплата</label>
+      <input type="hidden" id="f-payment" value="">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:112px"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">💵 Наличные</div>
+          <input type="number" id="f-pre-cash" min="0" step="1" inputmode="numeric" placeholder="0" oninput="preSplitEdited('cash')" style="width:100%"></div>
+        <div style="flex:1;min-width:112px"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">💳 Карта</div>
+          <input type="number" id="f-pre-card" min="0" step="1" inputmode="numeric" placeholder="0" oninput="preSplitEdited('card')" style="width:100%"></div>
+        <div style="flex:1;min-width:112px"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">📲 Перевод</div>
+          <input type="number" id="f-pre-transfer" min="0" step="1" inputmode="numeric" placeholder="0" oninput="preSplitEdited('transfer')" style="width:100%"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <span onclick="preSplitAll('cash')" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#1565C0">💵 всё наличными</span>
+        <span onclick="preSplitAll('card')" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#1565C0">💳 всё картой</span>
+        <span onclick="preSplitAll('transfer')" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#1565C0">📲 всё переводом</span>
+      </div>
+      <div id="f-pre-split-note" style="font-size:11.5px;margin-top:6px;color:var(--text2)"></div>
+    </div>
     <div class="form-row" style="margin-top:12px">
-      <div class="fg" id="f-payment-wrap"><label>Способ оплаты предоплаты</label>
-        <select id="f-payment" class="inp-gold">
-          <option value="">— выберите —</option>
-          <option>💵 Наличные</option>
-          <option>💳 Карта</option>
-          <option>📲 Перевод</option>
-        </select></div>
       <div class="fg"><label>Статус оплаты <span style="color:var(--text2);font-size:11px">(считается сам)</span></label>
         <div id="f-status-view" style="padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:var(--alt);font-weight:600;font-size:14px">🔴 Не оплачено</div></div>
     </div>
@@ -1027,6 +1043,37 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <button class="btn btn-outline" onclick="closeModal('modal-itempay')">Отмена</button>
     </div>
     <div style="font-size:11px;color:var(--text2);margin-top:10px">Полученная сумма спишется с долга заказа и попадёт в учёт кассы указанной датой — при довозе остальных товаров она уже не будет числиться за клиентом.</div>
+  </div>
+</div>
+
+<!-- v7.70: приём денег по заказу, который ещё не выполнен -->
+<div class="modal-bg" id="modal-orderpay">
+  <div class="modal" style="max-width:470px">
+    <div class="modal-title" id="op-title">💰 Приём оплаты по заказу</div>
+    <div id="op-summary" style="background:var(--alt);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;line-height:1.6"></div>
+    <div class="fg" style="margin-bottom:12px"><label>Получено, ₽</label>
+      <input type="number" id="op-amount" min="0" step="1" inputmode="numeric" class="inp-gold">
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <span id="op-all-chip" onclick="opFillAll()" style="border:1px solid #C9D4E0;background:#fff;border-radius:14px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;color:#1565C0">весь долг</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="fg" style="margin:0"><label>Чем заплатил</label>
+        <select id="op-method">
+          <option>💵 Наличные</option>
+          <option>💳 Карта</option>
+          <option>📲 Перевод</option>
+        </select>
+      </div>
+      <div class="fg" style="margin:0"><label>Дата получения</label><input type="date" id="op-date"></div>
+    </div>
+    <div class="fg" style="margin-bottom:16px"><label>Комментарий <span style="color:var(--text2);font-size:11px">(необязательно)</span></label>
+      <input type="text" id="op-comment" maxlength="120" placeholder="например: остаток безналом"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="op-save-btn" onclick="opSave()" style="flex:1;justify-content:center">💰 Записать оплату</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-orderpay')">Отмена</button>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-top:10px">Деньги спишутся с долга клиента и попадут в «Учёт» указанной датой. Заказ останется открытым — закроете его, когда отдадите товар.</div>
   </div>
 </div>
 
@@ -1846,6 +1893,16 @@ var _ORDERS_LIMIT=2000, _ordersTruncated=false;
 // Проверяем ОДИН раз при загрузке: если их нет — приложение работает как раньше,
 // просто занос вводится вручную и в договоре этаж печатается прочерком.
 var _hasFloorCols=true;
+// v7.70: колонки разбивки предоплаты появляются после SQL 7.18. Пока их нет —
+// не отправляем их в базу, иначе она отклонит весь заказ и он не сохранится.
+var _hasPreCols=true;
+function _probePreCols(){
+  return _sbOnce('GET','orders',null,'select=pre_cash&limit=1')
+    .then(function(){_hasPreCols=true;})
+    .catch(function(e){
+      if(/pre_cash|column|does not exist|schema/i.test((e&&e.message)||''))_hasPreCols=false;
+    });
+}
 function _probeFloorCols(){
   // _sbOnce, а не sbGet: у GET три попытки с паузами, и проба отвечала бы
   // только через две секунды — за это время можно успеть сохранить заказ
@@ -1856,13 +1913,54 @@ function _probeFloorCols(){
     });
 }
 function loadOrders(){
-  _probeFloorCols();
+  _probeFloorCols();_probePreCols();
   return sbGet('orders','select=*,order_items(*)&order=created_at.desc&limit='+_ORDERS_LIMIT).then(function(rows){
     allOrders=rows||[];
     _ordersTruncated=allOrders.length>=_ORDERS_LIMIT;
     renderOrders(allOrders);updateManagerFilter();
     _showTruncNote();
+    // v7.70: платежи грузим отдельным запросом, а не вложением в заказы.
+    // Вложение (`order_payments(*)`) обрушило бы ВЕСЬ список заказов у того,
+    // кто ещё не выполнил SQL 7.18 — приложение осталось бы без заказов.
+    return loadOrderPays().then(function(){renderOrders(allOrders);});
   });
+}
+// ═══ v7.70: ПЛАТЕЖИ ПО ЗАКАЗУ ════════════════════════════════════════
+// Зачем. Клиент оформил заказ с предоплатой, через неделю принёс остаток —
+// а товар ещё не привезли. Раньше такие деньги записать было некуда: либо
+// закрывать заказ раньше выдачи (и врать в «Выполнен»), либо держать в
+// голове. Теперь каждый такой приход — отдельная строка со своей датой и
+// своим способом оплаты, а заказ остаётся открытым.
+var _paysInDb=true;           // false — SQL 7.18 ещё не выполнен
+function loadOrderPays(){
+  return sbGetAll('order_payments','select=id,order_id,pay_date,amount,method,comment,who_name&order=pay_date.asc,id.asc')
+    .then(function(rows){
+      _paysInDb=true;
+      var by={};
+      (rows||[]).forEach(function(p){(by[p.order_id]=by[p.order_id]||[]).push(p);});
+      allOrders.forEach(function(o){o.order_payments=by[o.id]||[];});
+      return rows||[];
+    })
+    .catch(function(){
+      _paysInDb=false;
+      allOrders.forEach(function(o){if(!o.order_payments)o.order_payments=[];});
+      return [];
+    });
+}
+function orderPaysSum(o){
+  var s=0;((o&&o.order_payments)||[]).forEach(function(p){s+=Math.round(p.amount||0);});
+  return s;
+}
+function orderItemsPaid(o){
+  var s=0;((o&&o.order_items)||[]).forEach(function(it){s+=Math.round(it.paid_amount||0);});
+  return s;
+}
+// Сколько по заказу уже получено ВСЕМИ видимыми способами. Одна функция на
+// всё приложение, чтобы карточка, статус и касса не разошлись в счёте.
+function orderPaidTotal(o){
+  if(!o)return 0;
+  return Math.round(o.prepayment||0)+orderItemsPaid(o)+orderPaysSum(o)
+        +Math.round((o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0));
 }
 function _showTruncNote(){
   var el=document.getElementById('orders-trunc');if(!el)return;
@@ -2003,9 +2101,32 @@ function orderCard(o){
   // v6.7: сколько уже получено при доставке позиций
   var ftrItemPaid=itemsPaid>0?
     '<div class="ftr-col"><div class="ftr-lbl">💰 Оплачено при доставке</div><div class="ftr-val" style="color:#1B5E20">'+fmt(itemsPaid)+' ₽</div></div>':'';
+  // v7.70: доплаты, принятые до выполнения заказа
+  var _pays=(o.order_payments||[]);
+  var _paysSum=orderPaysSum(o);
+  var ftrPays=_paysSum>0?
+    '<div class="ftr-col"><div class="ftr-lbl">💰 Доплаты</div><div class="ftr-val" style="color:#1B5E20">'+fmt(_paysSum)+' ₽</div><div style="font-size:10px;color:var(--text2);margin-top:2px">платежей: '+_pays.length+'</div></div>':'';
+  var paysHtml='';
+  if(_pays.length){
+    paysHtml='<div class="note-box" style="border-left-color:#2e7d32">'
+      +'<div style="font-weight:700;margin-bottom:4px">💰 Платежи по заказу</div>';
+    _pays.forEach(function(pmt){
+      var del=_isOwner?'<button class="pl pl-mut" title="Удалить запись о платеже" onclick="event.stopPropagation();opDelete('+pmt.id+','+o.id+')" style="margin-left:6px;cursor:pointer">✕</button>':'';
+      paysHtml+='<div style="font-size:12.5px;padding:2px 0">'
+        +fmtDate(pmt.pay_date)+' · <strong>'+fmt(pmt.amount)+' ₽</strong>'
+        +(pmt.method?' · '+esc(pmt.method):'')
+        +(pmt.comment?' · <span style="color:var(--text2)">'+esc(pmt.comment)+'</span>':'')
+        +(pmt.who_name?' <span style="color:var(--text2);font-size:11px">('+esc(pmt.who_name)+')</span>':'')
+        +del+'</div>';
+    });
+    paysHtml+='</div>';
+  }
   var noteHtml=o.notes?'<div class="note-box">📝 '+o.notes+'</div>':'';
   if(_done&&o.close_comment)noteHtml+='<div class="note-box" style="border-left-color:#2e7d32">🏁 '+o.close_comment+'</div>';
   var doneBtn=!_done?'<button class="btn btn-success" onclick="markDone('+o.id+')" style="padding:5px 10px;font-size:12px">✅ Выполнен</button>':'';
+  // v7.70: принять деньги можно только по НЕ закрытому заказу — у закрытого
+  // для этого есть «🔐 Закрытие», иначе одни и те же деньги легли бы дважды
+  var payBtn=!_done?'<button class="btn btn-outline" onclick="openOrderPay('+o.id+')" style="padding:5px 10px;font-size:12px" title="Клиент принёс деньги, но товар ещё не отдан">💰 Принять оплату</button>':'';
   var closureBtn=_done?'<button class="btn btn-outline" onclick="editClosure('+o.id+')" style="padding:5px 10px;font-size:12px">🔐 Закрытие</button>':'';
   var ftrClose='';
   if(_done&&(o.closed_at||(o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0)>0)){
@@ -2037,10 +2158,10 @@ function orderCard(o){
     ((deliveryChip||contactTags)?'<div style="margin-top:4px">'+deliveryChip+contactTags+'</div>':'')+
     '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span class="pl pl-mut" style="margin-left:4px" title="Способ оплаты">'+o.payment_method+'</span>':'')+'</div>'+
     '<div id="order-body-'+o.id+'" style="'+(_done?'display:none':'')+'">'+
-    (itemsHtml||'')+noteHtml+
+    (itemsHtml||'')+paysHtml+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
     '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(orderGoods(o))+' ₽</div></div>'+
-    ftrDeliv+ftrPre+ftrItemPaid+ftrDebt+ftrClose+'</div>'+
+    ftrDeliv+ftrPre+ftrItemPaid+ftrPays+ftrDebt+ftrClose+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
     // v7.54: бланки печатаются одинаково часто и одинаково безобидны — рамки
     // у них теперь общие, серые. Цветной остаётся одна кнопка «Выполнен»:
@@ -2048,6 +2169,7 @@ function orderCard(o){
     '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Наряд</button>'+
     '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Договор</button>'+
     '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px">📋 Акт</button>'+
+    payBtn+
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'+
     // v7.59: история изменений — кто и когда что поменял
     '<button class="btn btn-outline" onclick="openOrderLog('+o.id+')" style="padding:5px 10px;font-size:12px" title="Кто и когда менял этот заказ">🕘 История</button>'+
@@ -2230,6 +2352,160 @@ function ipSavePaid(){
       if(/paid_amount|paid_method|paid_at/i.test(msg))toast('❌ Нужно выполнить SQL_обновление_6.7 в Supabase, затем повторить','err',8000);
       else toast('❌ Не сохранилось: '+msg,'err',6000);
     });
+}
+
+// ═══ v7.70: ПРИЁМ ОПЛАТЫ ПО ОТКРЫТОМУ ЗАКАЗУ ═════════════════════════
+// Деньги пишем в order_payments, а долг заказа (orders.remainder) сразу
+// уменьшаем: карточка, закрытие, печать и аналитика читают remainder, значит
+// повторно эти деньги никто не спросит.
+var _opOrderId=null;
+// Неоплаченная НАША доставка с заносом. Сторонняя не в счёт: за неё клиент
+// платит курьеру напрямую, через кассу салона она не проходит.
+function _opDelivDebt(o){
+  if(!o)return 0;
+  if(o.delivery_our===false)return 0;
+  if(o.delivery_paid==='yes')return 0;
+  return Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
+}
+// Статус оплаты считается так же, как в форме заказа: по тому, сколько всего
+// получено за ТОВАР. «Кредит», «Рассрочка» и «Выполнен» не трогаем — их
+// ставят руками и они значат другое.
+function _opRecalcStatus(o){
+  var st=String(o.status||'');
+  if(st.indexOf('Выполнен')>=0)return null;
+  if(st.indexOf('Кредит')>=0||st.indexOf('Рассрочк')>=0)return null;
+  var goods=Math.round(orderGoods(o));
+  var paid=Math.round(o.prepayment||0)+orderItemsPaid(o)+orderPaysSum(o);
+  var next=paid<=0?'🔴 Не оплачено':((goods>0&&paid>=goods)?'✅ Оплачено':'⚠️ Частичная');
+  return next===st?null:next;
+}
+function openOrderPay(id){
+  var o=allOrders.find(function(x){return x.id===id;});if(!o)return;
+  if(!_paysInDb){
+    toast('❌ Сначала выполните SQL_обновление_7.18 в Supabase — без него платежи некуда записывать','err',8000);
+    return;
+  }
+  _opOrderId=id;
+  var rem=Math.round(o.remainder||0), dd=_opDelivDebt(o);
+  document.getElementById('op-title').textContent='💰 Приём оплаты по заказу №'+o.order_number;
+  var parts=[];
+  if(rem>0)parts.push(fmt(rem)+' ₽ за товар');
+  if(dd>0)parts.push(fmt(dd)+' ₽ доставка и занос');
+  document.getElementById('op-summary').innerHTML='<strong>'+esc(o.client_name||'')+'</strong><br>'
+    +(parts.length?'Долг сейчас: <strong>'+fmt(rem+dd)+' ₽</strong> ('+parts.join(' + ')+')'
+                  :'Долга по этому заказу нет — записанный платёж станет переплатой.');
+  document.getElementById('op-amount').value='';
+  document.getElementById('op-comment').value='';
+  document.getElementById('op-date').value=new Date().toISOString().split('T')[0];
+  var chip=document.getElementById('op-all-chip');
+  if(chip){chip.style.display=(rem+dd)>0?'':'none';chip.textContent='весь долг — '+fmt(rem+dd)+' ₽';}
+  document.getElementById('modal-orderpay').classList.add('open');
+}
+function opFillAll(){
+  var o=allOrders.find(function(x){return x.id===_opOrderId;});if(!o)return;
+  document.getElementById('op-amount').value=Math.round(o.remainder||0)+_opDelivDebt(o);
+}
+var _opSaving=false;
+function opSave(){
+  if(_opSaving)return;
+  var o=allOrders.find(function(x){return x.id===_opOrderId;});if(!o)return;
+  var amt=Math.round(parseFloat(String(document.getElementById('op-amount').value).replace(',','.'))||0);
+  if(amt<=0){toast('⚠️ Укажите полученную сумму','err');return;}
+  var date=document.getElementById('op-date').value||new Date().toISOString().split('T')[0];
+  var method=document.getElementById('op-method').value||'';
+  var comment=String(document.getElementById('op-comment').value||'').trim();
+  var rem=Math.round(o.remainder||0), dd=_opDelivDebt(o);
+  var over=amt-rem;                       // сколько сверх долга за товар
+  var payDeliv=false;
+  if(over>0){
+    if(dd>0&&over>=dd){
+      // денег хватило и на товар, и на доставку с заносом
+      var _extra=amt-rem-dd;
+      payDeliv=confirm('Получено '+fmt(amt)+' ₽ — это больше долга за товар ('+fmt(rem)+' ₽).\n\n'
+        +'Зачесть '+fmt(dd)+' ₽ в оплату доставки и заноса и пометить их оплаченными?'
+        +(_extra>0?'\n\nОставшиеся '+fmt(_extra)+' ₽ станут переплатой.':'')
+        +'\n\nНажмёте «Отмена» — платёж всё равно запишется, но доставка останется в долгу и её спросят при закрытии.');
+    }else if(dd<=0){
+      // доставки в долгу нет, а денег больше, чем товара — это переплата
+      if(!confirm('Получено '+fmt(amt)+' ₽ — это больше долга за товар ('+fmt(rem)+' ₽).\n\n'
+        +'Записать всё равно? Долг станет 0, а '+fmt(over)+' ₽ — переплатой.'))return;
+    }
+    // если излишек МЕНЬШЕ доставки — это обычный частичный платёж,
+    // спрашивать не о чем: доставка просто остаётся в долгу
+  }
+  var newRem=Math.max(0,rem-amt);
+  var row={order_id:o.id,pay_date:date,amount:amt,method:method,comment:comment||null,
+    who:_who()||null,who_name:_whoName()||null};
+  var btn=document.getElementById('op-save-btn');
+  btn.innerHTML='<span class="spinner"></span> Сохраняем...';btn.disabled=true;_opSaving=true;
+  sbPost('order_payments',row).then(function(res){
+    var saved=(res&&res[0])||row;
+    o.order_payments=(o.order_payments||[]).concat([{id:saved.id,order_id:o.id,pay_date:date,
+      amount:amt,method:method,comment:comment||null,who_name:row.who_name}]);
+    var patch={remainder:newRem};
+    if(payDeliv)patch.delivery_paid='yes';
+    var st=_opRecalcStatus(Object.assign({},o,{remainder:newRem}));
+    if(st)patch.status=st;
+    return sbPatch('orders',patch,'id=eq.'+o.id).then(function(){
+      Object.assign(o,patch);
+      try{
+        var d=[{field:'Оплата по заказу',old:'',new:fmt(amt)+' ₽'+(method?' ('+method+')':'')+(comment?' — '+comment:'')},
+               {field:'Остаток',old:fmt(rem),new:fmt(newRem)}];
+        if(payDeliv)d.push({field:'Доставка и занос',old:'не оплачены',new:'оплачены этим платежом'});
+        if(st)d.push({field:'Статус',old:'',new:st});
+        logOrder(o,'pay',d,'принята оплата '+fmt(amt)+' ₽');
+      }catch(e){}
+      closeModal('modal-orderpay');
+      toast('💰 Записано '+fmt(amt)+' ₽'+(method?' ('+method+')':'')+'. Долг за товар: '+fmt(newRem)+' ₽','ok',5000);
+      _paintOrders();
+      var cashPage=document.getElementById('page-cash');
+      if(cashPage&&cashPage.classList.contains('active'))renderCash();
+    });
+  }).catch(function(e){
+    var msg=(e&&e.message)||'';
+    if(/order_payments|does not exist|relation|schema/i.test(msg))toast('❌ Сначала выполните SQL_обновление_7.18 в Supabase','err',8000);
+    else toast('❌ Не сохранилось: '+msg.slice(0,140),'err',6000);
+  }).finally(function(){
+    btn.innerHTML='💰 Записать оплату';btn.disabled=false;_opSaving=false;
+  });
+}
+// Удалять запись о полученных деньгах может только владелец (SQL 7.18).
+function opDelete(payId,orderId){
+  if(!ownerOnly('Удаление платежа'))return;
+  var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
+  var pmt=(o.order_payments||[]).filter(function(x){return String(x.id)===String(payId);})[0];
+  if(!pmt)return;
+  var amt=Math.round(pmt.amount||0);
+  var backRem=Math.round((o.remainder||0)+amt);
+  var goods=Math.round(orderGoods(o));
+  if(backRem>goods)backRem=goods;   // долг за товар не может быть больше самого товара
+  if(!confirm('Удалить платёж '+fmt(amt)+' ₽ от '+fmtDate(pmt.pay_date)+(pmt.method?' ('+pmt.method+')':'')+'?\n\n'
+    +'Долг клиента снова вырастет до '+fmt(backRem)+' ₽. Отменить удаление будет нельзя.'))return;
+  sbDel('order_payments','id=eq.'+payId).then(function(){
+    o.order_payments=(o.order_payments||[]).filter(function(x){return String(x.id)!==String(payId);});
+    var patch={remainder:backRem};
+    var st=_opRecalcStatus(Object.assign({},o,{remainder:backRem}));
+    if(st)patch.status=st;
+    // Если доставку пометили оплаченной этим самым платежом, а без него денег
+    // на неё уже не хватает — снимаем отметку, иначе доставка потеряется:
+    // при закрытии её не спросят, а в кассу она не попадёт.
+    if(!o.closed_at&&o.delivery_paid==='yes'&&o.delivery_our!==false){
+      var deliv=Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
+      var covered=Math.max(0,orderPaidTotal(o)-goods);
+      if(deliv>0&&covered<deliv)patch.delivery_paid='no';
+    }
+    return sbPatch('orders',patch,'id=eq.'+o.id).then(function(){
+      Object.assign(o,patch);
+      try{logOrder(o,'pay',[{field:'Оплата по заказу',old:fmt(amt)+' ₽ от '+fmtDate(pmt.pay_date),new:'удалена'},
+        {field:'Остаток',old:fmt(Math.round((o.remainder||0)-amt)),new:fmt(backRem)}],'платёж удалён');}catch(e){}
+      toast('↩️ Платёж удалён. Долг за товар: '+fmt(backRem)+' ₽','ok',5000);
+      _paintOrders();
+      var cashPage=document.getElementById('page-cash');
+      if(cashPage&&cashPage.classList.contains('active'))renderCash();
+    });
+  }).catch(function(e){
+    toast('❌ Не удалилось: '+((e&&e.message)||'').slice(0,140),'err',6000);
+  });
 }
 
 // ═══ v7.20: НАЛИЧИЕ ПЕРЕКЛЮЧАЕТСЯ ПРЯМО В КАРТОЧКЕ ══════════════
@@ -2776,27 +3052,46 @@ function _payKind(method){
 // если она ещё не оплачена». Значит если при закрытии взяли ровно долг за
 // товар, а доставка помечена оплаченной — деньги за неё получили раньше.
 // Возвращает сумму, которую нужно добавить в поступления на дату заказа.
-function delivPrepaidSum(o,itemsPaidSum){
+function delivPrepaidSum(o,itemsPaidSum,paysSum){
   if(!o)return 0;
   if(o.delivery_our===false)return 0;       // сторонняя — мимо кассы
   if(o.delivery_paid!=='yes')return 0;      // ещё не оплачена
   var deliv=Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
   if(deliv<=0)return 0;
-  // v7.52: если в поле «Предоплата за товары» пробили сумму С доставкой —
-  // эти деньги уже посчитаны как предоплата. Случай владельца 14.08.2026,
-  // заказ №221249: товар 53 700, доставка 700, в предоплате 54 400 — и в
-  // учёте появлялось 54 400 + ещё 700, то есть 700 ₽ из воздуха.
-  // Излишек предоплаты над стоимостью товара и есть уже полученная доставка.
-  var over=Math.round((o.prepayment||0)-(orderGoods(o)));
-  if(over>0){deliv-=over;if(deliv<=0)return 0;}
-  if(!o.closed_at)return deliv;             // заказ не закрыт — значит взяли при оформлении
-  var payTotal=Math.round((o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0));
-  var goodsDebtAtClose=Math.round(orderGoods(o)-(o.prepayment||0)-(itemsPaidSum||0));
-  if(goodsDebtAtClose<0)goodsDebtAtClose=0;
-  // рубль допуска на округления
-  return (payTotal<=goodsDebtAtClose+1)?deliv:0;
+  // v7.70: считаем не догадками, а деньгами. Складываем всё, что по заказу
+  // УЖЕ видно отдельными поступлениями: предоплата, оплаты позиций при
+  // доставке, платежи по заказу и доплата при закрытии. Сколько из этого
+  // ушло на товар — столько и ушло; всё сверх товара и есть полученная
+  // доставка, и она уже посчитана. Недостающую часть возвращаем: это
+  // доставка, за которую деньги взяли, но ни в одном поступлении не видно.
+  //
+  // Так же сам собой закрывается случай владельца от 14.08.2026 (заказ
+  // №221249): в предоплате пробита сумма С доставкой — излишек над товаром
+  // и есть доставка, лишних 700 ₽ из воздуха больше не появляется.
+  var received=Math.round(o.prepayment||0)+Math.round(itemsPaidSum||0)+Math.round(paysSum||0)
+              +Math.round((o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0));
+  var goods=Math.round(orderGoods(o));
+  var covered=Math.max(0,received-goods);   // сколько из полученного пошло на доставку
+  var hidden=deliv-covered;
+  return hidden>0?hidden:0;
 }
-
+// v7.70: колонки разбивки предоплаты есть не у всех — пока SQL 7.18 не
+// выполнен, спрашиваем без них, иначе «Учёт» не открылся бы вовсе.
+function _cashOrdersQs(withPre){
+  return 'select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,'
+    +(withPre?'pre_cash,pre_card,pre_transfer,':'')
+    +'pay_cash,pay_card,pay_transfer,delivery_cost,lifting_cost,delivery_our,delivery_paid,goods_total,goods_discounted'
+    +'&or=(prepayment.gt.0,closed_at.not.is.null,delivery_paid.eq.yes)&order=order_date.desc,id.desc';
+}
+function _cashOrders(){
+  return sbGetAll('orders',_cashOrdersQs(_hasPreCols)).catch(function(e){
+    if(_hasPreCols&&/pre_cash|pre_card|pre_transfer|column|does not exist/i.test((e&&e.message)||'')){
+      _hasPreCols=false;
+      return sbGetAll('orders',_cashOrdersQs(false));
+    }
+    throw e;
+  });
+}
 function renderCash(){
   var el=document.getElementById('cash-content');
   el.innerHTML='<div class="empty"><p>Загрузка данных...</p></div>';
@@ -2804,13 +3099,15 @@ function renderCash(){
     // v7.57: постранично. Просили две тысячи строк, а сервер отдаёт максимум 1000 — на
     // 1000-м поступлении «Учёт» начал бы молча терять старые деньги и уводить
     // кассу в минус. Сейчас заказов 92, но мина была заложена.
-    sbGetAll('orders','select=id,order_number,client_name,order_date,closed_at,prepayment,payment_method,pay_cash,pay_card,pay_transfer,delivery_cost,lifting_cost,delivery_our,delivery_paid,goods_total,goods_discounted&or=(prepayment.gt.0,closed_at.not.is.null,delivery_paid.eq.yes)&order=order_date.desc,id.desc'),
+    _cashOrders(),
     sbGet('cash_withdrawals','select=*&order=created_at.desc&limit=300'),
     // v6.7: оплаты позиций при доставке; если SQL 6.7 ещё не выполнен — тихо пропускаем
-    sbGetAll('order_items','select=order_id,paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc').catch(function(){return[];})
+    sbGetAll('order_items','select=order_id,paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc').catch(function(){return[];}),
+    // v7.70: платежи по заказу; без SQL 7.18 — тихо пропускаем
+    sbGetAll('order_payments','select=order_id,pay_date,amount,method,comment,orders(id,order_number,client_name,order_date,closed_at)&order=pay_date.desc').catch(function(){return[];})
   ]).then(function(res){
-    _cashRaw={orders:res[0]||[],wd:res[1]||[],pays:res[2]||[]};
-    _renderCashUI(_cashRaw.orders,_cashRaw.wd,_cashRaw.pays);
+    _cashRaw={orders:res[0]||[],wd:res[1]||[],pays:res[2]||[],opays:res[3]||[]};
+    _renderCashUI(_cashRaw.orders,_cashRaw.wd,_cashRaw.pays,_cashRaw.opays);
   }).catch(function(e){
     var msg=e.message||'';
     if(/cash_withdrawals|closed_at|pay_cash|does not exist|column|relation/i.test(msg)){
@@ -2853,7 +3150,7 @@ function _plParseWdComment(cmt){
 var _cashRaw=null, _cashPeriod='all';
 function setCashPeriod(p){
   _cashPeriod=p;
-  if(_cashRaw)_renderCashUI(_cashRaw.orders,_cashRaw.wd,_cashRaw.pays);
+  if(_cashRaw)_renderCashUI(_cashRaw.orders,_cashRaw.wd,_cashRaw.pays,_cashRaw.opays);
 }
 function _cashPeriodName(){
   if(_cashPeriod==='all')return 'за всё время';
@@ -2879,7 +3176,7 @@ function _cashInPeriod(dateStr){
   var fs=f.getFullYear()+'-'+String(f.getMonth()+1).padStart(2,'0')+'-'+String(f.getDate()).padStart(2,'0');
   return d>=fs;
 }
-function _renderCashUI(orders,withdrawals,itemPays){
+function _renderCashUI(orders,withdrawals,itemPays,orderPays){
   var el=document.getElementById('cash-content');
   // v7.34: сумма оплат по позициям для каждого заказа — нужна, чтобы понять,
   // вошла ли доставка в оплату при закрытии
@@ -2888,6 +3185,13 @@ function _renderCashUI(orders,withdrawals,itemPays){
     var oid=(p.orders&&p.orders.id)||p.order_id;
     if(oid==null)return;
     _itemPaidByOrder[oid]=(_itemPaidByOrder[oid]||0)+Math.round(p.paid_amount||0);
+  });
+  // v7.70: то же самое для платежей по заказу
+  var _payByOrder={};
+  (orderPays||[]).forEach(function(p){
+    var oid=p.order_id!=null?p.order_id:(p.orders&&p.orders.id);
+    if(oid==null)return;
+    _payByOrder[oid]=(_payByOrder[oid]||0)+Math.round(p.amount||0);
   });
   // По каждому заказу: предоплата (по способу оплаты заказа) + финальные оплаты при закрытии
   var tot={cash:0,card:0,transfer:0,other:0};
@@ -2914,13 +3218,52 @@ function _renderCashUI(orders,withdrawals,itemPays){
     _flow(p.paid_at||ord.order_date,kind,amt,ord.order_number,ord.client_name,'оплата при доставке: '+(p.product_name||'товар'));
     list.push(r);
   });
+  // v7.70: платежи по заказу — каждый своей датой и своим способом
+  (orderPays||[]).forEach(function(p){
+    var amt=Math.round(p.amount||0);if(amt<=0)return;
+    var ord=p.orders||{};
+    var kind=_payKind(p.method);
+    var r={order_number:ord.order_number,client_name:ord.client_name,order_date:p.pay_date||ord.order_date,closed_at:ord.closed_at,
+      cash:0,card:0,transfer:0,other:0,
+      preNote:'💰 доплата по заказу'+(p.method?' ('+p.method+')':'')+(p.comment?': '+p.comment:''),delivNote:''};
+    r[kind==='other'?'other':kind]+=amt;
+    tot[kind==='other'?'other':kind]+=amt;
+    if(kind==='cash')cashParts.push({num:ord.order_number,client:ord.client_name,kind:'доплата по заказу',amt:amt,date:p.pay_date||ord.order_date});
+    _flow(p.pay_date||ord.order_date,kind,amt,ord.order_number,ord.client_name,'доплата по заказу'+(p.comment?': '+p.comment:''));
+    list.push(r);
+  });
   orders.forEach(function(o){
     var pre=Math.round(o.prepayment||0);
     var preKind=_payKind(o.payment_method);
+    // v7.70: предоплату могли принять сразу двумя способами — тогда разбивка
+    // лежит в pre_cash/pre_card/pre_transfer и она главнее одного «способа
+    // оплаты». У старых заказов она пустая, и всё считается как раньше.
+    var _preSplit=null,_ps=Math.round((o.pre_cash||0)+(o.pre_card||0)+(o.pre_transfer||0));
+    if(_ps>0)_preSplit={cash:Math.round(o.pre_cash||0),card:Math.round(o.pre_card||0),transfer:Math.round(o.pre_transfer||0)};
     var r={order_number:o.order_number,client_name:o.client_name,order_date:o.order_date,closed_at:o.closed_at,
       cash:Math.round(o.pay_cash||0),card:Math.round(o.pay_card||0),transfer:Math.round(o.pay_transfer||0),other:0,
       preNote:'',delivNote:''};
-    if(pre>0){
+    if(pre>0&&_preSplit){
+      // предоплата двумя-тремя способами: каждый кусок своей строкой
+      var _kinds=['cash','card','transfer'],_lbl={cash:'наличными',card:'картой',transfer:'переводом'},_pn=[];
+      _kinds.forEach(function(k){
+        var v=_preSplit[k];if(v<=0)return;
+        r[k]+=v;
+        _pn.push(fmt(v)+' ₽ '+_lbl[k]);
+        if(k==='cash')cashParts.push({num:o.order_number,client:o.client_name,kind:'предоплата',amt:v,date:o.order_date});
+        _flow(o.order_date,k,v,o.order_number,o.client_name,'предоплата '+_lbl[k]);
+      });
+      // если в разбивке меньше, чем в общей предоплате — остаток не теряем
+      var _rest=pre-_ps;
+      if(_rest>0){
+        var _rk=(preKind==='other')?'other':preKind;
+        r[_rk]+=_rest;
+        _pn.push(fmt(_rest)+' ₽ '+(preKind==='other'?'— способ не указан':_lbl[preKind]));
+        if(_rk==='cash')cashParts.push({num:o.order_number,client:o.client_name,kind:'предоплата',amt:_rest,date:o.order_date});
+        _flow(o.order_date,_rk,_rest,o.order_number,o.client_name,'предоплата');
+      }
+      r.preNote='в т.ч. предоплата '+fmt(pre)+' ₽: '+_pn.join(' + ');
+    }else if(pre>0){
       if(preKind==='other'){r.other+=pre;r.preNote='предоплата '+fmt(pre)+' ₽ — способ не указан';}
       else{r[preKind]+=pre;r.preNote='в т.ч. предоплата '+fmt(pre)+' ₽';}
       if(preKind==='cash')cashParts.push({num:o.order_number,client:o.client_name,kind:'предоплата',amt:pre,date:o.order_date});
@@ -2938,9 +3281,14 @@ function _renderCashUI(orders,withdrawals,itemPays){
     // учитывалась как поступление. Деньги лежали в кассе, а приложение их не
     // видело: предоплата содержит только товар, а при закрытии такую доставку
     // повторно не спрашивают (openCloseModal обнуляет её при delivery_paid='yes').
-    var delivPre=delivPrepaidSum(o,_itemPaidByOrder[o.id]||0);
+    var delivPre=delivPrepaidSum(o,_itemPaidByOrder[o.id]||0,_payByOrder[o.id]||0);
     if(delivPre>0){
       var dKind=_payKind(o.payment_method);
+      if(_preSplit){
+        var _best='cash',_bv=-1;
+        ['cash','card','transfer'].forEach(function(k){if(_preSplit[k]>_bv){_bv=_preSplit[k];_best=k;}});
+        if(_bv>0)dKind=_best;
+      }
       r[dKind==='other'?'other':dKind]+=delivPre;
       if(dKind==='cash')cashParts.push({num:o.order_number,client:o.client_name,kind:'доставка при оформлении',amt:delivPre,date:o.order_date});
       _flow(o.order_date,dKind,delivPre,o.order_number,o.client_name,'доставка при оформлении');
@@ -7162,7 +7510,19 @@ function printOrder(id){
   var totalDebt=orderDebt(o); // v7.29: общая формула долга (20_core.js)
   var moneyRows='';
   moneyRows+='<div class="mrow"><span>Товары по заказу</span><strong>'+fmt(goodsTotal)+' ₽</strong></div>';
-  if(prepay>0)moneyRows+='<div class="mrow"><span>Предоплата'+(o.payment_method?' ('+o.payment_method+')':'')+'</span><strong>− '+fmt(prepay)+' ₽</strong></div>';
+  if(prepay>0){
+    // v7.70: предоплату могли принять двумя способами — расшифровываем, чтобы
+    // в договоре было видно, сколько прошло наличными, а сколько безналом
+    var _pp=[],_pv={'💵 наличными':Math.round(o.pre_cash||0),'💳 картой':Math.round(o.pre_card||0),'📲 переводом':Math.round(o.pre_transfer||0)};
+    for(var _pk in _pv)if(_pv[_pk]>0)_pp.push(fmt(_pv[_pk])+' ₽ '+_pk);
+    var _pnote=_pp.length>1?' ('+_pp.join(' + ')+')':(o.payment_method?' ('+o.payment_method+')':'');
+    moneyRows+='<div class="mrow"><span>Предоплата'+_pnote+'</span><strong>− '+fmt(prepay)+' ₽</strong></div>';
+  }
+  // v7.70: доплаты, принятые после оформления, но до выдачи товара
+  (o.order_payments||[]).forEach(function(pm){
+    var a=Math.round(pm.amount||0);if(a<=0)return;
+    moneyRows+='<div class="mrow"><span>💰 Оплата '+fmtDate(pm.pay_date)+(pm.method?' ('+pm.method+')':'')+'</span><strong>− '+fmt(a)+' ₽</strong></div>';
+  });
   // v6.7: уже получено при доставке отдельных позиций
   var itemsPaidPrn=0;items.forEach(function(it){itemsPaidPrn+=Math.round(it.paid_amount||0);});
   if(itemsPaidPrn>0)moneyRows+='<div class="mrow"><span>💰 Оплачено при доставке (по позициям)</span><strong>− '+fmt(itemsPaidPrn)+' ₽</strong></div>';
@@ -7297,6 +7657,7 @@ function resetForm(){
   document.getElementById('f-status').value='🔴 Не оплачено';
   var cr=document.getElementById('f-credit');if(cr)cr.value='';
   document.getElementById('f-payment').value='';
+  _preSetVals({cash:0,card:0,transfer:0});_preLastMethod=null;
   document.getElementById('f-delivery-paid').value='no';
   // v7.28: тип доставки тоже сбрасываем. Раньше его здесь не было: оформили
   // самовывоз — и следующий заказ молча оставался самовывозом, в наряде на
@@ -7323,7 +7684,106 @@ var _draftTimer=null;
 // этажа и обнулял занос, вернуть его было уже нечем. Мебель ехала на пятый этаж
 // бесплатно. Правило: если черновик хранит результат — он обязан хранить и исходные
 // данные, из которых результат считается.
-function _draftFieldIds(){return['f-client','f-phone','f-phone2','f-address','f-floor','f-lift','f-delivery-date','f-manager','f-discount','f-delivery','f-lifting','f-prepay','f-notes','f-payment','f-delivery-type','f-delivery-paid','f-credit'];}
+// v7.70: сколько по РЕДАКТИРУЕМОМУ заказу уже получено помимо предоплаты —
+// платежами по заказу и оплатой позиций при доставке. Для нового заказа — 0.
+function _formPaidEarlier(){
+  try{
+    var el=document.getElementById('edit-order-id');
+    var id=el?el.value:'';
+    if(!id||typeof allOrders==='undefined')return 0;
+    var o=allOrders.find(function(x){return String(x.id)===String(id);});
+    if(!o)return 0;
+    var s=0;
+    (o.order_items||[]).forEach(function(it){s+=Math.round(it.paid_amount||0);});
+    if(typeof orderPaysSum==='function')s+=orderPaysSum(o);
+    return s;
+  }catch(e){return 0;}
+}
+// ═══ v7.70: ПРЕДОПЛАТА НЕСКОЛЬКИМИ СПОСОБАМИ ═════════════════════════
+// Клиент приносит часть наличными, часть переводом — раньше записать это было
+// нельзя, способ оплаты был один на всю предоплату, и в кассе деньги ложились
+// не туда. Поле «Предоплата» осталось общей суммой, а эти три — её разбивкой.
+var _PRE_IDS={cash:'f-pre-cash',card:'f-pre-card',transfer:'f-pre-transfer'};
+var _PRE_LABEL={cash:'💵 Наличные',card:'💳 Карта',transfer:'📲 Перевод'};
+var _preLastMethod=null;   // чем платили в прошлый раз — за этим полем следует сумма
+function _preKindOf(method){
+  var m=String(method||'');
+  if(m.indexOf('Налич')>=0)return 'cash';
+  if(m.indexOf('Карта')>=0)return 'card';
+  if(m.indexOf('Перевод')>=0)return 'transfer';
+  return null;
+}
+function _preVals(){
+  var v={};
+  for(var k in _PRE_IDS){
+    var el=document.getElementById(_PRE_IDS[k]);
+    var n=el?Math.round(parseFloat(String(el.value).replace(',','.'))||0):0;
+    v[k]=n>0?n:0;
+  }
+  return v;
+}
+function _preSetVals(v){
+  for(var k in _PRE_IDS){
+    var el=document.getElementById(_PRE_IDS[k]);
+    if(el)el.value=(v&&v[k]>0)?v[k]:'';
+  }
+}
+function _preSum(){var v=_preVals();return v.cash+v.card+v.transfer;}
+// Единственный ли способ заполнен — и какой
+function _preSingleKind(){
+  var v=_preVals(),on=[];
+  for(var k in v)if(v[k]>0)on.push(k);
+  return on.length===1?on[0]:null;
+}
+// «всё наличными» и т.п. — один клик для обычного случая
+function preSplitAll(kind){
+  var total=Math.round(parseFloat((document.getElementById('f-prepay')||{}).value)||0);
+  var v={cash:0,card:0,transfer:0};
+  v[kind]=total>0?total:0;
+  _preSetVals(v);_preLastMethod=kind;
+  recalcTotals();
+}
+// Правка одного из трёх полей. Если он теперь единственный заполненный —
+// запоминаем его: при изменении общей суммы она пойдёт именно туда.
+function preSplitEdited(kind){
+  var single=_preSingleKind();
+  _preLastMethod=single||kind;
+  // Разбивка главнее: общая предоплата всегда равна сумме способов. Так в
+  // обычном случае сумма вводится ОДИН раз, а при «часть налом, часть
+  // переводом» итог не приходится досчитывать в уме.
+  var sum=_preSum();
+  if(sum>0){
+    var pf=document.getElementById('f-prepay');
+    if(pf)pf.value=sum;
+  }
+  recalcTotals();
+}
+// Общая сумма изменилась (руками или кнопками 30 % / 50 % / вся сумма):
+// если способ один — он и подхватывает новую сумму.
+function _preFollowTotal(total){
+  var single=_preSingleKind()||((_preSum()===0)?_preLastMethod:null);
+  if(!single)return;
+  var v={cash:0,card:0,transfer:0};
+  v[single]=total>0?total:0;
+  _preSetVals(v);
+}
+// Подпись под полями: сходится разбивка с предоплатой или нет
+function _preNote(total){
+  var el=document.getElementById('f-pre-split-note');if(!el)return;
+  var sum=_preSum();
+  if(total<=0){el.style.color='var(--text2)';el.textContent='Предоплаты нет — заполнять не нужно.';return;}
+  if(sum===0){el.style.color='#C62828';el.textContent='⚠️ Укажите, чем получена предоплата: нажмите «всё наличными» или впишите суммы.';return;}
+  if(sum===total){
+    var parts=[],v=_preVals();
+    for(var k in _PRE_IDS)if(v[k]>0)parts.push(_PRE_LABEL[k]+' '+fmt(v[k])+' ₽');
+    el.style.color='#1B5E20';
+    el.textContent='✅ Разбито: '+parts.join(' + ')+' = '+fmt(sum)+' ₽';
+    return;
+  }
+  el.style.color='#C62828';
+  el.textContent='⚠️ По способам разнесено '+fmt(sum)+' ₽ из '+fmt(total)+' ₽ (разница '+fmt(sum-total)+' ₽)';
+}
+function _draftFieldIds(){return['f-client','f-phone','f-phone2','f-address','f-floor','f-lift','f-delivery-date','f-manager','f-discount','f-delivery','f-lifting','f-prepay','f-notes','f-payment','f-pre-cash','f-pre-card','f-pre-transfer','f-delivery-type','f-delivery-paid','f-credit'];}
 function _draftSave(){
   if(document.getElementById('edit-order-id').value)return; // черновики только для НОВЫХ заказов
   var d={f:{},items:[],t:Date.now()};
@@ -7925,18 +8385,26 @@ function recalcTotals(){
   document.getElementById('t-discounted').textContent=discounted?fmt(discounted)+' ₽':'—';
   document.getElementById('t-delivery').textContent=delivery?fmt(delivery)+' ₽':'—';
   document.getElementById('f-disc-save').textContent=save?'− '+fmt(save)+' ₽':'—';
-  document.getElementById('f-remainder').value=discounted?Math.max(0,discounted-prepay):'';
+  // v7.70: при правке заказа деньги, уже принятые отдельными платежами (и за
+  // позиции при доставке), с долга списаны. Форма обязана их видеть — иначе
+  // она показывает долг, которого нет, и сбрасывает статус на «Частичная».
+  var _gotEarlier=_formPaidEarlier();
+  document.getElementById('f-remainder').value=discounted?Math.max(0,discounted-prepay-_gotEarlier):'';
   // v6.8: липкая панель — предоплата и долг клиента
   var tp=document.getElementById('t-prepay');if(tp)tp.textContent=prepay?fmt(prepay)+' ₽':'—';
-  var debt=Math.max(0,discounted-prepay)+delivery;
+  var debt=Math.max(0,discounted-prepay-_gotEarlier)+delivery;
   var td=document.getElementById('t-debt');if(td)td.textContent=(goods||delivery)?fmt(debt)+' ₽':'—';
   // v6.8: статус оплаты считается сам (кредит/рассрочка выбираются отдельно)
   var credit=(document.getElementById('f-credit')||{}).value||'';
-  var st=credit||(prepay<=0?'🔴 Не оплачено':(discounted>0&&prepay>=discounted?'✅ Оплачено':'⚠️ Частичная'));
+  var _paidAll=prepay+_gotEarlier;
+  var st=credit||(_paidAll<=0?'🔴 Не оплачено':(discounted>0&&_paidAll>=discounted?'✅ Оплачено':'⚠️ Частичная'));
   var stEl=document.getElementById('f-status');if(stEl)stEl.value=st;
   var stView=document.getElementById('f-status-view');if(stView)stView.textContent=st;
   // способ оплаты нужен только когда есть предоплата
   var pw=document.getElementById('f-payment-wrap');if(pw)pw.style.opacity=prepay>0?'1':'0.4';
+  // v7.70: разбивка предоплаты по способам идёт следом за общей суммой
+  _preFollowTotal(Math.round(prepay));
+  _preNote(Math.round(prepay));
   // v7.29: сюда приходят и программные подстановки (выбор из прайса, категория
   // ткани, пересчёт цены) — значит черновик увидит их тоже
   if(typeof _draftArm==='function')_draftArm(600);
@@ -8075,6 +8543,21 @@ function saveOrder(){
       _saving=false;btn.disabled=false;return;
     }
   }
+  // v7.70: деньги, принятые по заказу отдельными платежами, уже списаны с
+  // долга. Без этой строки правка заказа раздувала долг обратно на всю
+  // принятую сумму — ровно та же беда, что была с оплатой позиций (v7.44).
+  var _paidByPays=0;
+  if(editId&&found&&typeof orderPaysSum==='function')_paidByPays=orderPaysSum(found);
+  // Способ оплаты: один заполненный — его и пишем, несколько — «Смешанная».
+  // Поле payment_method читают бланки, карточка и старая аналитика, поэтому
+  // оно остаётся заполненным всегда.
+  var _preSplitSave=_preVals();
+  var _preOn=[];for(var _pk in _preSplitSave)if(_preSplitSave[_pk]>0)_preOn.push(_pk);
+  function _preMethodLabel(){
+    if(_preOn.length===1)return _PRE_LABEL[_preOn[0]];
+    if(_preOn.length>1)return '🔀 Смешанная';
+    return '';
+  }
   var orderData={
     order_number:orderNum,order_date:document.getElementById('f-date').value,
     delivery_date:document.getElementById('f-delivery-date').value||null,
@@ -8092,20 +8575,34 @@ function saveOrder(){
     has_lift:((document.getElementById('f-lift')||{}).value||'')==='yes',
     discount_pct:disc2,prepayment:prepay,
     goods_total:goods,goods_discounted:goodsDisc,
-    remainder:_wasDone?(found.remainder||0):Math.max(0,goodsDisc-prepay-_paidByItems),
+    remainder:_wasDone?(found.remainder||0):Math.max(0,goodsDisc-prepay-_paidByItems-_paidByPays),
     status:_wasDone?found.status:document.getElementById('f-status').value,
-    payment_method:document.getElementById('f-payment').value,
+    payment_method:_preMethodLabel(),
+    pre_cash:_preSplitSave.cash,pre_card:_preSplitSave.card,pre_transfer:_preSplitSave.transfer,
     notes:document.getElementById('f-notes').value.trim()
   };
+  // v7.70: колонки разбивки появляются после SQL 7.18. Пока их нет — не
+  // отправляем, иначе база отклонит весь заказ и он не сохранится вообще.
+  if(typeof _hasPreCols!=='undefined'&&!_hasPreCols){
+    delete orderData.pre_cash;delete orderData.pre_card;delete orderData.pre_transfer;
+  }
   // v7.35: колонки этажа появляются после SQL 7.9. Пока их нет — не отправляем,
   // иначе база отклонит весь заказ и он не сохранится вообще.
   if(!_hasFloorCols){delete orderData.floor;delete orderData.apartment;delete orderData.has_lift;}
   // v6.8: способ оплаты обязателен только когда есть предоплата
   if(prepay>0&&!orderData.payment_method){
-    document.getElementById('f-payment').style.borderColor='#C62828';
-    toast('⚠️ Укажите, как получена предоплата (наличные / карта / перевод)','err');_saving=false;return;
+    toast('⚠️ Укажите, чем получена предоплата: нажмите «всё наличными» или впишите суммы','err',5000);
+    _saving=false;btn.disabled=false;return;
   }
-  document.getElementById('f-payment').style.borderColor='';
+  // v7.70: разбивка должна сходиться с общей предоплатой — иначе в кассу
+  // попадёт не та сумма, и разойдётся это молча
+  var _preTotal=_preSplitSave.cash+_preSplitSave.card+_preSplitSave.transfer;
+  if(prepay>0&&_preTotal!==Math.round(prepay)){
+    if(!confirm('По способам оплаты разнесено '+fmt(_preTotal)+' ₽, а предоплата — '+fmt(Math.round(prepay))+' ₽.\n\n'
+      +'В «Учёте» разницу '+fmt(Math.round(prepay)-_preTotal)+' ₽ придётся считать «способ не указан».\n\nСохранить всё равно?')){
+      _saving=false;btn.disabled=false;return;
+    }
+  }
   btn.innerHTML='<span class="spinner"></span> Сохраняем...';btn.disabled=true;
   // v7.35: страховка на случай, если проверка колонок не успела отработать
   // (медленная связь) или SQL 7.9 выполнят прямо во время работы. Если база
@@ -8249,6 +8746,17 @@ function editOrder(id){
   var _cr=document.getElementById('f-credit');
   if(_cr)_cr.value=(o.status==='💳 Кредит'||o.status==='📆 Рассрочка')?o.status:'';
   document.getElementById('f-payment').value=o.payment_method||'';
+  // v7.70: разбивка предоплаты. У старых заказов её нет — тогда всю предоплату
+  // кладём в тот способ, что был выбран раньше, и ничего не теряем.
+  var _psum=Math.round((o.pre_cash||0)+(o.pre_card||0)+(o.pre_transfer||0));
+  if(_psum>0){
+    _preSetVals({cash:Math.round(o.pre_cash||0),card:Math.round(o.pre_card||0),transfer:Math.round(o.pre_transfer||0)});
+  }else{
+    var _k=_preKindOf(o.payment_method),_v={cash:0,card:0,transfer:0};
+    if(_k)_v[_k]=Math.round(o.prepayment||0);
+    _preSetVals(_v);
+  }
+  _preLastMethod=_preSingleKind();
   document.getElementById('f-delivery-paid').value=o.delivery_paid||'no';
   document.getElementById('f-delivery-type').value=o.delivery_type||'🚚 Доставка + занос';
   // v7.35: этаж/квартира/лифт. Сумма заноса уже сохранена в заказе, поэтому
@@ -8863,9 +9371,17 @@ function renderStats(){
   var pay={cash:0,card:0,transfer:0,other:0};
   orders.forEach(function(o){
     var pre=Math.round(o.prepayment||0);
-    if(pre>0)pay[_payKind(o.payment_method)]+=pre;
+    // v7.70: предоплату могли принять сразу несколькими способами — тогда
+    // считаем по разбивке, а не по одному «способу оплаты»
+    var _ps=Math.round((o.pre_cash||0)+(o.pre_card||0)+(o.pre_transfer||0));
+    if(pre>0&&_ps>0){
+      pay.cash+=Math.round(o.pre_cash||0);pay.card+=Math.round(o.pre_card||0);pay.transfer+=Math.round(o.pre_transfer||0);
+      if(pre>_ps)pay[_payKind(o.payment_method)]+=pre-_ps;
+    }else if(pre>0)pay[_payKind(o.payment_method)]+=pre;
     pay.cash+=Math.round(o.pay_cash||0);pay.card+=Math.round(o.pay_card||0);pay.transfer+=Math.round(o.pay_transfer||0);
     (o.order_items||[]).forEach(function(it){var a=Math.round(it.paid_amount||0);if(a>0)pay[_payKind(it.paid_method)]+=a;});
+    // v7.70: доплаты, принятые до выполнения заказа
+    (o.order_payments||[]).forEach(function(pm){var a=Math.round(pm.amount||0);if(a>0)pay[_payKind(pm.method)]+=a;});
   });
   var payTot=pay.cash+pay.card+pay.transfer+pay.other;
   var pays=[{label:'Наличные',val:pay.cash},{label:'Карта',val:pay.card},{label:'Перевод',val:pay.transfer}];
@@ -9290,7 +9806,8 @@ var _BK_TABLES=[
   {t:'price_imports',    sheet:'Загрузки прайсов'},  // v7.41
   {t:'app_settings',     sheet:'Настройки'},         // v7.42
   {t:'delivery_places',  sheet:'Доставка'},          // v7.48: прейскурант по пунктам
-  {t:'staff_vacations',  sheet:'Отпуска продавцов'}  // v7.69
+  {t:'staff_vacations',  sheet:'Отпуска продавцов'}, // v7.69
+  {t:'order_payments',   sheet:'Платежи по заказам'} // v7.70
 ];
 function _bkSave(text,name,mime){
   var blob=new Blob([text],{type:mime});
@@ -9315,7 +9832,7 @@ async function exportBackup(){
   }
   // v7.43: пропущенная незаменимая таблица — это дыра в копии. Раньше о ней
   // сообщалось мелким шрифтом в конце тоста, и её никто не замечал.
-  var _BK_IMPORTANT=['orders','order_items','clients','cash_withdrawals','manager_days','staff_rates','staff_vacations','app_roles','app_settings','price_imports'];
+  var _BK_IMPORTANT=['orders','order_items','clients','cash_withdrawals','manager_days','staff_rates','staff_vacations','order_payments','app_roles','app_settings','price_imports'];
   var lost=missing.filter(function(t){return _BK_IMPORTANT.indexOf(t)>=0;});
   if(lost.length&&!confirm('В копию НЕ ПОПАЛИ таблицы: '+lost.join(', ')+'.\n\n'
     +'Это данные, которые нельзя восстановить руками. Скачать неполную копию всё равно?'))return;
