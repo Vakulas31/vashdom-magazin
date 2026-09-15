@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.70</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.71</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1643,7 +1643,20 @@ function deliveredQty(it){
 }
 function remainQty(it){return Math.max(0,itemQty(it)-deliveredQty(it));}
 function isPartlyDelivered(it){var d=deliveredQty(it);return d>0&&d<itemQty(it);}
+// v7.71: служебные поля формы (их имена начинаются с подчёркивания) в базу
+// отправлять нельзя — таких колонок там нет, и PostgREST отклоняет ВЕСЬ запрос
+// целиком: «Could not find the '_dbid' column of 'order_items'».
+// Так и было при оформлении нового заказа: строка заказа создавалась, а товары
+// не сохранялись. Со второго нажатия «Сохранить» заказ уже считался
+// существующим и шёл другой дорогой, где поле отсекалось, — поэтому ошибка
+// выглядела как «выскакивает всегда, но со второго раза сохраняет».
+function _stripServiceFields(row){
+  var out={};
+  for(var k in row)if(k.charAt(0)!=='_')out[k]=row[k];
+  return out;
+}
 function _saveItemsReliable(orderId,batchItems){
+  batchItems=(batchItems||[]).map(_stripServiceFields);
   function attempt(n){
     var check=n===0?Promise.resolve(null):sbGet('order_items','select=id&order_id=eq.'+orderId+'&limit=1');
     return check.then(function(ex){
@@ -8620,8 +8633,9 @@ function saveOrder(){
   // СТАЛО: позиции сопоставляются по номеру в базе. Что осталось — правится,
   // что убрали — удаляется, что добавили — вставляется. Служебные поля не трогаем.
   function _itemFields(it){
-    var o={};for(var k in it){if(k!=='_dbId')o[k]=it[k];}
-    return o;
+    // v7.71: убираем ВСЕ служебные поля формы, а не одно известное по имени:
+    // любое новое «_что-то» иначе однажды снова уронит сохранение целиком
+    return _stripServiceFields(it);
   }
   async function _saveItemsKeepMarks(orderId,batchItems){
     var keep={};
