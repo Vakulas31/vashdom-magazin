@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.71</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.72</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -3960,7 +3960,8 @@ var _PLSEL_KEY='vashdom_price_sheets';
 // около 300 000 ₽, пять миллионов с огромным запасом.
 var _PL_PRICE_MAX=5000000;
 // Служебные листы (оглавление, условия, снятое с производства) — не товары
-var _PL_SERVICE_RE=/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац|важная|маркетинг|позиции\s+снятые|расчет|расчёт|прайс-лист\s*$|лист\s*\d+\s*$)/i;
+// v7.72: «ПРАЙС-ЛИСТ» отсюда убран — у HANDIS так называется ГЛАВНЫЙ лист.
+var _PL_SERVICE_RE=/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац|важная|маркетинг|позиции\s+снятые|расчет|расчёт|лист\s*\d+\s*$)/i;
 function _plSelStore(){try{return JSON.parse(localStorage.getItem(_PLSEL_KEY)||'{}');}catch(e){return{};}}
 function _plSelKey(){return String((document.getElementById('pl-sup')||{}).value||'').trim().toLowerCase();}
 function _plBuildSheetPicker(){
@@ -3971,7 +3972,10 @@ function _plBuildSheetPicker(){
   var saved=_plSelStore()[_plSelKey()];
   box.innerHTML=names.map(function(n,i){
     var service=_PL_SERVICE_RE.test(String(n));
-    var on=saved?(saved.indexOf(n)>=0):!service;
+    // v7.72: лист «ПРАЙС-ЛИСТ» раньше считался служебным и снимался сам, и
+    // запомненный выбор хранит его снятым. Включаем обратно: если это обложка
+    // без товаров, её отсеет проверка содержимого при загрузке.
+    var on=saved?(saved.indexOf(n)>=0||/^\s*прайс-лист\s*$/i.test(String(n))):!service;
     return '<label class="pl-sheetrow" data-name="'+esc(n).toLowerCase()+'" style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:2px 3px;cursor:pointer">'
       +'<input type="checkbox" class="pl-sheetcb" value="'+esc(n)+'" '+(on?'checked':'')+' onchange="plSheetPickCount()" style="width:auto;margin:0">'
       +'<span'+(service?' style="color:var(--text2)"':'')+'>'+esc(n)+(service?' <span style="font-size:10.5px">· служебный</span>':'')+'</span></label>';
@@ -4130,7 +4134,23 @@ function onPriceSheetChange(){
   var detValid=det?_plValidCount(_collectRows(_plData,{start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:det.cascade,supplier:'x',sheetName:sn})):0;
   // v7.21: прайс модульных систем (Союз, Брянск «Корпусная») колонками не описать —
   // если такой разбор даёт больше товаров, включаем его и говорим об этом.
-  _plModSys=null;
+  _plModSys=null;_plSeries=null;
+  // v7.72: прайс «серии с цветами» (HANDIS) — колонками его не описать
+  var _se=_autoDetectSeries(_plData,_plBookIsSeries()?1:3);
+  if(_se){
+    var _seN=_plValidCount(_collectSeries(_plData,Object.assign({supplier:'x',sheetName:sn},_se)));
+    // «>=» и к шаблону: у тех, кто уже грузил HANDIS, в браузере лежит старый
+    // шаблон листа (названием — шапка серии) с тем же числом строк. При равенстве
+    // он бы снова победил и вернул ту же путаницу.
+    if(_seN>=detValid&&_seN>=tplValid){
+      _plSeries=_se;
+      _buildPriceColSelects();
+      if(se){se.style.cssText='display:block;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';
+        se.innerHTML='🎨 Прайс «серии с цветами»: '+_se.series+' серий, '+_seN+' позиций. Название товара — из колонки товаров, цвет пойдёт в название («Тумба ТВ МС "Кимберли" · Кашемир/Кашемир Софт»), серия — в характеристику и категорию. У шкафов-купе в цену встанет целый шкаф (каркас+фасад). Колонки настраивать не нужно — жмите «Импортировать этот лист».';}
+      _renderPricePreview();
+      return;
+    }
+  }
   var _ms=_autoDetectModSys(_plData);
   if(_ms){
     var _msN=_plValidCount(_collectModSys(_plData,{grpCol:_ms.grpCol,nameCol:_ms.nameCol,artCol:_ms.artCol,noteCol:_ms.noteCol,priceCols:_ms.priceCols,supplier:'x',sheetName:sn}));
@@ -4169,8 +4189,10 @@ function onPriceSheetChange(){
       // v7.68: выгрузка 1С — рассказываем, что именно приложение узнало
       var _hdr68=_plData[det.headerRow]||[];
       var _n68=[];
-      if(det.colVar!=='')_n68.push('исполнение из колонки «'+esc(_plHdrText(_hdr68[parseInt(det.colVar)]).slice(0,24))+'» пойдёт в название товара («кухня Маша · венге/дуб сонома»)');
-      if(det.catCol!=='')_n68.push('разделы прайса («01.03 КУХОННЫЕ ГАРНИТУРЫ») станут категорией');
+      // v7.72: у запасного разбора этих полей нет вовсе (undefined), и проверка
+      // «!==''» пропускала их — вылезало «исполнение из колонки «»».
+      if(det.colVar!=null&&det.colVar!=='')_n68.push('исполнение из колонки «'+esc(_plHdrText(_hdr68[parseInt(det.colVar)]).slice(0,24))+'» пойдёт в название товара («кухня Маша · венге/дуб сонома»)');
+      if(det.catCol!=null&&det.catCol!=='')_n68.push('разделы прайса («01.03 КУХОННЫЕ ГАРНИТУРЫ») станут категорией');
       if(_n68.length)se.innerHTML+='<br>🧾 Похоже на выгрузку 1С: '+_n68.join('; ')+'.';
       // Подсказка: если рядом ещё ≥2 ценовых колонки — вероятно, это варианты (ткани/размеры/фасады)
       var _mu=_autoDetectMulti(_plData);
@@ -4310,7 +4332,10 @@ function _plExtractSize(s){
 }
 // ── УМНЫЙ ПОИСК: извлечение атрибутов из названия/размера ──
 var _PTYPES=[['шкаф[\\s-]*купе','шкаф-купе'],['шифоньер','шкаф'],['шкаф','шкаф'],['софа','диван'],['диван','диван'],['тахта','диван'],['кроват','кровать'],['стенк','гостиная'],['гостин','гостиная'],['спальн','спальня'],['прихож','прихожая'],['комод','комод'],['кресл','кресло'],['тумбочк','тумба'],['тумб','тумба'],['стеллаж','стеллаж'],['сервант','витрина'],['витрин','витрина'],['пенал','пенал'],['зеркал','зеркало'],['банкетк','банкетка'],['трюмо','трюмо'],['антресол','антресоль'],['полк','полка'],['пуф','пуф'],['табурет','стул'],['стул','стул'],['кухн','кухня'],['стол','стол'],['матрас','матрас'],['наматрасник','наматрасник'],['основани','основание'],['траверс','траверса'],['ламел','ламели'],['ящик','ящик'],['опора','опора'],['ножк','ножки']];
-var _COLORS=['дуб сонома','дуб молочный','дуб крафт','дуб','орех тёмный','орех темный','орех шоколадный','орех','белый античный','белый жемчуг','белый снег','персидский жемчуг','белый','чёрн','черн','венге','серый шифер','серый','антрацит','ясень','сосна','вишн','ольх','бук','клён','клен','графит','капучино','крафт','бетон','мокко','шоколад','молочн','слоновая кость','кремов','льнян','лён','жемчуг','сапфир','бежев','дым'];
+var _COLORS=['дуб сонома','дуб молочный','дуб крафт','дуб','орех тёмный','орех темный','орех шоколадный','орех','белый античный','белый жемчуг','белый снег','персидский жемчуг','белый','чёрн','черн','венге','серый шифер','серый','антрацит','ясень','сосна','вишн','ольх','бук','клён','клен','графит','капучино','крафт','бетон','мокко','шоколад','молочн','слоновая кость','кремов','льнян','лён','жемчуг','сапфир','бежев','дым',
+  // v7.72: цвета HANDIS — «Кашемир/Кашемир Софт», «Анкор Светлый». В конце списка,
+  // чтобы у прежних прайсов ничего не поменялось: срабатывают, только где раньше было пусто
+  'кашемир','шиншилла','анкор','бордо'];
 var _MATERIALS=['лдсп','мдф','массив сосны','массив дуба','массив берёзы','массив березы','массив','экокожа','велюр','рогожка','шенилл','флок','микровельвет','жаккард','шпон','эмаль','ротанг','кожзам','кожа','металл','стекло'];
 function _extractDoors(low){
   var dm=low.match(/(\d)\s*-?\s*(?:х\s*)?(?:створ|ств|двер|дв)/);
@@ -4925,6 +4950,190 @@ function _collectModSys(data,cfg){
         dim_w:at.dim_w,dim_h:at.dim_h,dim_d:at.dim_d,ptype:at.ptype,color:at.color,doors:at.doors,material:at.material});
     }
     r++;
+  }
+  return rows;
+}
+// ═══ v7.72: ПРАЙС «СЕРИИ С ЦВЕТАМИ» (HANDIS / «Мебель Рум» и похожие) ═══
+// Лист устроен блоками:
+//   строка-раздел:   «Гостиные» / «ШКАФЫ КУПЕ»                  (без цены)
+//   шапка серии:     «Гостиная "Кимберли" МДФ NEW» | Размеры Ш*В*Г | Цветовое решение | … | ВЕС | ЦЕНА
+//   строка товара:   «Тумба ТВ МС "Кимберли"» | 1345*565*403 | Белый/Белый Глянец | 8884
+//   строки цветов:   (пусто) | (пусто) | Кашемир/Кашемир Софт | 9180
+// Название товара стоит только в первой строке, дальше идут одни цвета — у
+// каждого своя цена. Раньше автоопределение этого не понимало: названием
+// становилась ШАПКА СЕРИИ («Гостиная "Кимберли" МДФ NEW»), настоящий товар
+// уезжал в характеристику, а цвет терялся — в поиске десяток одинаковых строк
+// «ВНУТРЕННИЕ НАПОЛНЕНИЕ · 1500x2200» по разной цене.
+//
+// Шкафы-купе. В блоках, где в шапке есть и «ЦЕНА К+Ф», и «ЦЕНА Ф», основная
+// колонка цены — это ТОЛЬКО ФАСАД (двери). Цена целого шкафа (каркас+фасад)
+// стоит в «ЦЕНА К+Ф», причём лишь в первой строке каждой ценовой группы.
+// По решению владельца (21.09.2026) в поиск идёт цена ЦЕЛОГО шкафа, а цена
+// фасада — в характеристику. Иначе шкаф выглядел вчетверо дешевле: «Без зеркал
+// 1,5 м» — 4 394 ₽ вместо 17 036 ₽.
+function _plSerHdrInfo(row){
+  var dim=-1,vr=-1,full=-1,fac=-1,priceWord=false,ord='';
+  for(var c=0;c<row.length;c++){
+    var raw=_plHdrRaw(row[c]),t=raw.toLowerCase();
+    if(!t||t.length>40)continue;
+    if(dim<0&&/^размер|^габарит/.test(t)){
+      dim=c;
+      var om=raw.toUpperCase().match(/([ВШГ])\s*[XХ*×]\s*([ВШГ])(?:\s*[XХ*×]\s*([ВШГ]))?/);
+      if(om)ord=om[1]+om[2]+(om[3]||'');
+    }
+    else if(vr<0&&/^цвет|^отделк|^исполнен|^декор/.test(t))vr=c;
+    // «ЦЕНА» есть не в каждой шапке: на листах «Спальни», «Малые формы» у HANDIS
+    // её нет, а «ВЕС» есть. Любое из двух говорит, что это шапка таблицы.
+    if(/^цена|^вес(\s|$)/.test(t))priceWord=true;
+    if(/к\s*\+\s*ф/.test(t)&&/цен/.test(t))full=c;
+    else if(/^цена\s*ф\.?$/.test(t))fac=c;
+  }
+  if(dim<0||vr<0||!priceWord)return null;
+  return{dim:dim,vr:vr,full:full,fac:fac,ord:ord};
+}
+// minHdr — сколько шапок серий нужно, чтобы поверить в такое устройство.
+// По умолчанию 3; для листов того же файла, где главный лист уже узнан, хватит 1
+// (у HANDIS на листе «молодежная» одна серия — «Кровать "Юта"»).
+function _autoDetectSeries(data,minHdr){
+  var hdrs=[],dimCnt={},vrCnt={};
+  for(var r=0;r<data.length;r++){
+    var h=_plSerHdrInfo(data[r]||[]);
+    if(!h)continue;
+    hdrs.push({r:r,h:h});
+    dimCnt[h.dim]=(dimCnt[h.dim]||0)+1;vrCnt[h.vr]=(vrCnt[h.vr]||0)+1;
+  }
+  if(hdrs.length<(minHdr||3))return null; // одна-две такие шапки — это не серийный прайс
+  var mode=function(o){var b=-1,bn=-1;for(var k in o)if(o[k]>bn){bn=o[k];b=parseInt(k);}return b;};
+  var dimCol=mode(dimCnt),vrCol=mode(vrCnt);
+  if(dimCol<1||vrCol<0)return null;
+  // Колонка шапок серий: самая левая ячейка шапки с текстом левее «Размеров»
+  var serCnt={};
+  hdrs.forEach(function(x){
+    var row=data[x.r]||[];
+    for(var c=0;c<dimCol;c++){if(_plClean(row[c])){serCnt[c]=(serCnt[c]||0)+1;break;}}
+  });
+  var serCol=mode(serCnt);
+  // Колонка цены: первая правее цвета, где число стоит почти в каждой строке с цветом
+  var first=hdrs[0].r+1,priceCol=-1;
+  for(var pc=vrCol+1;pc<Math.min(vrCol+6,60);pc++){
+    var withVr=0,num=0;
+    for(var rr=first;rr<data.length;rr++){
+      var row2=data[rr]||[];
+      if(!_plClean(row2[vrCol])||_plSerHdrInfo(row2))continue; // шапки серий не в счёт
+      withVr++;if(_plToNum(row2[pc])>=50)num++;
+    }
+    // на листе с одной серией строк мало («молодежная» — 8), там хватит трёх
+    if(withVr>=((minHdr||3)<3?3:10)&&num>=withVr*0.8){priceCol=pc;break;}
+  }
+  if(priceCol<0)return null;
+  // Колонка названий: левее «Размеров», правее шапок серий; та, где больше всего
+  // текста в строках С ЦЕНОЙ (шапки серий в строках с ценой не стоят никогда)
+  var nameCol=-1,best=0;
+  for(var nc=(serCol>=0?serCol+1:0);nc<dimCol;nc++){
+    var cnt=0;
+    for(var r3=first;r3<data.length;r3++){
+      var row3=data[r3]||[];
+      if(_plToNum(row3[priceCol])>=50&&_plClean(row3[nc])&&!_plIsPlainNumCell(row3[nc]))cnt++;
+    }
+    if(cnt>best){best=cnt;nameCol=nc;}
+  }
+  if(nameCol<0||best<((minHdr||3)<3?1:3))return null;
+  var ord=hdrs[0].h.ord||'';
+  // Начинаем с первого РАЗДЕЛА, а не с первой шапки: на листе «Малые формы»
+  // у HANDIS журнальный стол, полка и комод «Кимберли» стоят под разделом
+  // «Гостиные» ещё ДО первой шапки серии — и терялись.
+  var startRow=hdrs[0].r;
+  if(serCol>=0)for(var r4=0;r4<hdrs[0].r;r4++){if(_plClean((data[r4]||[])[serCol])){startRow=r4;break;}}
+  return{serCol:serCol,nameCol:nameCol,dimCol:dimCol,vrCol:vrCol,priceCol:priceCol,dimOrder:ord,series:hdrs.length,firstRow:startRow};
+}
+// Есть ли в открытом файле лист «серии с цветами» (считаем один раз на файл)
+function _plBookIsSeries(){
+  if(!_plWB)return false;
+  if(_plWB.__vdSeries!=null)return _plWB.__vdSeries;
+  var res=false;
+  try{
+    res=_plWB.SheetNames.some(function(sn){
+      try{return !!_autoDetectSeries(_plTrimData(XLSX.utils.sheet_to_json(_plExpandMerges(_plWB.Sheets[sn]),{header:1,defval:'',raw:false})));}catch(e){return false;}
+    });
+  }catch(e){res=false;}
+  try{_plWB.__vdSeries=res;}catch(e){}
+  return res;
+}
+function _plSerTidy(s){
+  return _plClean(s).replace(/(^|\s)new(?=\s|$)/gi,' ').replace(/\s+/g,' ').replace(/\s+([,.)])/g,'$1').trim();
+}
+function _collectSeries(data,cfg){
+  var rows=[];
+  var _drop=_plNewDrop();
+  try{Object.defineProperty(rows,'_drop',{value:_drop,enumerable:false});}catch(e){rows._drop=_drop;}
+  var section='',series='',facade=false,fullCol=-1;
+  var prod='',dims='',lastG=null,lastFull=null;
+  for(var i=(cfg.firstRow||0);i<data.length;i++){
+    var row=data[i]||[];
+    var h=_plSerHdrInfo(row);
+    if(h){
+      // шапка серии: название серии (может быть пустым — тогда серией служит раздел)
+      series=cfg.serCol>=0?_plClean(row[cfg.serCol]):'';
+      facade=(h.full>=0&&h.fac>=0);fullCol=h.full;
+      prod='';dims='';lastG=null;lastFull=null;
+      continue;
+    }
+    var price=_plToNum(row[cfg.priceCol]);
+    var nm=_plClean(row[cfg.nameCol]);
+    var sv=cfg.serCol>=0?_plClean(row[cfg.serCol]):'';
+    if(sv&&!nm&&!(price>0)){
+      // «ДОПОЛНИТЕЛЬНАЯ УПАКОВКА | … | ВЕС | ЦЕНА» — тоже шапка серии, просто без
+      // колонок размеров и цвета. Раньше она считалась разделом и прилипала
+      // ко всем шкафам-купе ниже.
+      var _isSerHdr=false;
+      for(var _hc=0;_hc<row.length;_hc++){if(_hc!==cfg.serCol&&/^цена|^вес$/i.test(_plHdrRaw(row[_hc]))){_isSerHdr=true;break;}}
+      if(_isSerHdr){series=sv;facade=false;fullCol=-1;}
+      else{section=sv;series='';}
+      prod='';dims='';lastG=null;lastFull=null;
+      continue;
+    }
+    if(nm){prod=nm;dims=_plClean(row[cfg.dimCol]);lastG=null;lastFull=null;}
+    var colour=_plSerTidy(row[cfg.vrCol]);
+    if(colour==='-')colour='';
+    if(!(price>0)){if(nm||colour)_drop.noprice++;continue;}
+    _drop.scanned++;
+    if(!prod){_drop.noname++;continue;}
+    if(price>_PL_PRICE_MAX){_drop.weird++;continue;}
+    var base=_plSerTidy(prod),opt=price,note='';
+    if(facade){
+      // цена целого шкафа — в строке, где начинается новая ценовая группа;
+      // остальные цвета той же группы (та же цена фасада) её наследуют
+      var full=fullCol>=0?_plToNum(row[fullCol]):0;
+      if(!(full>0)&&lastG!=null&&Math.abs(lastG-price)<0.01&&lastFull)full=lastFull;
+      lastG=price;
+      if(full>0&&full>price){
+        lastFull=full;opt=full;
+        note='каркас+фасад; фасад отдельно '+Math.round(price).toLocaleString('ru-RU')+' ₽';
+        // «*каркас "Дрим"» — это не сноска, а НА КАКОЙ каркас идут двери
+        base=base.replace(/\s*\*\s*каркас\s*/i,', каркас ');
+      }else{
+        lastFull=null;
+        // целой цены нет — честно пишем, что это только двери
+        base=base.replace(/\s*\*\s*каркас\s*/i,' — фасад, каркас ')+' (только фасад)';
+      }
+    }
+    // «Основание ДСП 1,4 м.» есть у четырёх разных спален — без модели в
+    // названии в поиске четыре одинаковые строки. Модель берём из кавычек
+    // шапки серии и дописываем, только если в названии её ещё нет.
+    var grp=series||section;
+    var mq=String(series||'').match(/["«„“]([^"»“”]{2,40})["»“”]/);
+    if(mq&&base.toLowerCase().indexOf(mq[1].toLowerCase())<0)base=base+' «'+mq[1]+'»';
+    var name=colour?base+' · '+colour:base;
+    var dimsTxt=(dims&&dims!=='-')?dims:'';
+    var art=[dimsTxt,grp,(section&&section!==grp)?section:'',note].filter(Boolean).join(' · ');
+    // тип и цвет — по НАЗВАНИЮ и размерам: иначе «Гостиная …» из шапки серии
+    // делала полку «гостиной»
+    var at=_extractAttrs(name,dimsTxt,'',cfg.dimOrder);
+    if(!at.ptype&&series)at.ptype=_extractAttrs(series,'','',cfg.dimOrder).ptype;
+    if(!at.ptype&&section)at.ptype=_extractAttrs(section,'','',cfg.dimOrder).ptype;
+    rows.push({supplier:cfg.supplier,product_name:name,price_opt:Math.round(opt*100)/100,price_retail:0,
+      article:art,category:grp||section||'',sheet_name:cfg.sheetName||'',compatibility:null,
+      dim_w:at.dim_w,dim_h:at.dim_h,dim_d:at.dim_d,ptype:at.ptype,color:at.color,doors:at.doors,material:at.material});
   }
   return rows;
 }
@@ -5571,6 +5780,7 @@ function _markImportedSheets(){
 }
 
 var _plModSys=null; // разметка листа «модульные системы» (v7.21)
+var _plSeries=null; // v7.72: разметка листа «серии с цветами» (HANDIS)
 // v7.62: описательные колонки (размеры/цвет/материал), найденные автоопределением
 // для ТЕКУЩЕГО листа. Раньше они доезжали только до «Все листы сразу», а при
 // загрузке одного листа кнопкой молча терялись.
@@ -5588,7 +5798,10 @@ async function importPriceList(){
   var sheetName=document.getElementById('pl-sheet').value;
   var rows=[],isMatrix=false;
   var isMulti=document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked;
-  if(_plModSys&&!isMulti){
+  if(_plSeries&&!isMulti){
+    rows=_collectSeries(_plData,Object.assign({supplier:supplier,sheetName:sheetName},_plSeries));
+    isMatrix=rows.length>0; // колонками не описать — шаблон помечаем как особый
+  }else if(_plModSys&&!isMulti){
     rows=_collectModSys(_plData,{grpCol:_plModSys.grpCol,nameCol:_plModSys.nameCol,artCol:_plModSys.artCol,
       noteCol:_plModSys.noteCol,priceCols:_plModSys.priceCols,supplier:supplier,sheetName:sheetName});
     isMatrix=rows.length>0; // колонками такой лист не описать — шаблон помечаем как особый
@@ -5627,7 +5840,7 @@ async function importPriceList(){
   // цена стоит лишь в «Стекле» (керамика, фотопечать), терялись совсем — их
   // строка выглядела как «без цены». Галочку «Цены в нескольких колонках» надо
   // было вспомнить самому. Теперь спрашиваем прямо, с цифрами.
-  if(!isMulti&&!_plModSys){
+  if(!isMulti&&!_plModSys&&!_plSeries){
     var _mu=_autoDetectMulti(_plData);
     if(_mu&&_mu.varCols&&_mu.varCols.length>=2){
       var _mrows=_collectMulti(_plData,{supplier:supplier,sheetName:sheetName,
@@ -5691,10 +5904,17 @@ async function importAllSheets(){
   var picked=_plCheckedSheets();
   if(picked&&!picked.length){toast('⚠️ Не отмечен ни один лист','err',4000);return;}
   if(picked)_plSaveSheetSel(picked);
+  // v7.72: если хоть один лист файла — «серии с цветами», остальные листы того
+  // же файла устроены так же, и им хватит одной шапки серии
+  var _bookSeries=_plBookIsSeries();
   _plWB.SheetNames.forEach(function(sn){
     if(picked&&picked.indexOf(sn)<0)return; // лист снят галочкой — молча пропускаем
     // Служебные листы (примечание/условия/инструкция/оглавление) — не товары, пропускаем
-    if(/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац|прайс-лист\s*$)/i.test(String(sn))){report.push({sheet:sn,count:0,note:'служебный лист — пропущен'});return;}
+    // v7.72: «ПРАЙС-ЛИСТ» из этого списка убран. У HANDIS так называется ГЛАВНЫЙ
+    // лист со всеми товарами — его молча пропускали и грузили только разделы,
+    // которые его повторяют (дубли в поиске). Обложку без товаров и так отсеет
+    // проверка «ни одной строки с названием и ценой» ниже.
+    if(/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац)/i.test(String(sn))){report.push({sheet:sn,count:0,note:'служебный лист — пропущен'});return;}
     var data=_plTrimData(XLSX.utils.sheet_to_json(_plExpandMerges(_plWB.Sheets[sn]),{header:1,defval:'',raw:false}));
     // Собираем все варианты разбора и берём тот, что даёт больше валидных цен.
     // Так плохой сохранённый шаблон не мешает — автоопределение его перекроет.
@@ -5706,6 +5926,12 @@ async function importAllSheets(){
       var cfgM={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colArt:tpl.col_art,varCols:tpl.var_cols,supplier:supplier,sheetName:sn};
       cands.push({rows:_collectMulti(data,cfgM),src:'матрица вариантов (по шаблону)',cfg:null,kind:'multi'});
     }
+    // v7.72: серии с цветами (HANDIS) — самым первым: при РАВНОМ числе товаров
+    // плоское автоопределение набирает столько же строк, но с сериями вместо
+    // названий товаров. Побеждать должен разбор, который понимает устройство.
+    var seA=_autoDetectSeries(data,_bookSeries?1:3);
+    if(seA)cands.push({rows:_collectSeries(data,Object.assign({supplier:supplier,sheetName:sn},seA)),
+      src:'серии с цветами ('+seA.series+')',cfg:null,kind:'matrix'});
     // v7.21: автоопределение идёт ПЕРВЫМ — при равном числе товаров выигрывает оно,
     // а не сохранённый (возможно, ошибочный) шаблон листа.
     if(det){
@@ -5746,6 +5972,33 @@ async function importAllSheets(){
     var rh=_rausApply(best.rows,sn); // РАУС: корпус+фасад по коду модуля
     report.push({sheet:sn,count:best.rows.length,note:best.src+(rh?', ➕корпус у '+rh:''),drop:_plDropText(best.rows._drop)});
   });
+  // v7.72: лист-КОПИЯ другого листа того же файла не грузим. У HANDIS первый
+  // лист «ПРАЙС-ЛИСТ» содержит всё, а «Гостиные», «Спальни», «Тумбы ТВ.» и
+  // остальные — его же куски. Загрузив всё подряд, получали каждый товар два-
+  // три раза: в поиске одинаковые строки, и не понять, какая настоящая.
+  var _keysOf=function(p){var k={};p.rows.forEach(function(r){k[String(r.product_name).toLowerCase()+'|'+Math.round(r.price_opt||0)]=1;});return k;};
+  var _pk=plan.map(_keysOf);
+  var _dupOf={};
+  plan.forEach(function(p,i){
+    var ki=_pk[i],ni=Object.keys(ki).length;if(!ni)return;
+    for(var j=0;j<plan.length;j++){
+      if(j===i||_dupOf[j]!=null)continue;
+      var kj=_pk[j],nj=Object.keys(kj).length;
+      // «копия» — лист целиком (от 95 %) лежит в другом, который БОЛЬШЕ
+      if(nj<ni||(nj===ni&&j>i))continue;
+      var inside=0;for(var key in ki)if(kj[key])inside++;
+      if(inside>=ni*0.95){_dupOf[i]=j;break;}
+    }
+  });
+  if(Object.keys(_dupOf).length){
+    var _keep=[];
+    plan.forEach(function(p,i){
+      if(_dupOf[i]==null){_keep.push(p);return;}
+      var src=plan[_dupOf[i]].sheetName;
+      report.forEach(function(r){if(r.sheet===p.sheetName){r.count=0;r.drop='';r.note='повторяет лист «'+src+'» — пропущен, чтобы товары не задвоились';}});
+    });
+    plan=_keep;
+  }
   var total=plan.reduce(function(s,p){return s+p.rows.length;},0);
   if(!total){toast('⚠️ Ни на одном листе не найдены товары — настройте листы вручную по одному','err',6000);return;}
   // v7.64: лист, где вместо названий числа, дальше не пускаем без подтверждения
