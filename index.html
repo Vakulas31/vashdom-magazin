@@ -281,7 +281,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.72</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.73</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -4953,6 +4953,52 @@ function _collectModSys(data,cfg){
   }
   return rows;
 }
+// ═══ v7.73: ТОТ ЖЕ ПРАЙС, ЗАГРУЖЕННЫЙ РАНЬШЕ БЕЗ ФАБРИКИ ═══════════════
+// Случай владельца 22.09.2026. Прайс Браво однажды загрузили под «Мебель Рум»
+// без фабрики, а потом — под «Мебель Рум → Браво». Замена трогает только товары
+// той же фабрики, поэтому старые 2321 позиция остались: в поиске «Карина-5»
+// шла дважды, со старой ценой (на 5–26 % ниже) и с новой. А в сводке прайсов
+// строки «без фабрики» не было вовсе — увидеть и удалить их было негде.
+// Лист узнаём по названию без даты: «Кровати МАССИВ 01.07.26.» и
+// «Кровати МАССИВ 01.07.2026» — один и тот же лист разных выпусков.
+function _plSheetKey(s){
+  return String(s||'').toLowerCase().replace(/ё/g,'е')
+    .replace(/\d{1,2}[.\/-]\d{1,2}(?:[.\/-]\d{2,4})?\.?/g,' ')
+    .replace(/[^a-zа-я0-9]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function _plGenericSheet(k){return !k||/^(лист|sheet|прайс|price|прайс лист)\s*\d*$/.test(k);}
+// Ищет у поставщика товары БЕЗ фабрики с листов, похожих на загружаемые.
+// Возвращает {sheets:[имена в базе], n} или null.
+async function _plTwinCheck(supplier,factory,sheetNames){
+  if(!factory||!supplier)return null;
+  var want={},wantN=0;
+  (sheetNames||[]).forEach(function(n){var k=_plSheetKey(n);if(!_plGenericSheet(k)&&!want[k]){want[k]=1;wantN++;}});
+  if(!wantN)return null;
+  var rows;
+  try{rows=await sbGetAll('price_items','select=sheet_name&supplier=eq.'+encodeURIComponent(supplier)+'&or=(factory.is.null,factory.eq.%22%22)&order=id.asc');}
+  catch(e){return null;}
+  if(!rows||!rows.length)return null;
+  var cnt={};rows.forEach(function(r){var n=r.sheet_name||'';cnt[n]=(cnt[n]||0)+1;});
+  var hit=[],n=0,keys={};
+  Object.keys(cnt).forEach(function(nm){var k=_plSheetKey(nm);if(want[k]){hit.push(nm);n+=cnt[nm];keys[k]=1;}});
+  var matched=Object.keys(keys).length;
+  // хватит двух совпавших листов, а у однолистового прайса — одного
+  if(matched<Math.min(2,wantN))return null;
+  return{sheets:hit,n:n};
+}
+function _plTwinAsk(supplier,factory,tw){
+  return confirm('У поставщика «'+supplier+'» уже лежит, похоже, ЭТОТ ЖЕ прайс, но БЕЗ фабрики: '
+    +tw.n+' товаров с листов:\n• '+tw.sheets.slice(0,8).join('\n• ')+(tw.sheets.length>8?'\n• …':'')+'\n\n'
+    +'Скорее всего, это прошлая загрузка — до того, как появилась фабрика «'+factory+'». '
+    +'Если её оставить, в поиске каждый такой товар будет дважды: со старой ценой и с новой.\n\n'
+    +'ОК — удалить старые после загрузки.\nОтмена — оставить как есть.');
+}
+async function _plTwinDelete(supplier,tw){
+  var base='supplier=eq.'+encodeURIComponent(supplier)+'&or=(factory.is.null,factory.eq.%22%22)';
+  for(var i=0;i<tw.sheets.length;i++){
+    await _sbDelUntilEmpty(base+'&sheet_name=eq.'+encodeURIComponent(tw.sheets[i]));
+  }
+}
 // ═══ v7.72: ПРАЙС «СЕРИИ С ЦВЕТАМИ» (HANDIS / «Мебель Рум» и похожие) ═══
 // Лист устроен блоками:
 //   строка-раздел:   «Гостиные» / «ШКАФЫ КУПЕ»                  (без цены)
@@ -5866,11 +5912,15 @@ async function importPriceList(){
   rows.forEach(function(r){r.factory=factory;if(kitOn)r.kit_part=true;});
   var rausHit=_rausApply(rows,sheetName); // РАУС: корпус+фасад (после kit_part — сбрасывает пометку у полных цен)
   _plPriceKindApply(rows);
+  // v7.73: этот же прайс раньше грузили без фабрики?
+  var _tw=await _plTwinCheck(supplier,factory,[sheetName]);
+  var _twDel=_tw?_plTwinAsk(supplier,factory,_tw):false;
   var btn=document.getElementById('pl-import-btn');
   btn.innerHTML='<span class="spinner"></span> Импорт '+rows.length+' товаров...';
   btn.disabled=true;
   try{
     await _importBatches(supplier,factory,[{sheetName:sheetName,rows:rows}],false);
+    if(_twDel){try{await _plTwinDelete(supplier,_tw);toast('🗑 Убрана старая загрузка без фабрики: '+_tw.n+' товаров','ok',5000);}catch(e){toast('⚠️ Новый прайс загружен, но старые товары без фабрики удалить не вышло: '+e.message,'err',8000);}}
     if(isMatrix){var _st=_getTplStore();_st[sheetName]={supplier:supplier,factory:factory,matrix:true};localStorage.setItem(_TPL_KEY,JSON.stringify(_st));}
     else savePriceTemplate(); // запоминаем настройки листа как шаблон
     var many=_plWB&&_plWB.SheetNames.length>1;
@@ -6029,11 +6079,15 @@ async function importAllSheets(){
     +(dropTot?'\nСтрок файла отброшено при разборе: '+dropTot+' (обычно это шапки, пустые строки и позиции без цены — но если число велико, проверьте колонки).':'')
     +curNote+'\nПрежние товары '+scopeLbl+' будут заменены. Продолжить?';
   if(!confirm(msg))return;
+  // v7.73: этот же прайс раньше грузили без фабрики?
+  var _tw=await _plTwinCheck(supplier,factory,plan.map(function(p){return p.sheetName;}));
+  var _twDel=_tw?_plTwinAsk(supplier,factory,_tw):false;
   plan.forEach(function(p){p.rows.forEach(function(r){r.factory=factory;if(p.kit&&r.kit_part!==false)r.kit_part=true;});_plPriceKindApply(p.rows);});
   var btn=document.getElementById('pl-import-all-btn');
   btn.innerHTML='<span class="spinner"></span> Импорт '+total+' товаров...';btn.disabled=true;
   try{
     await _importBatches(supplier,factory,plan.map(function(p){return{sheetName:p.sheetName,rows:p.rows};}),true);
+    if(_twDel){try{await _plTwinDelete(supplier,_tw);toast('🗑 Убрана старая загрузка без фабрики: '+_tw.n+' товаров','ok',5000);}catch(e){toast('⚠️ Новый прайс загружен, но старые товары без фабрики удалить не вышло: '+e.message,'err',8000);}}
     // сохраняем шаблоны всех успешно определённых листов
     var st=_getTplStore();
     plan.forEach(function(p){
@@ -6097,6 +6151,16 @@ function _renderPriceSummary(el,bySup,totalDisplay,tplNote,extraNote){
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600">'+sup+(facs.length?' <span style="font-weight:400;color:var(--text2)">('+facs.length+' фабр.)</span>':'')+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--text2);font-size:12px">'+d.total+'</td>'
       +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right"><button class="btn btn-outline" onclick="deletePriceList(\''+esup+'\')" style="padding:2px 8px;font-size:11px;color:#c62828;border-color:#c62828">🗑 всё</button></td></tr>';
+    // v7.73: товары БЕЗ фабрики у поставщика, где фабрики есть, раньше в сводке
+    // не показывались вовсе — ни увидеть, ни удалить. Обычно это старая
+    // загрузка того же прайса, от неё в поиске двоятся товары.
+    var _nf=d.fac['']||0;
+    if(facs.length&&_nf>0){
+      html+='<tr style="background:#fff8e1">'
+        +'<td style="padding:3px 8px 3px 24px;border-bottom:1px solid var(--border);font-size:12px;color:#8a5a18">↳ без фабрики <span style="font-size:11px">— проверьте: часто это старая загрузка, из-за неё товары двоятся</span></td>'
+        +'<td style="padding:3px 8px;border-bottom:1px solid var(--border);text-align:right;color:#8a5a18;font-size:12px">'+_nf+'</td>'
+        +'<td style="padding:3px 8px;border-bottom:1px solid var(--border);text-align:right"><button class="btn btn-outline" onclick="deleteFactory(\''+esup+'\',\'\')" style="padding:2px 8px;font-size:11px;color:#c62828;border-color:#c62828">🗑</button></td></tr>';
+    }
     facs.forEach(function(f){
       var ef=String(f).replace(/'/g,"\\'");
       html+='<tr>'
@@ -6122,7 +6186,7 @@ async function loadPriceSummary(){
     if(Array.isArray(grouped)){
       if(!grouped.length){el.innerHTML=tplNote+'<div style="color:var(--text2);font-size:13px;padding:16px;text-align:center">Прайс-листы ещё не загружены</div>';return;}
       var bySup={},supNames={},facNames={},total=0;
-      grouped.forEach(function(r){var s=r.supplier||'—',f=(r.factory||'').trim(),n=+r.n||0;total+=n;if(!bySup[s])bySup[s]={total:0,fac:{}};bySup[s].total+=n;if(f){bySup[s].fac[f]=(bySup[s].fac[f]||0)+n;facNames[f]=1;}supNames[s]=1;});
+      grouped.forEach(function(r){var s=r.supplier||'—',f=(r.factory||'').trim(),n=+r.n||0;total+=n;if(!bySup[s])bySup[s]={total:0,fac:{}};bySup[s].total+=n;bySup[s].fac[f]=(bySup[s].fac[f]||0)+n;if(f)facNames[f]=1;supNames[s]=1;}); // v7.73: «без фабрики» тоже считаем
       _fillSupplierDatalist(_uniqSorted(supNames));_fillFactoryDatalist(_uniqSorted(facNames));
       _renderPriceSummary(el,bySup,total,tplNote,'');
       return;
@@ -6153,10 +6217,14 @@ async function deletePriceList(supplier){
 }
 async function deleteFactory(supplier,factory){
   if(!ownerOnly('Удаление прайса'))return; // v7.60
-  if(!confirm('Удалить товары фабрики «'+factory+'» (поставщик «'+supplier+'»)?'))return;
+  var _noF=!factory;
+  if(!confirm(_noF?('Удалить товары поставщика «'+supplier+'» БЕЗ фабрики? Товары его фабрик останутся.')
+                  :('Удалить товары фабрики «'+factory+'» (поставщик «'+supplier+'»)?')))return;
   try{
-    await sbDel('price_items','supplier=eq.'+encodeURIComponent(supplier)+'&factory=eq.'+encodeURIComponent(factory));
-    toast('🗑 Фабрика «'+factory+'» удалена');
+    // v7.73: у «без фабрики» в базе бывает и NULL, и пустая строка
+    await _sbDelUntilEmpty('supplier=eq.'+encodeURIComponent(supplier)
+      +(_noF?'&or=(factory.is.null,factory.eq.%22%22)':'&factory=eq.'+encodeURIComponent(factory)));
+    toast(_noF?'🗑 Товары «'+supplier+'» без фабрики удалены':'🗑 Фабрика «'+factory+'» удалена');
     loadPriceSummary();
   }catch(e){toast('❌ Ошибка: '+e.message,'err');}
 }
