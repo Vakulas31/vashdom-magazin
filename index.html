@@ -129,6 +129,33 @@ h2{letter-spacing:-.01em}
 .s-part{background:#fbf0e2;color:#8a5a18}
 .s-no{background:#f8eae7;color:#9c3b2e}
 .s-done{background:#2c6b44;color:#fff}
+.s-cancel{background:#eceef1;color:#6b7280;text-decoration:none}
+/* v7.75: отменённый заказ — серый, товары зачёркнуты, чтобы не путать с работой */
+.order-card.cancelled{background:#fbfbfc;border-color:#e3e5e9}
+.order-card.cancelled .item-text,.order-card.cancelled .item-price{text-decoration:line-through;opacity:.6}
+.cancel-box{background:#f6f6f8;border-left:3px solid #9aa1ab;padding:8px 16px;font-size:12.5px;line-height:1.6;color:#4b5260}
+/* v7.75: меню «⋯ Ещё» в карточке заказа */
+.more-menu{position:absolute;z-index:1200;background:#fff;border:1px solid #dfe3e9;border-radius:10px;box-shadow:0 8px 28px -8px rgba(31,78,121,.35);padding:5px;min-width:220px}
+.more-menu button{display:block;width:100%;text-align:left;background:none;border:none;padding:9px 12px;border-radius:7px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text)}
+.more-menu button:hover{background:#f2f5f8}
+.more-menu button.danger{color:#9c3b2e}
+.more-menu .mm-note{font-size:11px;color:var(--text2);padding:2px 12px 6px}
+/* v7.75: претензии */
+.claim-card{background:#fff;border:1px solid #e6e9ee;border-radius:var(--radius);margin-bottom:10px;padding:12px 16px;box-shadow:0 1px 2px rgba(31,78,121,.05)}
+.claim-card.resolved{background:#fafcfa;border-color:#d7e6db}
+.claim-meta{font-size:11.5px;color:var(--text2)}
+.claim-steps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.claim-step{border:1px solid #dfe3e9;background:#fff;border-radius:16px;padding:4px 11px;font-size:12px;cursor:pointer;font-family:inherit;color:#5b6270}
+.claim-step.on{background:#eaf4ec;border-color:#b9d8c1;color:#256b3c;font-weight:600}
+.claim-step.wait{background:#fbf0e2;border-color:#e8cfa4;color:#8a5a18;font-weight:600}
+.nav-badge{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:#c0392b;color:#fff;font-size:10.5px;font-weight:700;line-height:18px;text-align:center}
+.msg-tpl{border:1px solid #dfe3e9;background:#fff;border-radius:16px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;color:#5b6270}
+.msg-tpl.on{background:var(--dark);border-color:var(--dark);color:#fff}
+.tgl-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e6e9ee;border-radius:8px;margin-bottom:8px;background:#fafbfc}
+.tgl-row label.sw{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;cursor:pointer;margin:0}
+.tgl-row input[type=checkbox]{width:18px;height:18px;cursor:pointer}
+.tgl-sub{display:none;grid-template-columns:1fr 1fr;gap:8px;margin:-2px 0 10px 0;padding:0 2px}
+.tgl-sub.open{display:grid}
 .badge-yes{background:#eaf4ec;color:#256b3c}
 .badge-order{background:#fbf0e2;color:#8a5a18}
 .tag-sup{background:#eef1f5;color:#5b6270}
@@ -277,11 +304,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="showPage('prices')">📦 Прайсы</button>
   <button class="nav-btn owner-only" onclick="tryCash()">💰 Учёт</button>
   <button class="nav-btn owner-only" onclick="tryStats()">📊 Аналитика</button>
+  <!-- v7.75: претензии — восьмая страница, стоит сразу за «Аналитикой»,
+       потому что showPage подсвечивает кнопки по порядку страниц -->
+  <button class="nav-btn" onclick="showPage('claims')">🛠 Претензии<span class="nav-badge" id="claims-badge" style="display:none"></span></button>
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.74</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.75</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -305,6 +335,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
          закона о защите прав потребителей это пеня 0,5 % предоплаты за каждый день -->
     <span class="chip" id="chip-late" style="background:#f8eae7;color:#9c3b2e;display:none" data-chip="late" onclick="setChip('late')">⏰ Просрочено</span>
     <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
+    <!-- v7.75: отменённые заказы — отдельно от архива выполненных -->
+    <span class="chip" id="chip-cancelled" style="background:#eef1f5;color:#6b7280;display:none" data-chip="cancelled" onclick="setChip('cancelled')">❌ Отменённые</span>
   </div>
   <!-- v7.30: сколько продано за один конкретный день.
        v7.31 блок прятали от продавца, v7.32 — по решению владельца снова виден всем:
@@ -327,7 +359,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <option value="__active__">🔄 В процессе</option>
       <option>✅ Оплачено</option><option>⚠️ Частичная</option>
       <option>🔴 Не оплачено</option><option>💳 Кредит</option>
-      <option>📆 Рассрочка</option><option>🏁 Выполнен</option>
+      <option>📆 Рассрочка</option><option>🏁 Выполнен</option><option>❌ Отменён</option>
     </select>
     <select id="filter-manager" onchange="filterOrders()" style="width:auto;padding:7px 10px">
       <option value="">Все менеджеры</option>
@@ -935,6 +967,21 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </details>
 </div>
 
+<!-- v7.75: претензии и брак -->
+<div class="page" id="page-claims">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap">
+    <div><h2 style="font-size:18px;font-weight:700">🛠 Претензии и брак</h2>
+    <p style="font-size:12px;color:var(--text2)">Скол, брак, недокомплект — от обращения клиента до решения. Срок устранения недостатков по закону — до 45 дней.</p></div>
+    <button class="btn btn-primary" onclick="openClaimForm(null)">➕ Новая претензия</button>
+  </div>
+  <div id="claims-chips" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Поиск по клиенту, товару, фабрике, номеру заказа..." id="claims-search" oninput="_claimsSearchLive()">
+  </div>
+  <div id="claims-list"><div class="empty"><p>Загрузка...</p></div></div>
+</div>
+
 <div class="page" id="page-cash">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
     <h2 style="font-size:18px;font-weight:700">💰 Учёт финансов</h2>
@@ -1287,6 +1334,118 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
 </div>
+<!-- v7.75: карточка претензии -->
+<div class="modal-bg" id="modal-claim">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title" id="cf-title">🛠 Новая претензия</div>
+    <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:10px;margin-bottom:10px">
+      <div class="fg" style="margin:0"><label>Дата обращения</label><input type="date" id="cf-date"></div>
+      <div class="fg" style="margin:0"><label>Заказ <span style="color:var(--text2);font-size:11px">(номер или фамилия)</span></label>
+        <input type="text" id="cf-order" list="cf-orders" oninput="cfOrderInput()" placeholder="№164830 · Кораченцева"><datalist id="cf-orders"></datalist></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg" style="margin:0"><label>Клиент</label><input type="text" id="cf-client" maxlength="120"></div>
+      <div class="fg" style="margin:0"><label>Телефон</label><input type="tel" id="cf-phone" maxlength="30"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg" style="margin:0"><label>Товар</label><input type="text" id="cf-product" list="cf-products" oninput="cfProductInput()" maxlength="200"><datalist id="cf-products"></datalist></div>
+      <div class="fg" style="margin:0"><label>Фабрика / поставщик</label><input type="text" id="cf-supplier" maxlength="80"></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label>Что случилось</label>
+      <select id="cf-kind" style="margin-bottom:6px"><option value="">— тип —</option><option>Брак / повреждение</option><option>Скол или царапина при доставке</option><option>Недокомплект (не хватает деталей)</option><option>Не тот товар (цвет, размер, модель)</option><option>Другое</option></select>
+      <textarea id="cf-problem" rows="2" maxlength="600" placeholder="например: скол на фасаде левой двери, заметили при сборке"></textarea></div>
+
+    <div class="tgl-row"><label class="sw"><input type="checkbox" id="cf-factory" onchange="_cfToggle('factory')"> 🏭 Заказано на фабрике</label></div>
+    <div class="tgl-sub" id="cf-factory-sub">
+      <div class="fg" style="margin:0"><label>Когда заказали</label><input type="date" id="cf-factory-date"></div>
+      <div class="fg" style="margin:0"><label>Фабрика обещала к</label><input type="date" id="cf-expected"></div>
+      <div class="fg" style="margin:0;grid-column:1/-1"><label>Что заказали</label><input type="text" id="cf-factory-what" maxlength="200" placeholder="фасад двери 716×396, венге"></div>
+    </div>
+    <div class="tgl-row"><label class="sw"><input type="checkbox" id="cf-arrived" onchange="_cfToggle('arrived')"> 📦 Пришло от фабрики</label></div>
+    <div class="tgl-sub" id="cf-arrived-sub">
+      <div class="fg" style="margin:0"><label>Когда пришло</label><input type="date" id="cf-arrived-date"></div>
+    </div>
+    <div class="tgl-row"><label class="sw"><input type="checkbox" id="cf-resolved" onchange="_cfToggle('resolved')"> ✅ Решено</label></div>
+    <div class="tgl-sub" id="cf-resolved-sub">
+      <div class="fg" style="margin:0"><label>Когда</label><input type="date" id="cf-resolved-date"></div>
+      <div class="fg" style="margin:0"><label>Как решили</label><select id="cf-resolution"><option value="">— выберите —</option><option>Заменили деталь</option><option>Заменили товар целиком</option><option>Отремонтировали на месте</option><option>Вернули деньги</option><option>Сделали скидку</option><option>Отказ — это не брак</option><option>Другое</option></select></div>
+    </div>
+    <div class="fg" style="margin-bottom:14px"><label>Примечание <span style="color:var(--text2);font-size:11px">(необязательно)</span></label>
+      <input type="text" id="cf-notes" maxlength="300" placeholder="например: клиент просит привезти в субботу"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="cf-save-btn" onclick="cfSave()" style="flex:1;justify-content:center">💾 Сохранить</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-claim')">Отмена</button>
+      <button class="btn-danger-sm" id="cf-del" onclick="deleteClaim()" style="display:none" title="Удалить претензию">🗑</button>
+    </div>
+  </div>
+</div>
+
+<!-- v7.75: сообщение клиенту — МАКС / SMS -->
+<div class="modal-bg" id="modal-msg">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title">✉️ Сообщение клиенту</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:13px">
+      <span id="msg-to"></span>
+      <select id="msg-phone" style="width:auto;padding:6px 9px"></select>
+    </div>
+    <div id="msg-tpls" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <div id="msg-date-row" style="display:none;gap:8px;align-items:center;margin-bottom:10px;font-size:12.5px">
+      <label for="msg-date" style="color:var(--text2)">Дата доставки:</label>
+      <input type="date" id="msg-date" onchange="msgRegen()" style="width:auto;padding:6px 9px">
+    </div>
+    <textarea id="msg-text" rows="11" style="width:100%;font-size:13px;line-height:1.45;font-family:inherit;resize:vertical"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-primary" onclick="msgSendMax()" style="flex:1;justify-content:center">💬 Отправить в МАКС</button>
+      <button class="btn btn-outline" onclick="msgSendSms()">📱 SMS</button>
+      <button class="btn btn-outline" onclick="msgCopyText()">📋 Копировать</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-msg')">Закрыть</button>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.5">МАКС откроется с готовым текстом — выберите клиента в контактах и нажмите «Отправить». Номер клиента скопируется сам: его можно вставить в поиск МАКС. Если клиента нет в МАКС — нажмите «SMS». Текст можно поправить перед отправкой.</div>
+  </div>
+</div>
+
+<!-- v7.75: отмена заказа с возвратом денег -->
+<div class="modal-bg" id="modal-cancel">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title" id="cx-title">✖ Отмена заказа</div>
+    <div id="cx-summary" style="background:var(--alt);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;line-height:1.6"></div>
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg" style="margin:0"><label>Причина отмены</label>
+        <select id="cx-reason">
+          <option value="">— выберите —</option>
+          <option>Клиент передумал</option>
+          <option>Нашёл дешевле</option>
+          <option>Не устроил срок</option>
+          <option>Нет у поставщика</option>
+          <option>Ошибка при оформлении</option>
+          <option>Другое</option>
+        </select>
+      </div>
+      <div class="fg" style="margin:0"><label>Дата отмены</label><input type="date" id="cx-date"></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Подробнее <span style="color:var(--text2);font-size:11px">(необязательно, для «Другое» — обязательно)</span></label>
+      <input type="text" id="cx-detail" maxlength="160" placeholder="например: купил диван в другом магазине"></div>
+    <div id="cx-refund-box" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">↩ Вернули клиенту</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div class="fg" style="margin:0"><label>💵 наличными</label><input type="number" id="cx-cash" min="0" step="1" inputmode="numeric" oninput="cxCalc()"></div>
+        <div class="fg" style="margin:0"><label>💳 на карту</label><input type="number" id="cx-card" min="0" step="1" inputmode="numeric" oninput="cxCalc()"></div>
+        <div class="fg" style="margin:0"><label>📲 переводом</label><input type="number" id="cx-transfer" min="0" step="1" inputmode="numeric" oninput="cxCalc()"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <span class="msg-tpl" onclick="cxFill('all')">вернули всё</span>
+        <span class="msg-tpl" onclick="cxFill('none')">ничего не возвращаем</span>
+      </div>
+      <div id="cx-result" style="font-size:12.5px;margin-top:8px;line-height:1.5"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="cx-save-btn" onclick="cxSave()" style="flex:1;justify-content:center;background:#c62828;color:#fff">✖ Отменить заказ</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-cancel')">Не отменять</button>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.5">Заказ останется в журнале со статусом «❌ Отменён». Полученные деньги останутся в «Учёте» своей датой, а возврат ляжет отдельной строкой «минус» датой отмены. Вернуть заказ в работу может только владелец.</div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-delete">
   <div class="modal" style="max-width:400px">
     <div class="modal-title">🗑 Удалить заказ?</div>
@@ -1556,6 +1715,19 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'
 // Признак «выполнен» тоже проверялся тремя способами (строгое равенство и
 // поиск подстроки), поэтому лишний пробел в статусе менял поведение.
 function isDone(o){return !!o&&String((o&&o.status)||'').indexOf('Выполнен')>=0;}
+// ═══ v7.75: ОТМЕНЁННЫЙ ЗАКАЗ ═══════════════════════════════════════════
+// Раньше заказ, от которого клиент отказался, можно было только УДАЛИТЬ (и то
+// лишь владельцу). Удаление стирало вместе с заказом и все деньги по нему:
+// предоплата пропадала из «Учёта», а если эти наличные уже забрали из кассы —
+// касса уходила в минус. Теперь заказ ОТМЕНЯЮТ: он остаётся в журнале со
+// статусом «❌ Отменён», поступление остаётся своей датой, а возврат клиенту
+// записывается отдельной строкой «минус» датой отмены.
+// Отменённый заказ — не продажа (в выручку и «продано за день» не идёт) и не
+// работа (его не надо везти, забирать у поставщика, по нему нет долга).
+var CANCEL_STATUS='❌ Отменён';
+function isCancelled(o){return !!o&&String((o&&o.status)||'').indexOf('Отмен')>=0;}
+// «Делать по заказу больше нечего» — выполнен или отменён.
+function isClosed(o){return isDone(o)||isCancelled(o);}
 // v7.57: ОДНА функция «сколько стоит товар в заказе».
 // Везде стояло `goods_discounted || goods_total` — «сумма со скидкой ИЛИ без».
 // При скидке 100 % сумма со скидкой равна нулю, ноль в JS считается «пусто», и
@@ -1587,6 +1759,7 @@ async function sbGetAll(table,qs,cap){
 }
 function orderDebt(o){
   if(!o)return 0;
+  if(isCancelled(o))return 0; // v7.75: отменённый заказ никому ничего не должен
   var goods=Math.max(0,Math.round(o.remainder||0));
   var delivCost=(o.delivery_cost||0)+(o.lifting_cost||0);
   // доставка не создаёт долга, если уже оплачена, если она сторонняя (клиент
@@ -1683,6 +1856,7 @@ window.addEventListener('DOMContentLoaded',function(){
       checkManagerDay(); // v6.9: новый день — спросить, кто сегодня работает
       loadSuppliers(); // v7.20: справочник поставщиков — тихо, в фоне
       if(window.loadDeliveryPlaces)loadDeliveryPlaces(); // v7.48: прейскурант доставки
+      if(window.loadClaims)loadClaims(); // v7.75: претензии — тихо, в фоне (счётчик в меню)
     }).catch(function(e){
       console.error('Init attempt '+attempt+':',e);
       if(attempt<3){
@@ -1713,13 +1887,14 @@ function showPage(name){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('page-'+name).classList.add('active');
-  var pages=['orders','new','clients','pricelabels','prices','cash','stats'];
+  var pages=['orders','new','clients','pricelabels','prices','cash','stats','claims']; // v7.75: + претензии
   var idx=pages.indexOf(name);
   if(idx>=0)document.querySelectorAll('.nav-btn')[idx].classList.add('active');
   if(name==='stats')renderStats();
   if(name==='clients')renderClients();
   if(name==='prices'){loadPriceSummary();if(window.renderImportHistory)renderImportHistory();renderCalc();_ssLoadFactories();if(window.loadFabricCats){loadFabricCats().then(function(){if(window._fabSpecInfo)_fabSpecInfo();});}}
   if(name==='cash')renderCash();
+  if(name==='claims'&&window.renderClaims)renderClaims(true);
   if(name==='pricelabels'){renderPriceLabel();renderLabelQueue();renderRecentLabels();}
 }
 
@@ -1994,6 +2169,7 @@ function _dayWord(n){
 function statusClass(s){
   if(!s)return 's-no';
   if(s.indexOf('Выполнен')>=0)return 's-done';
+  if(s.indexOf('Отмен')>=0)return 's-cancel'; // v7.75
   if(s.indexOf('Оплачено')>=0&&s.indexOf('Не')<0)return 's-paid';
   if(s.indexOf('Частичная')>=0||s.indexOf('Кредит')>=0||s.indexOf('Рассрочка')>=0)return 's-part';
   return 's-no';
@@ -2002,6 +2178,7 @@ function statusClass(s){
 function orderCard(o){
   var items=o.order_items||[];
   var _done=isDone(o); // v7.29: общая проверка вместо строгого сравнения со строкой
+  var _cancel=isCancelled(o); // v7.75: отменённый заказ — серый, свёрнутый, без кнопок работы
   var isPaid=o.status&&o.status.indexOf('Оплачено')>=0&&o.status.indexOf('Не')<0;
   var contactTags='';
   function telHref(p){return'tel:+7'+p.replace(/^[+7]?[78]?/,'').replace(/\D/g,'');}
@@ -2009,6 +2186,8 @@ function orderCard(o){
   // плашка на оба, смысл несёт значок (📞 / 📍), а не заливка.
   if(o.client_phone)contactTags+='<a href="'+telHref(o.client_phone)+'" style="text-decoration:none"><span class="pl pl-mut" style="margin-right:4px">📞 '+o.client_phone+'</span></a>';
   if(o.client_phone2)contactTags+='<a href="'+telHref(o.client_phone2)+'" style="text-decoration:none"><span class="pl pl-mut" style="margin-right:4px">📞 '+o.client_phone2+'</span></a>';
+  // v7.75: готовое сообщение клиенту — в МАКС или SMS
+  if(o.client_phone||o.client_phone2)contactTags+='<button class="pl pl-mut" onclick="event.stopPropagation();openMsg('+o.id+')" title="Написать клиенту в МАКС или SMS — текст готовится сам" style="margin-right:4px;cursor:pointer;font-family:inherit">✉️ Написать</button>';
   if(o.client_address){var mapUrl='https://yandex.ru/maps/?text='+encodeURIComponent(o.client_address);contactTags+='<a href="'+mapUrl+'" target="_blank" style="text-decoration:none"><span class="pl pl-mut" title="Открыть адрес на карте">📍 '+o.client_address+'</span></a>';}
   // v7.8: чип показываем ТОЛЬКО при самовывозе (даже если заполнены адрес и телефон —
   // клиент мог передумать и забирать сам). При доставке ничего не пишем — это по умолчанию.
@@ -2016,7 +2195,7 @@ function orderCard(o){
   var deliveryChip=_isPickup?'<span class="pl pl-mut" style="margin-right:4px">🏬 Самовывоз</span>':'';
   // v7.29: если срок доставки прошёл, а заказ не выполнен — плашка красная и с числом дней
   var _lateDays=isLate(o)?Math.round((new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z')-new Date(o.delivery_date+'T00:00:00Z'))/86400000):0;
-  var delivBadge=o.delivery_date
+  var delivBadge=(o.delivery_date&&!_cancel)
     ?(_lateDays>0
       // просрочка — единственный красный сигнал в шапке: за него платят пеню
       ?'<span class="pl pl-bad" style="margin-left:6px" title="Срок передачи прошёл — по закону о защите прав потребителей начисляется пеня">⏰ просрочен на '+_lateDays+' '+_dayWord(_lateDays)+' (срок '+fmtDate(o.delivery_date)+')</span>'
@@ -2024,7 +2203,7 @@ function orderCard(o){
     :'';
   var meta='№'+o.order_number+' · '+fmtDate(o.order_date)+(o.manager?' · '+o.manager:'')+delivBadge;
   // v7.54: шапка выполненного заказа — чуть зеленоватая, а не салатовая заливка
-  var hdrBg=_done?'background:#f2f7f3':isPaid?'background:#f7faf8':'background:var(--grey)';
+  var hdrBg=_cancel?'background:#f4f4f6':_done?'background:#f2f7f3':isPaid?'background:#f7faf8':'background:var(--grey)';
 
   var itemsHtml='',delivCnt=0,itemsPaid=0;
   for(var i=0;i<items.length;i++){
@@ -2055,7 +2234,9 @@ function orderCard(o){
     // v7.54: зелёный бережём для одного смысла — деньги получены
     var paidTag=itPaid>0?'<span class="pl pl-good" title="Клиент рассчитался за этот товар'+(it.paid_at?' '+fmtDate(it.paid_at):'')+'" style="margin-right:8px">💰 '+fmt(itPaid)+' ₽'+(it.paid_method?' '+String(it.paid_method).replace(/[^💵💳📲]/g,'').slice(0,2):'')+'</span>':'';
     var dlvBtn;
-    if(_part){
+    if(_cancel){
+      dlvBtn=''; // v7.75: у отменённого заказа везти нечего
+    }else if(_part){
       // отвезена только часть — плашка жёлтая с числами, чтобы это было видно сразу
       // отвезена только часть — янтарная плашка: остаток ещё везти
       dlvBtn='<button class="pl pl-warn" onclick="toggleItemDelivered('+it.id+','+o.id+')" title="Отвезена часть позиции. Нажмите, чтобы изменить или снять отметку" '
@@ -2082,7 +2263,7 @@ function orderCard(o){
       '<div class="item-avail">'+paidTag+dlvBtn+
       '<span class="item-price" style="margin-right:8px">'+price+' ₽</span>'+
       // v7.20: наличие переключается кликом прямо в карточке, без редактирования заказа
-      '<button class="badge '+availClass+'" onclick="event.stopPropagation();toggleItemAvail('+it.id+','+o.id+')" title="Нажмите, чтобы переключить: «Под заказ» ⇄ «Есть»" style="cursor:pointer;border:none;font-family:inherit;font-size:inherit;font-weight:inherit">'+it.availability+'</button>'+
+      (_cancel?'':'<button class="badge '+availClass+'" onclick="event.stopPropagation();toggleItemAvail('+it.id+','+o.id+')" title="Нажмите, чтобы переключить: «Под заказ» ⇄ «Есть»" style="cursor:pointer;border:none;font-family:inherit;font-size:inherit;font-weight:inherit">'+it.availability+'</button>')+
       supTag+'</div></div>';
   }
 
@@ -2117,6 +2298,7 @@ function orderCard(o){
   // v7.70: доплаты, принятые до выполнения заказа
   var _pays=(o.order_payments||[]);
   var _paysSum=orderPaysSum(o);
+  if(_cancel)_paysSum=_pays.reduce(function(a,p){var v=Math.round(p.amount||0);return a+(v>0?v:0);},0);
   var ftrPays=_paysSum>0?
     '<div class="ftr-col"><div class="ftr-lbl">💰 Доплаты</div><div class="ftr-val" style="color:#1B5E20">'+fmt(_paysSum)+' ₽</div><div style="font-size:10px;color:var(--text2);margin-top:2px">платежей: '+_pays.length+'</div></div>':'';
   var paysHtml='';
@@ -2125,8 +2307,9 @@ function orderCard(o){
       +'<div style="font-weight:700;margin-bottom:4px">💰 Платежи по заказу</div>';
     _pays.forEach(function(pmt){
       var del=_isOwner?'<button class="pl pl-mut" title="Удалить запись о платеже" onclick="event.stopPropagation();opDelete('+pmt.id+','+o.id+')" style="margin-left:6px;cursor:pointer">✕</button>':'';
-      paysHtml+='<div style="font-size:12.5px;padding:2px 0">'
-        +fmtDate(pmt.pay_date)+' · <strong>'+fmt(pmt.amount)+' ₽</strong>'
+      var _neg=Math.round(pmt.amount||0)<0; // v7.75: возврат клиенту
+      paysHtml+='<div style="font-size:12.5px;padding:2px 0'+(_neg?';color:#9c3b2e':'')+'">'
+        +fmtDate(pmt.pay_date)+' · <strong>'+(_neg?'↩ возврат '+fmt(Math.abs(Math.round(pmt.amount||0))):fmt(pmt.amount))+' ₽</strong>'
         +(pmt.method?' · '+esc(pmt.method):'')
         +(pmt.comment?' · <span style="color:var(--text2)">'+esc(pmt.comment)+'</span>':'')
         +(pmt.who_name?' <span style="color:var(--text2);font-size:11px">('+esc(pmt.who_name)+')</span>':'')
@@ -2135,11 +2318,12 @@ function orderCard(o){
     paysHtml+='</div>';
   }
   var noteHtml=o.notes?'<div class="note-box">📝 '+o.notes+'</div>':'';
+  if(_cancel)noteHtml=_cancelBoxHtml(o)+noteHtml;
   if(_done&&o.close_comment)noteHtml+='<div class="note-box" style="border-left-color:#2e7d32">🏁 '+o.close_comment+'</div>';
-  var doneBtn=!_done?'<button class="btn btn-success" onclick="markDone('+o.id+')" style="padding:5px 10px;font-size:12px">✅ Выполнен</button>':'';
+  var doneBtn=(!_done&&!_cancel)?'<button class="btn btn-success" onclick="markDone('+o.id+')" style="padding:5px 10px;font-size:12px">✅ Выполнен</button>':'';
   // v7.70: принять деньги можно только по НЕ закрытому заказу — у закрытого
   // для этого есть «🔐 Закрытие», иначе одни и те же деньги легли бы дважды
-  var payBtn=!_done?'<button class="btn btn-outline" onclick="openOrderPay('+o.id+')" style="padding:5px 10px;font-size:12px" title="Клиент принёс деньги, но товар ещё не отдан">💰 Принять оплату</button>':'';
+  var payBtn=(!_done&&!_cancel)?'<button class="btn btn-outline" onclick="openOrderPay('+o.id+')" style="padding:5px 10px;font-size:12px" title="Клиент принёс деньги, но товар ещё не отдан">💰 Принять оплату</button>':'';
   var closureBtn=_done?'<button class="btn btn-outline" onclick="editClosure('+o.id+')" style="padding:5px 10px;font-size:12px">🔐 Закрытие</button>':'';
   var ftrClose='';
   if(_done&&(o.closed_at||(o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0)>0)){
@@ -2149,43 +2333,47 @@ function orderCard(o){
     if((o.pay_transfer||0)>0)pp.push('📲 '+fmt(o.pay_transfer));
     ftrClose='<div class="ftr-col"><div class="ftr-lbl">🏁 Закрыт'+(o.closed_at?fmtDate(o.closed_at):'')+'</div><div class="ftr-val" style="font-size:12px;color:#1B5E20">'+(pp.length?pp.join(' + ')+' ₽':'без доплаты')+'</div></div>';
   }
-  var cardClass='order-card'+(_done?' done':'');
+  var cardClass='order-card'+(_done?' done':'')+(_cancel?' cancelled':'');
+  var _fold=_done||_cancel; // выполненный и отменённый заказ показываем свёрнутым
 
-  var activeBadge=!_done?'<span class="pl pl-mut" style="margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
+  var activeBadge=(!_done&&!_cancel)?'<span class="pl pl-mut" style="margin-right:6px;flex-shrink:0">🔄 В процессе</span>':'';
 
   // Бейдж «отвезено X из Y» — виден сразу в шапке заказа, если товаров несколько.
   // v7.54: янтарный, только пока отвезено не всё — тогда это напоминание.
   var dlvBadge='';
-  if(items.length>1&&delivCnt>0){
+  if(items.length>1&&delivCnt>0&&!_cancel){
     var allDlv=delivCnt===items.length;
     dlvBadge='<span class="pl '+(allDlv?'pl-mut':'pl-warn')+'" style="margin-right:6px;flex-shrink:0">'
       +'🚚 '+delivCnt+' из '+items.length+' отвезено</span>';
   }
 
   return '<div class="'+cardClass+'" id="order-card-'+o.id+'">'+
-    '<div class="order-hdr" style="'+hdrBg+(_done?';cursor:pointer':'')+'">'+
-    (_done?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
+    '<div class="order-hdr" style="'+hdrBg+(_fold?';cursor:pointer':'')+'">'+
+    (_fold?'<button class="expand-btn" onclick="event.stopPropagation();toggleOrderBody('+o.id+')" id="expand-btn-'+o.id+'">развернуть ↓</button>':'')+
     '<div class="order-meta" style="display:block;flex:1">'+
     '<div><span style="color:var(--text2);font-size:11px">'+meta+'</span>'+
     '<span style="margin:0 6px;color:#ddd">|</span><strong style="cursor:pointer;border-bottom:1px dashed #90A4AE" title="История клиента" onclick="event.stopPropagation();openClientHistoryFromOrder('+o.id+')">'+o.client_name+'</strong></div>'+
     ((deliveryChip||contactTags)?'<div style="margin-top:4px">'+deliveryChip+contactTags+'</div>':'')+
-    '</div>'+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span class="pl pl-mut" style="margin-left:4px" title="Способ оплаты">'+o.payment_method+'</span>':'')+'</div>'+
-    '<div id="order-body-'+o.id+'" style="'+(_done?'display:none':'')+'">'+
+    '</div>'+_claimBadge(o)+dlvBadge+activeBadge+'<span class="order-status '+statusClass(o.status)+'">'+(o.status||'—')+'</span>'+(o.payment_method?'<span class="pl pl-mut" style="margin-left:4px" title="Способ оплаты">'+o.payment_method+'</span>':'')+'</div>'+
+    '<div id="order-body-'+o.id+'" style="'+(_fold?'display:none':'')+'">'+
     (itemsHtml||'')+paysHtml+noteHtml+
     '<div class="order-ftr"><div class="ftr-nums">'+
-    '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val">'+fmt(orderGoods(o))+' ₽</div></div>'+
-    ftrDeliv+ftrPre+ftrItemPaid+ftrPays+ftrDebt+ftrClose+'</div>'+
+    '<div class="ftr-col"><div class="ftr-lbl">Товары</div><div class="ftr-val"'+(_cancel?' style="text-decoration:line-through;color:var(--text2)"':'')+'>'+fmt(orderGoods(o))+' ₽</div></div>'+
+    (_cancel?ftrPre+ftrPays:ftrDeliv+ftrPre+ftrItemPaid+ftrPays+ftrDebt+ftrClose)+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
     // v7.54: бланки печатаются одинаково часто и одинаково безобидны — рамки
     // у них теперь общие, серые. Цветной остаётся одна кнопка «Выполнен»:
     // это единственное действие, которое меняет состояние заказа.
+    (_cancel?'':
     '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Наряд</button>'+
     '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Договор</button>'+
     '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px">📋 Акт</button>'+
     payBtn+
-    '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'+
+    '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>')+
     // v7.59: история изменений — кто и когда что поменял
     '<button class="btn btn-outline" onclick="openOrderLog('+o.id+')" style="padding:5px 10px;font-size:12px" title="Кто и когда менял этот заказ">🕘 История</button>'+
+    // v7.75: редкие действия — в меню «⋯ Ещё», чтобы не раздувать ряд кнопок
+    '<button class="btn btn-outline" onclick="event.stopPropagation();openMoreMenu(event,'+o.id+')" style="padding:5px 10px;font-size:12px" title="Претензия, отмена заказа">⋯ Ещё</button>'+
     doneBtn+closureBtn+
     '<button class="btn-danger-sm owner-only" onclick="askDelete('+o.id+')">🗑</button>'+
     '</div></div></div></div>';
@@ -2247,6 +2435,7 @@ function _ipFind(){
 }
 function toggleItemDelivered(itemId,orderId){
   var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
+  if(isCancelled(o)){toast('Заказ отменён — отмечать доставку нельзя','err');return;}
   var it=(o.order_items||[]).find(function(x){return x.id===itemId;});if(!it)return;
   if(it.delivered_at){
     // ── Снятие отметки ──
@@ -2386,6 +2575,7 @@ function _opDelivDebt(o){
 function _opRecalcStatus(o){
   var st=String(o.status||'');
   if(st.indexOf('Выполнен')>=0)return null;
+  if(st.indexOf('Отмен')>=0)return null; // v7.75
   if(st.indexOf('Кредит')>=0||st.indexOf('Рассрочк')>=0)return null;
   var goods=Math.round(orderGoods(o));
   var paid=Math.round(o.prepayment||0)+orderItemsPaid(o)+orderPaysSum(o);
@@ -2489,6 +2679,21 @@ function opDelete(payId,orderId){
   var pmt=(o.order_payments||[]).filter(function(x){return String(x.id)===String(payId);})[0];
   if(!pmt)return;
   var amt=Math.round(pmt.amount||0);
+  // v7.75: у отменённого заказа долга нет, и возврат клиенту (строка «минус»)
+  // тоже на долг не влияет — удаляем только саму запись о деньгах
+  if(isCancelled(o)||amt<0){
+    if(!confirm('Удалить запись '+(amt<0?'о возврате ':'о платеже ')+fmt(Math.abs(amt))+' ₽ от '+fmtDate(pmt.pay_date)+(pmt.method?' ('+pmt.method+')':'')+'?\n\n'
+      +'Сумма '+(amt<0?'снова будет числиться в кассе':'пропадёт из «Учёта»')+'. Отменить удаление будет нельзя.'))return;
+    sbDel('order_payments','id=eq.'+payId).then(function(){
+      o.order_payments=(o.order_payments||[]).filter(function(x){return String(x.id)!==String(payId);});
+      try{logOrder(o,'pay',[{field:amt<0?'Возврат клиенту':'Оплата по заказу',old:fmt(Math.abs(amt))+' ₽ от '+fmtDate(pmt.pay_date),new:'запись удалена'}],'запись о деньгах удалена');}catch(e){}
+      toast('↩️ Запись удалена','ok',4000);
+      _paintOrders();
+      var cashPage=document.getElementById('page-cash');
+      if(cashPage&&cashPage.classList.contains('active'))renderCash();
+    }).catch(function(e){toast('❌ Не удалилось: '+((e&&e.message)||'').slice(0,140),'err',6000);});
+    return;
+  }
   var backRem=Math.round((o.remainder||0)+amt);
   var goods=Math.round(orderGoods(o));
   if(backRem>goods)backRem=goods;   // долг за товар не может быть больше самого товара
@@ -2525,6 +2730,7 @@ function opDelete(payId,orderId){
 // Клик по пилюле «Под заказ» / «Есть» меняет статус без захода в редактирование.
 function toggleItemAvail(itemId,orderId){
   var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
+  if(isCancelled(o)){toast('Заказ отменён','err');return;}
   var it=(o.order_items||[]).find(function(x){return x.id===itemId;});if(!it)return;
   var next=(it.availability==='Есть')?'Под заказ':'Есть';
   var prev=it.availability;
@@ -2550,7 +2756,7 @@ function openSupplierItems(name){
   (allOrders||[]).slice().sort(function(a,b){
     return String(a.order_date||'').localeCompare(String(b.order_date||''));
   }).forEach(function(o){
-    if((o.status||'')==='🏁 Выполнен')return;              // заказ закрыт — забирать нечего
+    if(isClosed(o))return;              // заказ закрыт или отменён (v7.75) — забирать нечего
     var rows=(o.order_items||[]).filter(function(it){
       // v7.46: считаем ОСТАТОК, а не факт «что-то отвезли». Позиция «2 пенала,
       // отвезли 1» раньше выпадала из списка целиком — второй пенал у
@@ -2637,7 +2843,7 @@ function renderOrders(orders){
 function _nextDelivery(){
   var t=new Date().toISOString().slice(0,10),best=null;
   (allOrders||[]).forEach(function(o){
-    if(isDone(o)||!o.delivery_date||String(o.delivery_date)<t)return;
+    if(isClosed(o)||!o.delivery_date||String(o.delivery_date)<t)return;
     if(!best||String(o.delivery_date)<String(best.delivery_date))best=o;
   });
   return best;
@@ -2686,6 +2892,8 @@ function _emptyOrdersHtml(){
     return _emptyBox('Незакрытых заказов нет','Всё, что есть в журнале, уже выполнено.',showAll);
   if(_activeChip==='done')
     return _emptyBox('Выполненных заказов пока нет','Сюда заказ попадает после нажатия «✅ Выполнен».',showAll);
+  if(_activeChip==='cancelled')
+    return _emptyBox('Отменённых заказов нет','Сюда попадает заказ, от которого клиент отказался: «⋯ Ещё» → «✖ Отменить заказ».',showAll);
   return _emptyBox('Заказов не найдено','');
 }
 // Снимает разом всё, что могло спрятать заказы
@@ -2704,6 +2912,9 @@ function _paintOrders(){
   document.getElementById('orders-count').textContent=orders.length+' заказ(ов)'
     +(_lateN?' · ⏰ просрочено: '+_lateN:'');
   if(typeof _updateLateChip==='function')_updateLateChip(); // и при первой загрузке тоже
+  // v7.75: чип «❌ Отменённые» виден, только когда такие заказы есть
+  var _cc=document.getElementById('chip-cancelled');
+  if(_cc){var _cn=(allOrders||[]).filter(isCancelled).length;_cc.style.display=_cn?'inline-flex':'none';_cc.textContent='❌ Отменённые: '+_cn;}
   var list=document.getElementById('orders-list');
   if(!orders.length){list.innerHTML=_emptyOrdersHtml();return;}
   // Рендерим только первые _ordersShown карточек — крупные списки не тормозят ввод
@@ -2776,15 +2987,17 @@ function filterOrders(){
     var txt=_sNorm([o.client_name,o.client_phone,o.client_phone2,o.client_address,o.notes,o.manager,o.order_number,o.status].join(' ')
       +' '+_digits(o.client_phone)+' '+_digits(o.client_phone2));
     (o.order_items||[]).forEach(function(i){txt+=_sNorm(' '+(i.product_name||'')+' '+(i.color||'')+' '+(i.supplier||'')+' '+(i.supplier_manual||'')+' '+(i.dims||''));});
-    var statusMatch=!st||(st==='__active__'?!isDone(o):o.status===st);
+    // v7.75: отменённый заказ — не «в процессе», хотя и не выполнен
+    var statusMatch=!st||(st==='__active__'?!isClosed(o):o.status===st);
     var chipMatch=true;
     // v7.29: «с долгом» — та же формула, что в карточке, а не своя копия
     if(_activeChip==='debt')chipMatch=orderDebt(o)>0;
-    else if(_activeChip==='active')chipMatch=!isDone(o);
+    else if(_activeChip==='active')chipMatch=!isClosed(o);
     else if(_activeChip==='today')chipMatch=o.order_date===today;
     else if(_activeChip==='week')chipMatch=o.delivery_date&&o.delivery_date>=today&&o.delivery_date<=weekEnd;
     else if(_activeChip==='late')chipMatch=isLate(o);
     else if(_activeChip==='done')chipMatch=isDone(o);
+    else if(_activeChip==='cancelled')chipMatch=isCancelled(o);
     // v7.30: выбранный день — самостоятельный фильтр, работает вместе с остальными
     var dayMatch=!_dayFilter||o.order_date===_dayFilter;
     return(!q||txt.indexOf(q)>=0)&&statusMatch&&(!mg||o.manager===mg)&&chipMatch&&dayMatch;
@@ -2829,21 +3042,24 @@ function _renderDaySum(shown){
   var clr=document.getElementById('orders-date-clear');
   if(clr)clr.style.display=_dayFilter?'inline-flex':'none';
   if(!_dayFilter){box.style.display='none';return;}
-  var sum=0,n=0;
+  var sum=0,n=0,cn=0,csum=0;
   (allOrders||[]).forEach(function(o){
     if(o.order_date!==_dayFilter)return;
+    // v7.75: отменённый заказ — не продажа, в сумму дня его не берём
+    if(isCancelled(o)){cn++;csum+=orderGoods(o);return;}
     sum+=orderGoods(o);n++;
   });
+  var cNote=cn?'<div style="font-size:11.5px;opacity:.85;margin-top:3px">Ещё '+cn+' '+(cn===1?'заказ':'заказа(ов)')+' этого дня на '+fmt(csum)+' ₽ отменены — в сумму не входят.</div>':'';
   box.style.display='block';
-  if(!n){box.innerHTML='📅 <strong>'+_fmtDayRu(_dayFilter)+'</strong> — заказов не оформлялось.';return;}
+  if(!n){box.innerHTML='📅 <strong>'+_fmtDayRu(_dayFilter)+'</strong> — заказов не оформлялось.'+cNote;return;}
   // если на экране видно не всё за этот день — говорим об этом прямо, чтобы
   // расхождение «в сумме 5, а карточек 2» не выглядело ошибкой
-  var hint=(typeof shown==='number'&&shown<n)
-    ?'<div style="font-size:11.5px;opacity:.85;margin-top:3px">В списке ниже показаны '+shown+' из '+n+' — остальные скрыты вкладкой или фильтром.</div>'
+  var hint=(typeof shown==='number'&&shown<n+cn)
+    ?'<div style="font-size:11.5px;opacity:.85;margin-top:3px">В списке ниже показаны '+shown+' из '+(n+cn)+' — остальные скрыты вкладкой или фильтром.</div>'
     :'';
   box.innerHTML='📅 <strong>'+_fmtDayRu(_dayFilter)+'</strong> — оформлено заказов: <strong>'+n+'</strong>, на сумму <strong style="font-size:17px">'+fmt(sum)+' ₽</strong>'
     +'<div style="font-size:11.5px;opacity:.85;margin-top:3px">Сумма товаров со скидкой, без доставки и заноса. Деньги, фактически пришедшие в кассу, — в разделе «Учёт».</div>'
-    +hint;
+    +cNote+hint;
 }
 
 // ═══ v7.29: ПРОСРОЧЕННЫЕ ЗАКАЗЫ ═══════════════════════════════════════
@@ -2852,7 +3068,7 @@ function _renderDaySum(shown){
 // из виду. По ст. 23.1 закона о защите прав потребителей просрочка передачи
 // предоплаченного товара — это пеня 0,5 % от предоплаты за каждый день.
 function isLate(o){
-  if(!o||isDone(o)||!o.delivery_date)return false;
+  if(!o||isClosed(o)||!o.delivery_date)return false;
   return String(o.delivery_date)<new Date().toISOString().split('T')[0];
 }
 function lateOrders(){return (allOrders||[]).filter(isLate);}
@@ -3117,7 +3333,7 @@ function renderCash(){
     // v6.7: оплаты позиций при доставке; если SQL 6.7 ещё не выполнен — тихо пропускаем
     sbGetAll('order_items','select=order_id,paid_amount,paid_method,paid_at,product_name,orders(order_number,client_name,order_date,closed_at)&paid_amount=gt.0&order=paid_at.desc').catch(function(){return[];}),
     // v7.70: платежи по заказу; без SQL 7.18 — тихо пропускаем
-    sbGetAll('order_payments','select=order_id,pay_date,amount,method,comment,orders(id,order_number,client_name,order_date,closed_at)&order=pay_date.desc').catch(function(){return[];})
+    sbGetAll('order_payments','select=order_id,pay_date,amount,method,comment,created_at,orders(id,order_number,client_name,order_date,closed_at)&order=pay_date.desc').catch(function(){return[];})
   ]).then(function(res){
     _cashRaw={orders:res[0]||[],wd:res[1]||[],pays:res[2]||[],opays:res[3]||[]};
     _renderCashUI(_cashRaw.orders,_cashRaw.wd,_cashRaw.pays,_cashRaw.opays);
@@ -3204,7 +3420,8 @@ function _renderCashUI(orders,withdrawals,itemPays,orderPays){
   (orderPays||[]).forEach(function(p){
     var oid=p.order_id!=null?p.order_id:(p.orders&&p.orders.id);
     if(oid==null)return;
-    _payByOrder[oid]=(_payByOrder[oid]||0)+Math.round(p.amount||0);
+    // v7.75: возвраты (минус) сюда не берём — это «сколько получено», а не «сколько осталось»
+    _payByOrder[oid]=(_payByOrder[oid]||0)+Math.max(0,Math.round(p.amount||0));
   });
   // По каждому заказу: предоплата (по способу оплаты заказа) + финальные оплаты при закрытии
   var tot={cash:0,card:0,transfer:0,other:0};
@@ -3232,8 +3449,22 @@ function _renderCashUI(orders,withdrawals,itemPays,orderPays){
     list.push(r);
   });
   // v7.70: платежи по заказу — каждый своей датой и своим способом
+  var cashRefunds=[]; // v7.75: наличные, отданные клиенту при отмене заказа
   (orderPays||[]).forEach(function(p){
-    var amt=Math.round(p.amount||0);if(amt<=0)return;
+    var amt=Math.round(p.amount||0);
+    if(amt<0){
+      // v7.75: возврат клиенту — отдельная строка «минус» датой возврата.
+      // Поступление по заказу при этом остаётся своей датой: в июле пришло,
+      // в сентябре отдали — так и видно в таблице по месяцам.
+      var ordR=p.orders||{};
+      var kR=_payKind(p.method);
+      tot[kR]+=amt;
+      flows.push({date:String(p.pay_date||'').slice(0,10),kind:kR,amt:amt,num:ordR.order_number||'',
+        client:ordR.client_name||'',what:'↩ возврат клиенту (заказ отменён)',refund:true});
+      if(kR==='cash')cashRefunds.push({num:ordR.order_number,client:ordR.client_name,amt:-amt,date:p.pay_date,at:p.created_at});
+      return;
+    }
+    if(amt<=0)return;
     var ord=p.orders||{};
     var kind=_payKind(p.method);
     var r={order_number:ord.order_number,client_name:ord.client_name,order_date:p.pay_date||ord.order_date,closed_at:ord.closed_at,
@@ -3362,13 +3593,26 @@ function _renderCashUI(orders,withdrawals,itemPays,orderPays){
   var _pool=cashParts.slice()
     .sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));})
     .map(function(p){return {src:p,left:p.amt};});
-  var _wdAsc=withdrawals.slice().sort(function(a,b){return String(a.created_at||'').localeCompare(String(b.created_at||''));});
+  // v7.75: возврат наличных клиенту тоже вынимает деньги из кассы — как забор,
+  // только в карман клиенту. Ставим его в общую очередь со своей датой, чтобы
+  // он «съел» именно те поступления (сначала — предоплату этого же заказа),
+  // и в «Что сейчас в кассе» не висели деньги, которых там уже нет.
+  var _refEvents=cashRefunds.map(function(r){
+    return {amount:r.amt,created_at:String(r.at||((r.date||'')+'T12:00:00')),comment:'',_refund:r};
+  });
+  var _wdAsc=withdrawals.concat(_refEvents).slice().sort(function(a,b){return String(a.created_at||'').localeCompare(String(b.created_at||''));});
   var _segParts=_wdAsc.map(function(){return [];});
   _wdAsc.forEach(function(w,wi){
     var need=Math.round(w.amount||0);
     if(need<=0)return;
     var seg=_segParts[wi];
     function take(p,amt){seg.push(_mkPart(p.src,amt,p.src.amt));p.left-=amt;need-=amt;}
+    if(w._refund){
+      for(var ri=0;ri<_pool.length&&need>0;ri++){
+        var rp=_pool[ri];
+        if(rp.left>0&&String(rp.src.num)===String(w._refund.num))take(rp,Math.min(rp.left,need));
+      }
+    }
     // v7.24: СНАЧАЛА — состав, записанный В МОМЕНТ забора в комментарий
     // («Забор: 5 000₽ остаток при закрытии №647285; …»). Это факт, а не догадка.
     // Без него поступления одного дня раскладывались по порядку и могли уехать
@@ -3429,7 +3673,7 @@ function _renderCashUI(orders,withdrawals,itemPays,orderPays){
     +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">'
     +'<div><div class="stat-label">💵 Наличных в кассе</div>'
     +'<div style="font-size:34px;font-weight:800;color:'+(_cashBoxNow>0?'#1B5E20':'var(--text2)')+'">'+fmt(_cashBoxNow)+' ₽</div>'
-    +'<div style="font-size:11px;color:var(--text2);margin-top:2px">= наличные предоплаты + наличные доплаты при закрытии − забрано из кассы</div>'
+    +'<div style="font-size:11px;color:var(--text2);margin-top:2px">= наличные предоплаты + наличные доплаты при закрытии − забрано из кассы'+(cashRefunds.length?' − возвращено клиентам':'')+'</div>'
     +'<div style="font-size:11px;color:var(--text2)">Это остаток на сейчас — выбор периода ниже на него не влияет.</div></div>'
     +(_cashBoxNow>0
       ?'<button class="btn btn-success" onclick="takeCash()" style="padding:12px 22px;font-size:14px">✅ Я забрал наличные</button>'
@@ -3458,11 +3702,12 @@ function _renderCashUI(orders,withdrawals,itemPays,orderPays){
     +'</select></div>';
 
   // Суммы за выбранный период
-  var totP={cash:0,card:0,transfer:0,other:0};
+  var totP={cash:0,card:0,transfer:0,other:0},refP=0;
   var inPeriod=[];
   flows.forEach(function(f){
     if(!_cashInPeriod(f.date))return;
     totP[f.kind]+=f.amt;inPeriod.push(f);
+    if(f.amt<0)refP+=-f.amt;
   });
   var totPsum=totP.cash+totP.card+totP.transfer+totP.other;
   var pName=_cashPeriodName();
@@ -3471,7 +3716,8 @@ function _renderCashUI(orders,withdrawals,itemPays,orderPays){
     +'<div class="stat-card"><div class="stat-label">💳 Картой</div><div class="stat-val" style="font-size:18px">'+fmt(totP.card)+' ₽</div><div style="font-size:10px;color:var(--text2)">'+pName+'</div></div>'
     +'<div class="stat-card"><div class="stat-label">📲 Переводом</div><div class="stat-val" style="font-size:18px">'+fmt(totP.transfer)+' ₽</div><div style="font-size:10px;color:var(--text2)">'+pName+'</div></div>'
     +'<div class="stat-card"><div class="stat-label">Итого поступлений</div><div class="stat-val" style="font-size:18px;color:var(--dark)">'+fmt(totPsum)+' ₽</div>'
-    +(totP.other>0?'<div style="font-size:10px;color:#E65100">в т.ч. '+fmt(totP.other)+' ₽ без способа оплаты</div>':'<div style="font-size:10px;color:var(--text2)">'+pName+'</div>')+'</div>'
+    +(totP.other>0?'<div style="font-size:10px;color:#E65100">в т.ч. '+fmt(totP.other)+' ₽ без способа оплаты</div>':'<div style="font-size:10px;color:var(--text2)">'+pName+'</div>')
+    +(refP>0?'<div style="font-size:10px;color:#9c3b2e">за вычетом возвратов клиентам: '+fmt(refP)+' ₽</div>':'')+'</div>'
     +'</div>';
   if(_cashPeriod!=='all')
     html+='<div style="font-size:11.5px;color:var(--text2);margin:-4px 0 12px">Деньги отнесены к месяцу, когда они РЕАЛЬНО пришли: предоплата — в день заказа, доплата — в день закрытия, оплата за товар — в день доставки. За всё время получено '+fmt(tot.cash+tot.card+tot.transfer+tot.other)+' ₽.</div>';
@@ -3557,7 +3803,7 @@ function _renderCashUI(orders,withdrawals,itemPays,orderPays){
         +(f.kind==='other'&&f.num
           ?'<button class="pl pl-warn" title="Указать, как эти деньги получены" onclick="askPayMethod(\''+String(f.num).replace(/'/g,"\\'")+'\')">⚠️ не указан · указать</button>'
           :KIND[f.kind])+'</td>'
-      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;font-size:13px">'+fmt(f.amt)+' ₽</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;font-size:13px'+(f.amt<0?';color:#9c3b2e':'')+'">'+(f.amt<0?'−'+fmt(-f.amt):fmt(f.amt))+' ₽</td>'
       +'</tr>';
   }).join('');
   html+='<div class="card"><div class="card-title">📋 Поступления ' + pName + ' — ' + jFlows.length + ' шт.</div>'
@@ -3689,7 +3935,7 @@ function renderShipList(){
   var weekEnd=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
   var byAddr={},позиций=0,заказов=0;
   (allOrders||[]).forEach(function(o){
-    if(isDone(o))return;                       // заказ закрыт — везти нечего
+    if(isClosed(o))return;                     // заказ закрыт или отменён — везти нечего
     if(/самовыв/i.test(o.delivery_type||''))return; // клиент забирает сам
     var rows=(o.order_items||[]).filter(function(it){return remainQty(it)>0;});
     if(!rows.length)return;
@@ -3846,6 +4092,233 @@ function openOrderLog(orderId){
       +(нет?'Выполните в базе <strong>SQL_обновление_7.15.sql</strong> — после этого приложение начнёт вести журнал.'
            :esc(String(e&&e.message||'')))+'</p></div>';
   });
+}
+// ═══ v7.75: ОТМЕНА ЗАКАЗА ВМЕСТО УДАЛЕНИЯ ═══════════════════════════════
+// Что было. Клиент отказался — заказ можно было только удалить, и только
+// владельцу. Удаление стирало вместе с заказом все его деньги: предоплата
+// исчезала из «Учёта» задним числом, а если эти наличные уже забрали из
+// кассы — касса уходила в минус, и понять почему было невозможно.
+// Что стало. Продавец нажимает «⋯ Ещё → ✖ Отменить заказ», выбирает причину
+// и пишет, сколько вернули клиенту и чем. Заказ остаётся в журнале со
+// статусом «❌ Отменён», предоплата остаётся в «Учёте» своей датой, а возврат
+// ложится отдельной строкой «минус» датой отмены (в order_payments, сумма со
+// знаком минус). Вернули не всё — разница остаётся доходом магазина.
+// Решение владельца 22.09.2026: отменяет и пишет возврат сам продавец.
+//
+// Где хранится (новых колонок не нужно):
+//   status        = «❌ Отменён»
+//   closed_at     = дата отмены
+//   close_comment = «Отменён: <причина>»
+//   remainder     = 0 (долга у отменённого заказа нет)
+//   order_payments: строки с отрицательной суммой — возврат клиенту.
+
+// Сколько по заказу реально получено, по способам оплаты. Возвраты (минус)
+// сюда не входят — они считаются отдельно.
+function orderReceivedByKind(o){
+  var r={cash:0,card:0,transfer:0,other:0};
+  if(!o)return r;
+  var pre=Math.round(o.prepayment||0);
+  var ps=Math.round((o.pre_cash||0)+(o.pre_card||0)+(o.pre_transfer||0));
+  if(pre>0&&ps>0){
+    r.cash+=Math.round(o.pre_cash||0);r.card+=Math.round(o.pre_card||0);r.transfer+=Math.round(o.pre_transfer||0);
+    if(pre>ps)r[_payKind(o.payment_method)]+=pre-ps;
+  }else if(pre>0)r[_payKind(o.payment_method)]+=pre;
+  (o.order_payments||[]).forEach(function(p){var a=Math.round(p.amount||0);if(a>0)r[_payKind(p.method)]+=a;});
+  (o.order_items||[]).forEach(function(it){var a=Math.round(it.paid_amount||0);if(a>0)r[_payKind(it.paid_method)]+=a;});
+  r.cash+=Math.round(o.pay_cash||0);r.card+=Math.round(o.pay_card||0);r.transfer+=Math.round(o.pay_transfer||0);
+  // Доставка, оплаченная при оформлении отдельно от предоплаты, — тоже деньги
+  // клиента (так же её видит «Учёт», см. delivPrepaidSum)
+  var posPays=0;(o.order_payments||[]).forEach(function(p){var a=Math.round(p.amount||0);if(a>0)posPays+=a;});
+  var itPaid=0;(o.order_items||[]).forEach(function(it){itPaid+=Math.max(0,Math.round(it.paid_amount||0));});
+  var dp=delivPrepaidSum(o,itPaid,posPays);
+  if(dp>0){
+    var dk=_payKind(o.payment_method);
+    if(ps>0){var best='cash',bv=-1;['cash','card','transfer'].forEach(function(k){var v=Math.round(o['pre_'+k]||0);if(v>bv){bv=v;best=k;}});if(bv>0)dk=best;}
+    r[dk]+=dp;
+  }
+  return r;
+}
+function orderRefunded(o){
+  var s=0;((o&&o.order_payments)||[]).forEach(function(p){var a=Math.round(p.amount||0);if(a<0)s+=-a;});
+  return s;
+}
+function _kindSum(r){return r.cash+r.card+r.transfer+r.other;}
+
+// Плашка в карточке отменённого заказа
+function _cancelBoxHtml(o){
+  var got=_kindSum(orderReceivedByKind(o)),back=orderRefunded(o),kept=got-back;
+  var why=String(o.close_comment||'').replace(/^Отменён:\s*/,'');
+  return '<div class="cancel-box">❌ <strong>Заказ отменён'+(o.closed_at?' '+fmtDate(o.closed_at):'')+'</strong>'
+    +(why?' · причина: '+esc(why):'')
+    +(got>0?'<br>Получено от клиента '+fmt(got)+' ₽ · вернули '+fmt(back)+' ₽'
+      +(kept>0?' · <strong>осталось магазину '+fmt(kept)+' ₽</strong>':''):'<br>Денег по заказу не получали.')
+    +'</div>';
+}
+
+// ── Меню «⋯ Ещё» ─────────────────────────────────────────────────────
+function closeMoreMenu(){var m=document.getElementById('more-menu');if(m)m.remove();}
+function openMoreMenu(ev,id){
+  closeMoreMenu();
+  var o=allOrders.find(function(x){return x.id===id;});if(!o)return;
+  var btn=ev&&ev.currentTarget?ev.currentTarget:(ev&&ev.target);
+  var m=document.createElement('div');m.id='more-menu';m.className='more-menu';
+  var h='';
+  if(o.client_phone||o.client_phone2)h+='<button onclick="closeMoreMenu();openMsg('+id+')">✉️ Написать клиенту (МАКС / SMS)</button>';
+  if(!isCancelled(o))h+='<button onclick="closeMoreMenu();openClaimForm(null,'+id+')">🛠 Оформить претензию</button>';
+  if(!isClosed(o))h+='<button class="danger" onclick="closeMoreMenu();openCancelOrder('+id+')">✖ Отменить заказ</button>';
+  if(isCancelled(o)){
+    if(_isOwner)h+='<button onclick="closeMoreMenu();restoreOrder('+id+')">↩ Вернуть заказ в работу</button>';
+    else h+='<div class="mm-note">Вернуть отменённый заказ в работу может только владелец.</div>';
+  }
+  if(isDone(o))h+='<div class="mm-note">Заказ выполнен — отменить его нельзя. Если клиент вернул товар, оформите претензию.</div>';
+  m.innerHTML=h;
+  document.body.appendChild(m);
+  var r=btn&&btn.getBoundingClientRect?btn.getBoundingClientRect():{left:20,bottom:100,right:240};
+  var w=m.offsetWidth||230;
+  var left=Math.min(Math.max(8,r.right-w),window.innerWidth-w-8);
+  m.style.left=(left+window.scrollX)+'px';
+  m.style.top=(r.bottom+window.scrollY+4)+'px';
+  setTimeout(function(){
+    document.addEventListener('click',function _c(e){
+      if(!m.contains(e.target)){closeMoreMenu();document.removeEventListener('click',_c);}
+    });
+  },0);
+}
+
+// ── Окно отмены ──────────────────────────────────────────────────────
+var _cxOrderId=null,_cxGot=null,_cxSaving=false;
+function openCancelOrder(id){
+  var o=allOrders.find(function(x){return x.id===id;});if(!o)return;
+  if(isDone(o)){toast('Заказ уже выполнен — отменить его нельзя','err',5000);return;}
+  if(isCancelled(o)){toast('Заказ уже отменён','err');return;}
+  // Часть товара уже у клиента — это возврат товара, а не отмена заказа:
+  // деньги и товар тогда надо считать по-другому, и решать это владельцу.
+  var dlv=(o.order_items||[]).filter(function(it){return deliveredQty(it)>0;});
+  if(dlv.length){
+    alert('Часть товара уже отвезена клиенту ('+dlv.map(function(it){return it.product_name;}).join(', ')+').\n\n'
+      +'Это уже возврат товара, а не отмена заказа. Снимите отметку «отвезено», если она стоит по ошибке, '
+      +'или оформите претензию и решите вопрос с владельцем.');
+    return;
+  }
+  _cxOrderId=id;
+  var got=orderReceivedByKind(o);_cxGot=got;
+  var gotSum=_kindSum(got);
+  document.getElementById('cx-title').textContent='✖ Отмена заказа №'+o.order_number;
+  var parts=[];
+  if(got.cash)parts.push(fmt(got.cash)+' ₽ наличными');
+  if(got.card)parts.push(fmt(got.card)+' ₽ картой');
+  if(got.transfer)parts.push(fmt(got.transfer)+' ₽ переводом');
+  if(got.other)parts.push(fmt(got.other)+' ₽ — способ не указан');
+  document.getElementById('cx-summary').innerHTML='<strong>'+esc(o.client_name||'')+'</strong> · товары на '+fmt(orderGoods(o))+' ₽'
+    +'<br>'+(gotSum>0?'Получено от клиента: <strong>'+fmt(gotSum)+' ₽</strong> ('+parts.join(' + ')+')':'Денег по заказу не получали — возвращать нечего.');
+  document.getElementById('cx-reason').value='';
+  document.getElementById('cx-detail').value='';
+  document.getElementById('cx-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('cx-refund-box').style.display=gotSum>0?'':'none';
+  cxFill('all');
+  document.getElementById('modal-cancel').classList.add('open');
+}
+function cxFill(mode){
+  var g=_cxGot||{cash:0,card:0,transfer:0,other:0};
+  var all=mode==='all';
+  document.getElementById('cx-cash').value=all?(g.cash+g.other):0; // без способа — считаем наличными
+  document.getElementById('cx-card').value=all?g.card:0;
+  document.getElementById('cx-transfer').value=all?g.transfer:0;
+  cxCalc();
+}
+function _cxVal(id){return Math.max(0,Math.round(parseFloat(String(document.getElementById(id).value||'0').replace(',','.'))||0));}
+function cxCalc(){
+  var g=_kindSum(_cxGot||{cash:0,card:0,transfer:0,other:0});
+  var back=_cxVal('cx-cash')+_cxVal('cx-card')+_cxVal('cx-transfer');
+  var el=document.getElementById('cx-result');if(!el)return;
+  if(back>g){el.innerHTML='<span style="color:#9c3b2e">⚠️ Возврат '+fmt(back)+' ₽ больше, чем получено ('+fmt(g)+' ₽)</span>';return;}
+  el.innerHTML='Получено '+fmt(g)+' ₽ → возвращаем <strong>'+fmt(back)+' ₽</strong> → остаётся магазину <strong>'+fmt(g-back)+' ₽</strong>'
+    +(g-back>0?'<div style="font-size:11px;color:var(--text2);margin-top:2px">Эти '+fmt(g-back)+' ₽ останутся в «Учёте» как доход.</div>':'');
+}
+function cxSave(){
+  if(_cxSaving)return;
+  var o=allOrders.find(function(x){return x.id===_cxOrderId;});if(!o)return;
+  var reason=document.getElementById('cx-reason').value;
+  var detail=String(document.getElementById('cx-detail').value||'').trim();
+  if(!reason){toast('⚠️ Выберите причину отмены','err');return;}
+  if(reason==='Другое'&&!detail){toast('⚠️ Напишите, почему отменяем','err');return;}
+  var date=document.getElementById('cx-date').value||new Date().toISOString().split('T')[0];
+  var got=_kindSum(_cxGot||{cash:0,card:0,transfer:0,other:0});
+  var ref={cash:_cxVal('cx-cash'),card:_cxVal('cx-card'),transfer:_cxVal('cx-transfer')};
+  var back=ref.cash+ref.card+ref.transfer;
+  if(got<=0)back=0;
+  if(back>got){toast('⚠️ Вернуть можно не больше, чем получено: '+fmt(got)+' ₽','err',5000);return;}
+  if(back>0&&!_paysInDb){toast('❌ Сначала выполните SQL_обновление_7.18 в Supabase — без него возврат некуда записать','err',8000);return;}
+  var why=reason+(detail?(reason==='Другое'?': ':' — ')+detail:'');
+  if(reason==='Другое')why=detail;
+  if(!confirm('Отменить заказ №'+o.order_number+' ('+(o.client_name||'')+')?\n\n'
+    +'Причина: '+why+'\n'
+    +(got>0?('Вернули клиенту: '+fmt(back)+' ₽'+(got-back>0?'\nОстаётся магазину: '+fmt(got-back)+' ₽':'')):'Денег по заказу не было.')
+    +'\n\nЗаказ останется в журнале со статусом «❌ Отменён».'))return;
+  var old={status:o.status,closed_at:o.closed_at||null,close_comment:o.close_comment||null,remainder:o.remainder};
+  var patch={status:CANCEL_STATUS,closed_at:date,close_comment:'Отменён: '+why,remainder:0};
+  var rows=[];
+  var LBL={cash:'💵 Наличные',card:'💳 Карта',transfer:'📲 Перевод'};
+  ['cash','card','transfer'].forEach(function(k){
+    if(ref[k]>0&&got>0)rows.push({order_id:o.id,pay_date:date,amount:-ref[k],method:LBL[k],
+      comment:'Возврат клиенту при отмене заказа',who:_who()||null,who_name:_whoName()||null});
+  });
+  var btn=document.getElementById('cx-save-btn');
+  btn.innerHTML='<span class="spinner"></span> Отменяем...';btn.disabled=true;_cxSaving=true;
+  // Порядок: сначала статус заказа, потом возврат. Если возврат не запишется —
+  // возвращаем заказу прежний статус: продавец может править заказы, а вот
+  // удалить запись о деньгах — нет, поэтому откатывать безопаснее заказ.
+  sbPatch('orders',patch,'id=eq.'+o.id).then(function(){
+    if(!rows.length)return [];
+    return sbPost('order_payments',rows).catch(function(e){
+      return sbPatch('orders',old,'id=eq.'+o.id).catch(function(){}).then(function(){throw e;});
+    });
+  }).then(function(saved){
+    Object.assign(o,patch);
+    (saved||[]).forEach(function(r){
+      o.order_payments=(o.order_payments||[]).concat([{id:r.id,order_id:o.id,pay_date:r.pay_date||date,amount:r.amount,
+        method:r.method,comment:r.comment,who_name:r.who_name}]);
+    });
+    try{
+      var d=[{field:'Статус',old:old.status||'',new:CANCEL_STATUS},{field:'Причина отмены',old:'',new:why}];
+      if(back>0)d.push({field:'Возврат клиенту',old:'',new:fmt(back)+' ₽'});
+      if(got-back>0)d.push({field:'Осталось магазину',old:'',new:fmt(got-back)+' ₽'});
+      if(Math.round(old.remainder||0))d.push({field:'Остаток',old:fmt(old.remainder),new:'0'});
+      logOrder(o,'cancel',d,'заказ отменён');
+    }catch(e){}
+    closeModal('modal-cancel');
+    toast('❌ Заказ №'+o.order_number+' отменён'+(back>0?'. Возврат '+fmt(back)+' ₽ записан':''),'ok',5000);
+    filterOrders();
+    var cashPage=document.getElementById('page-cash');
+    if(cashPage&&cashPage.classList.contains('active'))renderCash();
+  }).catch(function(e){
+    var msg=(e&&e.message)||'';
+    if(/order_payments|does not exist|relation|schema/i.test(msg))toast('❌ Возврат не записался — выполните SQL_обновление_7.18. Заказ не отменён.','err',8000);
+    else toast('❌ Не получилось отменить: '+msg.slice(0,140),'err',6000);
+  }).finally(function(){
+    btn.innerHTML='✖ Отменить заказ';btn.disabled=false;_cxSaving=false;
+  });
+}
+
+// ── Вернуть отменённый заказ в работу (только владелец) ───────────────
+function restoreOrder(id){
+  if(!ownerOnly('Вернуть заказ в работу'))return;
+  var o=allOrders.find(function(x){return x.id===id;});if(!o||!isCancelled(o))return;
+  var back=orderRefunded(o);
+  if(!confirm('Вернуть заказ №'+o.order_number+' в работу?'
+    +(back>0?'\n\nПо заказу записан возврат клиенту '+fmt(back)+' ₽ — он останется. Если деньги на самом деле не возвращали, удалите эту запись кнопкой ✕ в списке платежей.':'')))return;
+  var goods=Math.round(orderGoods(o));
+  var paid=Math.round(o.prepayment||0)+orderItemsPaid(o)+orderPaysSum(o); // возвраты уже со знаком минус
+  var rem=Math.max(0,goods-paid);
+  var st=paid<=0?'🔴 Не оплачено':((goods>0&&paid>=goods)?'✅ Оплачено':'⚠️ Частичная');
+  var old={status:o.status,closed_at:o.closed_at,close_comment:o.close_comment};
+  var patch={status:st,closed_at:null,close_comment:null,remainder:rem};
+  sbPatch('orders',patch,'id=eq.'+o.id).then(function(){
+    Object.assign(o,patch);
+    try{logOrder(o,'reopen',[{field:'Статус',old:old.status,new:st},{field:'Остаток',old:'0',new:fmt(rem)}],'отменённый заказ возвращён в работу');}catch(e){}
+    toast('↩ Заказ №'+o.order_number+' снова в работе. Долг за товар: '+fmt(rem)+' ₽','ok',5000);
+    filterOrders();
+  }).catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);});
 }
 function onPriceFile(input){
   var file=input.files[0]; if(!file)return;
@@ -7956,8 +8429,7 @@ function printOrdersJournal(mode){
   mode=mode||'active';
   var list=allOrders.filter(function(o){
     if(mode==='all')return true;
-    var s=o.status||'';
-    return s.indexOf('Выполнен')<0;
+    return !isClosed(o); // v7.75: отменённые — не в работе
   }).slice().reverse(); // от самого давнего к свежему
   if(!list.length){toast(mode==='all'?'Заказов нет':'Нет заказов в работе','err');return;}
   var title=mode==='all'?'📋 Все заказы':'📋 Заказы в работе';
@@ -9105,6 +9577,7 @@ function saveOrder(){
   if(!editId&&_recoverOrderId)editId=_recoverOrderId;
   var found=editId?allOrders.find(function(o){return o.id==editId;}):null;
   var orderNum=found?found.order_number:Date.now().toString().slice(-6);
+  if(found&&isCancelled(found)){toast('Заказ отменён — изменения не сохранены','err',6000);_saving=false;btn.disabled=false;return;}
   // v7.28: правка ВЫПОЛНЕННОГО заказа больше не воскрешает долг.
   // Раньше при открытии закрытого заказа поле статуса становилось пустым (такого
   // варианта нет в списке), recalcTotals подставляла «Частичная», а остаток
@@ -9323,6 +9796,9 @@ function saveOrder(){
 
 function editOrder(id){
   var o=allOrders.find(function(x){return x.id===id;});if(!o)return;
+  // v7.75: отменённый заказ не правим — сохранение пересчитало бы статус оплаты
+  // и заказ молча «ожил» бы. Сначала владелец возвращает его в работу.
+  if(isCancelled(o)){toast('Заказ отменён. Чтобы его изменить, владелец возвращает его в работу: «⋯ Ещё» → «↩ Вернуть заказ в работу»','err',6000);return;}
   document.getElementById('edit-order-id').value=id;
   document.getElementById('form-title').textContent='Редактировать заказ №'+o.order_number;
   document.getElementById('f-client').value=o.client_name||'';
@@ -9628,8 +10104,10 @@ function openClientHistory(phone,name,phone2){
     return;
   }
   var totalGoods=0,totalDebt=0,phones={},addr='',addrRank=-1,names={};
+  var cancelN=0;
   list.forEach(function(o){
-    totalGoods+=orderGoods(o);
+    // v7.75: отменённый заказ — не покупка, в сумму покупок не идёт
+    if(isCancelled(o))cancelN++;else totalGoods+=orderGoods(o);
     // v7.29: та же функция, что в карточке заказа, печати и аналитике
     totalDebt+=orderDebt(o);
     [o.client_phone,o.client_phone2].forEach(function(p){if(p)phones[p]=1;});
@@ -9647,7 +10125,7 @@ function openClientHistory(phone,name,phone2){
   sum.innerHTML='<strong>'+(name||list[0].client_name||'')+'</strong>'
     +(Object.keys(phones).length?' · 📞 '+Object.keys(phones).join(', '):'')
     +(addr?'<br>📍 '+addr:'')
-    +'<br>Заказов: <strong>'+list.length+'</strong> · Товаров на сумму: <strong>'+fmt(totalGoods)+' ₽</strong>'
+    +'<br>Заказов: <strong>'+(list.length-cancelN)+'</strong>'+(cancelN?' <span style="color:var(--text2)">(+ отменено '+cancelN+')</span>':'')+' · Товаров на сумму: <strong>'+fmt(totalGoods)+' ₽</strong>'
     +(totalDebt>0?' · <span style="color:#C62828">Текущий долг: <strong>'+fmt(totalDebt)+' ₽</strong></span>':' · <span style="color:#1B5E20">долгов нет</span>')
     +(otherNames.length?'<div style="margin-top:6px;font-size:11.5px;color:#8a5a18;background:#FFF8E8;border-radius:6px;padding:5px 8px;line-height:1.5">⚠️ Общий телефон — сюда попали заказы, оформленные ещё на: <strong>'+esc(otherNames.join(', '))+'</strong>. Суммы и долг посчитаны по всем ним.</div>':'');
   var html='';
@@ -9655,6 +10133,7 @@ function openClientHistory(phone,name,phone2){
   list.forEach(function(o){
     var items=o.order_items||[];
     var isDone=o.status==='🏁 Выполнен';
+    var _cx=isCancelled(o); // v7.75
     var goods=orderGoods(o);
     var itHtml=items.map(function(it){
       return '<div style="font-size:12px;color:var(--text2);padding:1px 0">• '+it.product_name
@@ -9662,10 +10141,10 @@ function openClientHistory(phone,name,phone2){
         +(it.delivered_at?' <span style="color:#1B5E20">🚚 '+fmtDate(it.delivered_at)+'</span>':'')
         +(Math.round(it.paid_amount||0)>0?' <span style="color:#1B5E20;font-weight:600">💰 '+fmt(it.paid_amount)+' ₽</span>':'')+'</div>';
     }).join('');
-    html+='<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:'+(isDone?'#F7FBF7':'#fff')+'">'
+    html+='<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:'+(_cx?'#f7f7f9':isDone?'#F7FBF7':'#fff')+(_cx?';opacity:.75':'')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
       +'<div style="font-size:13px;font-weight:700">№'+o.order_number+' · '+fmtDate(o.order_date)
-      +' <span style="font-weight:600;font-size:11px;padding:1px 8px;border-radius:10px;'+(isDone?'background:#E8F5E9;color:#1B5E20':'background:#E3F2FD;color:#1565C0')+'">'+(o.status||'')+'</span>'
+      +' <span style="font-weight:600;font-size:11px;padding:1px 8px;border-radius:10px;'+(_cx?'background:#eceef1;color:#6b7280':isDone?'background:#E8F5E9;color:#1B5E20':'background:#E3F2FD;color:#1565C0')+'">'+(o.status||'')+'</span>'
       // v7.51: в семейной истории видно, на кого именно оформлен заказ
       +(otherNames.length&&o.client_name?' <span style="font-weight:600;font-size:11px;color:var(--text2)">· '+esc(o.client_name)+'</span>':'')+'</div>'
       +'<div style="font-size:13px;font-weight:700">'+fmt(goods)+' ₽</div></div>'
@@ -9802,9 +10281,14 @@ function setStatsPeriod(p){
 }
 function renderStats(){
   _renderWorkdays(); // v7.0: рабочие дни менеджеров (своя загрузка, не зависит от периода)
-  var all=allOrders||[];
+  // v7.75: отменённые заказы — не продажи: в выручку, прибыль, зарплату и
+  // «выполнено %» не идут. Но деньги по ним (что оставили себе) видны в оплатах.
+  var allRaw=allOrders||[];
+  var all=allRaw.filter(function(o){return !isCancelled(o);});
   var range=_statsRange(_statsPeriod);
   var orders=all.filter(function(o){return _statsIn(o,range);});
+  var cancelled=allRaw.filter(function(o){return isCancelled(o)&&_statsIn(o,range);});
+  var cancelSum=0;cancelled.forEach(function(o){cancelSum+=orderGoods(o);});
   var prevR=_statsPrev(range);
   var prevOrders=prevR?all.filter(function(o){return _statsIn(o,prevR);}):[];
   var noteEl=document.getElementById('stats-period-note');
@@ -9829,7 +10313,7 @@ function renderStats(){
   var M=metrics(orders),P=metrics(prevOrders);
   function delta(cur,prev){if(!prevR||!prev)return'';var d=(cur-prev)/Math.abs(prev)*100;var col=d>=0?'#2E7D32':'#C62828';return'<div style="font-size:11px;color:'+col+';margin-top:2px">'+(d>=0?'▲':'▼')+' '+Math.abs(Math.round(d))+'% к пред.</div>';}
   var kpis=[
-    {l:'Заказов',v:''+M.n,d:delta(M.n,P.n)},
+    {l:'Заказов',v:''+M.n,s:cancelled.length?('отменено ещё '+cancelled.length+' на '+fmtK(cancelSum)+' ₽'):'',d:delta(M.n,P.n)},
     {l:'Выручка',v:fmtK(M.rev)+' ₽',d:delta(M.rev,P.rev)},
     {l:'Прибыль',v:fmtK(M.profit)+' ₽',s:'маржа '+Math.round(M.margin)+'%',d:delta(M.profit,P.profit)},
     {l:'Средний чек',v:fmtK(Math.round(M.avg))+' ₽',d:delta(M.avg,P.avg)},
@@ -9957,15 +10441,17 @@ function renderStats(){
   var debts=Object.keys(byDebt).map(function(k){return{label:k,val:byDebt[k],display:fmtK(byDebt[k])+' ₽'};}).sort(function(a,b){return b.val-a.val;}).slice(0,12);
   bar('chart-debtors',debts,debts.length?debts[0].val:1,'#C62828');
   // Статусы
-  var byStatus={};orders.forEach(function(o){byStatus[o.status||'—']=(byStatus[o.status||'—']||0)+1;});
+  var byStatus={};orders.concat(cancelled).forEach(function(o){byStatus[o.status||'—']=(byStatus[o.status||'—']||0)+1;});
   var statuses=Object.keys(byStatus).map(function(k){return{label:k,val:byStatus[k],display:''+byStatus[k]};}).sort(function(a,b){return b.val-a.val;});
-  bar('chart-statuses',statuses,orders.length,'#4CAF50');
+  bar('chart-statuses',statuses,orders.length+cancelled.length,'#4CAF50');
   // Способы оплаты (получено). ВАЖНО: учитываем ВСЕ полученные деньги по способу —
   // предоплату (по способу оплаты заказа), доплаты при закрытии (pay_cash/card/transfer)
   // и оплаты позиций при доставке (v6.7). Раньше суммировались только доплаты при
   // закрытии, поэтому оплаты картой (обычно это предоплата) показывались как 0.
   var pay={cash:0,card:0,transfer:0,other:0};
-  orders.forEach(function(o){
+  // v7.75: деньги считаем и по отменённым заказам — предоплата пришла, возврат
+  // ушёл (строка с минусом); что осталось магазину, то и доход
+  orders.concat(cancelled).forEach(function(o){
     var pre=Math.round(o.prepayment||0);
     // v7.70: предоплату могли принять сразу несколькими способами — тогда
     // считаем по разбивке, а не по одному «способу оплаты»
@@ -9977,7 +10463,7 @@ function renderStats(){
     pay.cash+=Math.round(o.pay_cash||0);pay.card+=Math.round(o.pay_card||0);pay.transfer+=Math.round(o.pay_transfer||0);
     (o.order_items||[]).forEach(function(it){var a=Math.round(it.paid_amount||0);if(a>0)pay[_payKind(it.paid_method)]+=a;});
     // v7.70: доплаты, принятые до выполнения заказа
-    (o.order_payments||[]).forEach(function(pm){var a=Math.round(pm.amount||0);if(a>0)pay[_payKind(pm.method)]+=a;});
+    (o.order_payments||[]).forEach(function(pm){var a=Math.round(pm.amount||0);if(a!==0)pay[_payKind(pm.method)]+=a;});
   });
   var payTot=pay.cash+pay.card+pay.transfer+pay.other;
   var pays=[{label:'Наличные',val:pay.cash},{label:'Карта',val:pay.card},{label:'Перевод',val:pay.transfer}];
@@ -10403,7 +10889,8 @@ var _BK_TABLES=[
   {t:'app_settings',     sheet:'Настройки'},         // v7.42
   {t:'delivery_places',  sheet:'Доставка'},          // v7.48: прейскурант по пунктам
   {t:'staff_vacations',  sheet:'Отпуска продавцов'}, // v7.69
-  {t:'order_payments',   sheet:'Платежи по заказам'} // v7.70
+  {t:'order_payments',   sheet:'Платежи по заказам'}, // v7.70
+  {t:'claims',           sheet:'Претензии'}          // v7.75 (SQL 7.20; пока нет — просто пропускается)
 ];
 function _bkSave(text,name,mime){
   var blob=new Blob([text],{type:mime});
@@ -11307,6 +11794,567 @@ function saveKmRate(){
   saveSetting('delivery_km_rate',v)
     .then(function(){DELIV_KM_RATE=v;toast('✅ Цена километра: '+fmt(v)+' ₽');renderDelivBook();})
     .catch(function(e){el.value=was;toast('❌ Не сохранилось: '+((e&&e.message)||e),'err',6000);});
+}
+// ═══ v7.75: СООБЩЕНИЕ КЛИЕНТУ — МАКС / SMS ═════════════════════════════
+// Продавец набирал «ваш заказ пришёл, когда удобно привезти» каждый раз руками.
+// Теперь текст собирается из самого заказа: имя-отчество, номер, товары, срок,
+// остаток к оплате. Продавец выбирает повод, при желании правит и отправляет.
+//
+// Про МАКС. Открыть чат с человеком по номеру телефона МАКС не умеет — это
+// проверено по документации dev.max.ru/help/deeplinks (есть только ссылки на
+// ботов и «поделиться текстом»). Поэтому кнопка открывает МАКС с готовым
+// текстом (max.ru/:share?text=…), а продавец выбирает клиента в контактах.
+// Номер клиента при этом кладём в буфер обмена — его можно вставить в поиск.
+// Для тех, кого нет в МАКС, рядом кнопка SMS — она открывает SMS сразу на
+// номер клиента с тем же текстом.
+
+var _msgCtx=null; // {kind:'order'|'claim', id, tpl}
+
+function _msgName(full){
+  var p=String(full||'').trim().split(/\s+/).filter(Boolean);
+  if(p.length>=3)return p[1]+' '+p[2];   // Фамилия Имя Отчество → «Имя Отчество»
+  if(p.length===2)return p[1];           // Фамилия Имя → «Имя»
+  return p[0]||'';
+}
+function _msgHello(full){var n=_msgName(full);return 'Здравствуйте'+(n?', '+n:'')+'!';}
+function _msgShop(){
+  var sh=(typeof VD_SHOP!=='undefined')?VD_SHOP:{};
+  return 'Магазин мебели «Ваш Дом», '+(sh.city||'г. Короча')+(sh.addr?', '+sh.addr:'')+(sh.phone?'\nТел. '+sh.phone:'');
+}
+function _msgItems(o){
+  return (o.order_items||[]).map(function(it){
+    var parts=[it.product_name||'товар'];
+    if(it.color)parts.push(it.color);
+    if(it.dims)parts.push(it.dims);
+    var q=itemQty(it);
+    return '• '+parts.join(', ')+(q>1?' — '+q+' шт.':'');
+  }).join('\n');
+}
+function _msgDebtLine(o,prefix){
+  var d=orderDebt(o);
+  if(d<=0)return '';
+  var goods=Math.max(0,Math.round(o.remainder||0)),dl=d-goods;
+  return (prefix||'Остаток к оплате')+': '+fmt(d)+' ₽'+(goods>0&&dl>0?' (товар '+fmt(goods)+' ₽ + доставка и занос '+fmt(dl)+' ₽)':'')+'.';
+}
+function _msgIsPickup(o){return /самовыв/i.test(o.delivery_type||'');}
+function _msgTomorrow(){return new Date(Date.now()+864e5).toISOString().slice(0,10);}
+
+// ── Поводы для заказа ────────────────────────────────────────────────
+var MSG_ORDER_TPL=[
+  {k:'created', t:'📝 Заказ оформлен'},
+  {k:'arrived', t:'📦 Товар пришёл'},
+  {k:'delivery',t:'🚚 Доставка назначена'},
+  {k:'debt',    t:'💰 Остаток к оплате'},
+  {k:'thanks',  t:'🙏 Спасибо за покупку'},
+  {k:'cancel',  t:'❌ Заказ отменён'}
+];
+function _msgOrderText(o,k,date){
+  var hi=_msgHello(o.client_name), num='№'+o.order_number, L=[];
+  if(k==='created'){
+    L.push(hi,'Спасибо за покупку в магазине «Ваш Дом»!','','Ваш заказ '+num+' от '+fmtDate(o.order_date)+':',_msgItems(o),'');
+    L.push('Сумма: '+fmt(orderGoods(o))+' ₽.'+((o.prepayment||0)>0?' Предоплата: '+fmt(o.prepayment)+' ₽.':''));
+    var dl=_msgDebtLine(o);if(dl)L.push(dl);
+    if(o.delivery_date)L.push('Ориентировочный срок: '+fmtDate(o.delivery_date)+'.');
+    L.push('Мы сообщим, когда товар поступит.');
+  }else if(k==='arrived'){
+    L.push(hi,'Ваш заказ '+num+' поступил в магазин «Ваш Дом».','');
+    if(_msgIsPickup(o))L.push('Забрать его можно по адресу: '+((typeof VD_SHOP!=='undefined'&&VD_SHOP.addr)?VD_SHOP.city+', '+VD_SHOP.addr:'магазин «Ваш Дом»')+'.');
+    else L.push('Подскажите, пожалуйста, когда вам удобно принять доставку'+(o.client_address?' по адресу: '+o.client_address:'')+'?');
+    var dl2=_msgDebtLine(o,'К оплате при получении');if(dl2)L.push(dl2);
+  }else if(k==='delivery'){
+    L.push(hi,'Доставка вашего заказа '+num+' запланирована на '+(date?fmtDate(date):'___')+'.');
+    if(o.client_address)L.push('Адрес: '+o.client_address+(o.floor?', этаж '+o.floor:'')+(o.apartment?', кв. '+o.apartment:'')+'.');
+    var dl3=_msgDebtLine(o,'К оплате при получении');if(dl3)L.push(dl3);
+    L.push('Пожалуйста, будьте на связи — водитель позвонит перед приездом.');
+  }else if(k==='debt'){
+    L.push(hi,'По вашему заказу '+num+' от '+fmtDate(o.order_date)+' '+(_msgDebtLine(o)||'остатка к оплате нет.').replace(/^О/,'о'));
+    L.push('Оплатить можно в магазине наличными или картой, а также переводом — уточните у продавца реквизиты.');
+  }else if(k==='thanks'){
+    L.push(hi,'Спасибо, что выбрали «Ваш Дом»! Надеемся, мебель вам понравится.');
+    L.push('Если появятся вопросы по товару — пишите или звоните, поможем.');
+  }else if(k==='cancel'){
+    var back=(typeof orderRefunded==='function')?orderRefunded(o):0;
+    L.push(hi,'Ваш заказ '+num+' от '+fmtDate(o.order_date)+' отменён.');
+    if(back>0)L.push('Возвращено: '+fmt(back)+' ₽.');
+    L.push('Будем рады помочь с выбором в другой раз.');
+  }
+  L.push('',_msgShop());
+  return L.join('\n').replace(/\n{3,}/g,'\n\n');
+}
+function _msgOrderDefault(o){
+  if(isCancelled(o))return 'cancel';
+  if(isDone(o))return 'thanks';
+  var items=o.order_items||[];
+  if(items.length&&items.every(function(it){return it.availability==='Есть';}))return 'arrived';
+  if(o.order_date===new Date().toISOString().slice(0,10))return 'created';
+  return orderDebt(o)>0?'debt':'created';
+}
+
+// ── Поводы для претензии ─────────────────────────────────────────────
+var MSG_CLAIM_TPL=[
+  {k:'c_new',     t:'🛠 Претензия принята'},
+  {k:'c_ordered', t:'🏭 Заказали на фабрике'},
+  {k:'c_arrived', t:'📦 Пришло от фабрики'},
+  {k:'c_done',    t:'✅ Вопрос решён'}
+];
+function _msgClaimText(c,k){
+  var hi=_msgHello(c.client_name), prod=c.product?('«'+c.product+'»'):'товару', L=[];
+  var ord=c.order_number?' (заказ №'+c.order_number+')':'';
+  if(k==='c_new'){
+    L.push(hi,'Ваше обращение от '+fmtDate(c.claim_date)+' по '+prod+ord+' принято.');
+    if(c.problem)L.push('Суть: '+c.problem+'.');
+    L.push('Мы свяжемся с фабрикой и сообщим, как и в какой срок решим вопрос.');
+  }else if(k==='c_ordered'){
+    L.push(hi,'По вашему обращению'+ord+' мы заказали на фабрике'+(c.factory_what?': '+c.factory_what:' замену')+'.');
+    if(c.expected_date)L.push('Ожидаем поступление примерно к '+fmtDate(c.expected_date)+'.');
+    L.push('Как только придёт — сразу сообщим.');
+  }else if(k==='c_arrived'){
+    L.push(hi,'По вашему обращению'+ord+' пришло от фабрики'+(c.factory_what?': '+c.factory_what:'')+'.');
+    L.push('Подскажите, пожалуйста, когда вам удобно, чтобы мы привезли?');
+  }else if(k==='c_done'){
+    L.push(hi,'Спасибо за терпение! Будем рады, если всё в порядке. Если остались вопросы по '+prod+' — пишите.');
+  }
+  L.push('',_msgShop());
+  return L.join('\n');
+}
+function _msgClaimDefault(c){
+  if(c.resolved)return 'c_done';
+  if(c.arrived)return 'c_arrived';
+  if(c.factory_ordered)return 'c_ordered';
+  return 'c_new';
+}
+
+// ── Окно ─────────────────────────────────────────────────────────────
+function _msgSubject(){
+  if(!_msgCtx)return null;
+  if(_msgCtx.kind==='claim')return (window._claims||[]).find(function(c){return c.id===_msgCtx.id;})||null;
+  return (allOrders||[]).find(function(o){return o.id===_msgCtx.id;})||null;
+}
+function openMsg(orderId){
+  var o=(allOrders||[]).find(function(x){return x.id===orderId;});if(!o)return;
+  _msgCtx={kind:'order',id:orderId,tpl:_msgOrderDefault(o)};
+  // «Заказ отменён» нужен только отменённому заказу — и ему больше ничего не нужно
+  var tpls=MSG_ORDER_TPL.filter(function(t){return isCancelled(o)?t.k==='cancel':t.k!=='cancel';});
+  _msgOpen(o.client_name,[o.client_phone,o.client_phone2],tpls);
+}
+function openClaimMsg(claimId){
+  var c=(window._claims||[]).find(function(x){return x.id===claimId;});if(!c)return;
+  _msgCtx={kind:'claim',id:claimId,tpl:_msgClaimDefault(c)};
+  _msgOpen(c.client_name,[c.client_phone],MSG_CLAIM_TPL);
+}
+function _msgOpen(name,phones,tpls){
+  phones=(phones||[]).filter(Boolean);
+  document.getElementById('msg-to').innerHTML='<strong>'+esc(name||'Клиент')+'</strong>';
+  var sel=document.getElementById('msg-phone');
+  sel.innerHTML=phones.length?phones.map(function(p){return '<option>'+esc(p)+'</option>';}).join(''):'<option value="">— телефона нет —</option>';
+  document.getElementById('msg-tpls').innerHTML=tpls.map(function(t){
+    return '<button class="msg-tpl" data-k="'+t.k+'" onclick="msgPick(\''+t.k+'\')">'+t.t+'</button>';
+  }).join('');
+  var o=_msgSubject();
+  var dd=(_msgCtx.kind==='order'&&o&&o.delivery_date&&o.delivery_date>=new Date().toISOString().slice(0,10))?o.delivery_date:_msgTomorrow();
+  document.getElementById('msg-date').value=dd;
+  msgPick(_msgCtx.tpl);
+  document.getElementById('modal-msg').classList.add('open');
+}
+function msgPick(k){
+  if(!_msgCtx)return;
+  _msgCtx.tpl=k;
+  Array.prototype.forEach.call(document.querySelectorAll('#msg-tpls .msg-tpl'),function(b){b.classList.toggle('on',b.dataset.k===k);});
+  document.getElementById('msg-date-row').style.display=(k==='delivery')?'flex':'none';
+  msgRegen();
+}
+function msgRegen(){
+  var s=_msgSubject();if(!s)return;
+  var txt=_msgCtx.kind==='claim'?_msgClaimText(s,_msgCtx.tpl):_msgOrderText(s,_msgCtx.tpl,document.getElementById('msg-date').value);
+  document.getElementById('msg-text').value=txt;
+}
+function _msgPhone(){return (document.getElementById('msg-phone')||{}).value||'';}
+function _msgPhoneIntl(p){
+  var d=String(p||'').replace(/\D/g,'');
+  if(d.length===11&&(d[0]==='8'||d[0]==='7'))d='7'+d.slice(1);
+  else if(d.length===10)d='7'+d;
+  return d?'+'+d:'';
+}
+function _msgCopy(text){
+  try{if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(text).then(function(){return true;},function(){return _msgCopyOld(text);});}catch(e){}
+  return Promise.resolve(_msgCopyOld(text));
+}
+function _msgCopyOld(text){
+  try{var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+    var ok=document.execCommand('copy');ta.remove();return ok;}catch(e){return false;}
+}
+function _msgTplName(){
+  var list=_msgCtx&&_msgCtx.kind==='claim'?MSG_CLAIM_TPL:MSG_ORDER_TPL;
+  var t=list.filter(function(x){return x.k===(_msgCtx&&_msgCtx.tpl);})[0];
+  return t?t.t.replace(/^\S+\s/,''):'сообщение';
+}
+function _msgLog(via){
+  if(!_msgCtx||_msgCtx.kind!=='order')return;
+  var o=_msgSubject();if(!o)return;
+  try{logOrder(o,'msg',null,'сообщение клиенту «'+_msgTplName()+'» через '+via);}catch(e){}
+}
+function msgSendMax(){
+  var text=document.getElementById('msg-text').value.trim();if(!text)return;
+  var url='https://max.ru/:share?text='+encodeURIComponent(text);
+  var ph=_msgPhone();
+  var w=window.open(url,'_blank');
+  if(!w)location.href=url;
+  if(ph)_msgCopy(ph).then(function(ok){if(ok)toast('📋 Номер '+ph+' скопирован — выберите клиента в МАКС и нажмите «Отправить»','ok',6000);});
+  _msgLog('МАКС');
+}
+function msgSendSms(){
+  var text=document.getElementById('msg-text').value.trim();if(!text)return;
+  var ph=_msgPhoneIntl(_msgPhone());
+  if(!ph){toast('У клиента не указан телефон','err');return;}
+  location.href='sms:'+ph+'?body='+encodeURIComponent(text);
+  _msgLog('SMS');
+}
+function msgCopyText(){
+  var text=document.getElementById('msg-text').value.trim();if(!text)return;
+  _msgCopy(text).then(function(ok){toast(ok?'📋 Текст скопирован':'Не удалось скопировать — выделите текст и скопируйте вручную',ok?'ok':'err',4000);});
+  _msgLog('копирование текста');
+}
+// ═══ v7.75: ПРЕТЕНЗИИ И БРАК ═══════════════════════════════════════════
+// Приехала кровать со сколом, в шкафу не хватает полки, фасад не того цвета —
+// раньше это жило в голове и в переписке с фабрикой. Теперь у каждой
+// претензии своя карточка: когда клиент обратился, что случилось, заказали ли
+// замену на фабрике (и когда, и что именно), пришло ли, как решили.
+// Таблица claims создаётся файлом SQL_обновление_7.20.sql. Пока его нет,
+// вкладка честно об этом говорит, а остальное приложение работает как было.
+//
+// Срок. По ст. 20 закона о защите прав потребителей недостатки товара должны
+// быть устранены не позднее 45 дней (если срок согласован письменно). Поэтому
+// карточка считает дни с обращения: после 30 — жёлтая, после 45 — красная.
+
+window._claims=[];
+var _claimsInDb=null;      // null — ещё не знаем, false — нет таблицы (SQL 7.20)
+var _claimsFilter='open', _claimsQuery='';
+var CLAIM_KINDS=['Брак / повреждение','Скол или царапина при доставке','Недокомплект (не хватает деталей)','Не тот товар (цвет, размер, модель)','Другое'];
+var CLAIM_RESOLUTIONS=['Заменили деталь','Заменили товар целиком','Отремонтировали на месте','Вернули деньги','Сделали скидку','Отказ — это не брак','Другое'];
+
+function loadClaims(){
+  return sbGetAll('claims','select=*&order=claim_date.desc,id.desc').then(function(rows){
+    _claimsInDb=true;window._claims=rows||[];
+    _claimsBadge();
+    if(typeof _paintOrders==='function'&&document.getElementById('orders-list'))_paintOrders();
+    return window._claims;
+  }).catch(function(e){
+    var m=String((e&&e.message)||'');
+    if(/claims|does not exist|relation|schema|PGRST205|404/i.test(m))_claimsInDb=false;
+    window._claims=[];_claimsBadge();
+    return [];
+  });
+}
+function claimStage(c){
+  if(c.resolved)return 'done';
+  if(c.arrived)return 'arrived';
+  if(c.factory_ordered)return 'waiting';
+  return 'new';
+}
+var CLAIM_STAGE={
+  'new':    {t:'🆕 Новая — на фабрике не заказано',cls:'pl-warn'},
+  waiting:  {t:'🏭 Ждём фабрику',cls:'pl-mut'},
+  arrived:  {t:'📦 Пришло — отвезти клиенту',cls:'pl-warn'},
+  done:     {t:'✅ Решено',cls:'pl-good'}
+};
+function _claimDays(c){
+  if(!c.claim_date)return 0;
+  var t=new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z'), d=new Date(String(c.claim_date).slice(0,10)+'T00:00:00Z');
+  return Math.max(0,Math.round((t-d)/864e5));
+}
+function _claimsOpen(){return (window._claims||[]).filter(function(c){return !c.resolved;});}
+function _claimsBadge(){
+  var b=document.getElementById('claims-badge');if(!b)return;
+  var n=_claimsOpen().length;
+  b.style.display=n?'inline-block':'none';b.textContent=n;
+  b.title=n?('Открытых претензий: '+n):'';
+}
+// Плашка в шапке заказа, если по нему есть нерешённая претензия
+function _claimBadge(o){
+  if(!o||!window._claims||!window._claims.length)return '';
+  var n=window._claims.filter(function(c){return !c.resolved&&c.order_id===o.id;}).length;
+  if(!n)return '';
+  return '<button class="pl pl-warn" onclick="event.stopPropagation();openClaimsFor('+o.id+')" title="По заказу есть нерешённая претензия — открыть" style="margin-right:6px;flex-shrink:0;cursor:pointer;font-family:inherit">🛠 претензия'+(n>1?' ×'+n:'')+'</button>';
+}
+function openClaimsFor(orderId){
+  var o=(allOrders||[]).find(function(x){return x.id===orderId;});
+  _claimsFilter='all';_claimsQuery=o?String(o.order_number):'';
+  showPage('claims');
+}
+function setClaimsFilter(f){_claimsFilter=f;renderClaims();}
+var _claimsSearchLive=_debounce(function(){_claimsQuery=(document.getElementById('claims-search')||{}).value||'';renderClaims();},180);
+
+function renderClaims(reload){
+  var box=document.getElementById('claims-list');if(!box)return;
+  var inp=document.getElementById('claims-search');if(inp&&inp.value!==_claimsQuery)inp.value=_claimsQuery;
+  if(reload){
+    if(!window._claims.length&&_claimsInDb!==false)box.innerHTML='<div class="empty"><p>Загрузка...</p></div>';
+    loadClaims().then(function(){renderClaims(false);});
+    if(_claimsInDb===null)return;
+  }
+  if(_claimsInDb===false){
+    document.getElementById('claims-chips').innerHTML='';
+    box.innerHTML='<div class="card" style="border-color:#F9A825"><div class="card-title" style="color:#856404">⚙️ Нужно разовое обновление базы</div>'
+      +'<p style="font-size:13px;line-height:1.6">Откройте <strong>Supabase → SQL Editor</strong>, вставьте целиком файл <strong>«SQL_обновление_7.20.sql»</strong> и нажмите Run. Потом обновите эту страницу — здесь появятся претензии.</p></div>';
+    return;
+  }
+  var all=window._claims||[];
+  var cnt={open:0,'new':0,waiting:0,arrived:0,done:0,all:all.length};
+  all.forEach(function(c){var st=claimStage(c);cnt[st]++;if(st!=='done')cnt.open++;});
+  var chips=[['open','Открытые'],['new','🆕 Не заказано'],['waiting','🏭 Ждём фабрику'],['arrived','📦 Пришло — отвезти'],['done','✅ Решённые'],['all','Все']];
+  document.getElementById('claims-chips').innerHTML=chips.map(function(ch){
+    var on=_claimsFilter===ch[0];
+    return '<span class="chip'+(on?' chip-active':'')+'" style="background:'+(on?'var(--dark)':'#eef1f5')+';color:'+(on?'#fff':'#5b6270')+'" onclick="setClaimsFilter(\''+ch[0]+'\')">'+ch[1]+' · '+cnt[ch[0]]+'</span>';
+  }).join('');
+  var q=_sNorm(_claimsQuery).trim();
+  var list=all.filter(function(c){
+    var st=claimStage(c);
+    if(_claimsFilter==='open'&&st==='done')return false;
+    if(_claimsFilter!=='open'&&_claimsFilter!=='all'&&st!==_claimsFilter)return false;
+    if(q){
+      var txt=_sNorm([c.client_name,c.client_phone,c.order_number,c.product,c.supplier,c.problem,c.kind,c.factory_what,c.notes].join(' '))+' '+_digits(c.client_phone);
+      if(txt.indexOf(q)<0)return false;
+    }
+    return true;
+  });
+  // открытые: сначала самые старые (им дольше всего ждать), решённые — свежие сверху
+  list.sort(function(a,b){
+    var ad=a.resolved?1:0,bd=b.resolved?1:0;
+    if(ad!==bd)return ad-bd;
+    var c=String(a.claim_date||'').localeCompare(String(b.claim_date||''));
+    return a.resolved?-c:c;
+  });
+  if(!list.length){
+    box.innerHTML='<div class="empty" style="padding:26px 18px;text-align:center"><p style="font-size:15px;font-weight:600;margin-bottom:4px">'
+      +(all.length?'Под этот отбор ничего не подошло':'Претензий пока нет')+'</p>'
+      +'<p style="font-size:12.5px;color:var(--text2)">'+(all.length?'Попробуйте вкладку «Все» или очистите поиск.':'Клиент пришёл со сколом или браком — нажмите «➕ Новая претензия». Из карточки заказа: «⋯ Ещё» → «🛠 Оформить претензию».')+'</p></div>';
+    return;
+  }
+  box.innerHTML=list.map(_claimCard).join('');
+}
+function _claimCard(c){
+  var st=claimStage(c),S=CLAIM_STAGE[st],days=_claimDays(c);
+  var dayPill='';
+  if(!c.resolved){
+    if(days>45)dayPill='<span class="pl pl-bad" title="По ст. 20 закона о защите прав потребителей недостатки устраняются не позднее 45 дней">⏰ '+days+' дн. — срок 45 дней прошёл</span>';
+    else if(days>=30)dayPill='<span class="pl pl-warn" title="По ст. 20 закона о защите прав потребителей недостатки устраняются не позднее 45 дней">⏳ '+days+' дн. — до 45 осталось '+(45-days)+'</span>';
+    else dayPill='<span class="pl pl-mut">'+days+' '+_dayWord(days)+' с обращения</span>';
+  }
+  var ord=c.order_number?' · <span onclick="openOrderByNumber(\''+esc(c.order_number)+'\')" title="Открыть заказ" style="cursor:pointer;color:#1565C0;border-bottom:1px dashed #90A4AE">заказ №'+esc(c.order_number)+'</span>':'';
+  var tel=c.client_phone?' · <a href="tel:'+esc(_msgPhoneIntl(c.client_phone))+'" style="color:inherit">📞 '+esc(c.client_phone)+'</a>':'';
+  var today=new Date().toISOString().slice(0,10);
+  var fLine='';
+  if(c.factory_ordered){
+    var late=!c.arrived&&!c.resolved&&c.expected_date&&String(c.expected_date)<today;
+    fLine='<div style="font-size:12.5px;margin-top:4px">🏭 Заказано на фабрике'+(c.factory_date?' '+fmtDate(c.factory_date):'')
+      +(c.factory_what?': <strong>'+esc(c.factory_what)+'</strong>':'')
+      +(c.expected_date?' · ждём к <span style="'+(late?'color:#9c3b2e;font-weight:700':'')+'">'+fmtDate(c.expected_date)+(late?' — уже прошло':'')+'</span>':'')
+      +(c.arrived?' · 📦 пришло'+(c.arrived_date?' '+fmtDate(c.arrived_date):''):'')+'</div>';
+  }
+  var rLine=c.resolved?'<div style="font-size:12.5px;margin-top:4px;color:#256b3c">✅ Решено'+(c.resolved_date?' '+fmtDate(c.resolved_date):'')+(c.resolution?': <strong>'+esc(c.resolution)+'</strong>':'')+'</div>':'';
+  function step(key,label,on,wait){
+    return '<button class="claim-step'+(on?' on':(wait?' wait':''))+'" onclick="claimStep('+c.id+',\''+key+'\')">'+(on?'✓ ':'')+label+'</button>';
+  }
+  var steps='<div class="claim-steps">'
+    +step('factory','🏭 Заказано на фабрике',c.factory_ordered,!c.factory_ordered&&!c.resolved)
+    +step('arrived','📦 Пришло от фабрики',c.arrived,c.factory_ordered&&!c.arrived&&!c.resolved)
+    +step('resolved','✅ Решено',c.resolved,c.arrived&&!c.resolved)
+    +'</div>';
+  return '<div class="claim-card'+(c.resolved?' resolved':'')+'" id="claim-'+c.id+'">'
+    +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start">'
+    +'<div style="flex:1;min-width:240px">'
+    +'<div class="claim-meta">обратился '+fmtDate(c.claim_date)+(c.manager?' · принял(а) '+esc(c.manager):'')+'</div>'
+    +'<div style="font-size:14px;margin-top:2px"><strong>'+esc(c.client_name||'Клиент не указан')+'</strong>'+tel+ord+'</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="pl '+S.cls+'">'+S.t+'</span>'+dayPill+'</div></div>'
+    +'<div style="font-size:13px;margin-top:6px">'+(c.product?'<strong>'+esc(c.product)+'</strong>':'<span style="color:var(--text2)">товар не указан</span>')
+    +(c.supplier?' <span class="tag-sup" style="margin-left:4px">'+esc(c.supplier)+'</span>':'')+'</div>'
+    +'<div style="font-size:13px;margin-top:4px;line-height:1.5">'+(c.kind?'<span style="color:var(--text2)">'+esc(c.kind)+':</span> ':'')+esc(c.problem||'')+'</div>'
+    +fLine+rLine
+    +(c.notes?'<div class="note-box" style="margin:6px 0 0;padding:6px 10px">📝 '+esc(c.notes)+'</div>':'')
+    +steps
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +'<button class="btn btn-outline" onclick="openClaimForm('+c.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>'
+    +(c.client_phone?'<button class="btn btn-outline" onclick="openClaimMsg('+c.id+')" style="padding:5px 10px;font-size:12px">✉️ Написать</button>':'')
+    +'<button class="btn-danger-sm owner-only" onclick="deleteClaim('+c.id+')" title="Удалить претензию (только владелец)">🗑</button>'
+    +'</div></div>';
+}
+// Клик по шагу: включить — открываем форму сразу на нужных полях;
+// выключить — спрашиваем и снимаем отметку.
+function claimStep(id,key){
+  var c=(window._claims||[]).find(function(x){return x.id===id;});if(!c)return;
+  var field={factory:'factory_ordered',arrived:'arrived',resolved:'resolved'}[key];
+  if(c[field]){
+    var nm={factory:'«заказано на фабрике»',arrived:'«пришло от фабрики»',resolved:'«решено»'}[key];
+    if(!confirm('Снять отметку '+nm+'?'))return;
+    var patch={};patch[field]=false;
+    if(key==='factory'){patch.factory_date=null;}
+    if(key==='arrived'){patch.arrived_date=null;}
+    if(key==='resolved'){patch.resolved_date=null;}
+    _claimSave(c,patch);
+    return;
+  }
+  openClaimForm(id,null,key);
+}
+
+// ── Форма ────────────────────────────────────────────────────────────
+var _cfId=null,_cfOrderId=null,_cfSaving=false;
+function _cfEl(id){return document.getElementById(id);}
+function _cfToggle(which){
+  var on=_cfEl('cf-'+which).checked;
+  _cfEl('cf-'+which+'-sub').classList.toggle('open',on);
+  var dateEl=_cfEl('cf-'+which+'-date');
+  if(on&&dateEl&&!dateEl.value)dateEl.value=new Date().toISOString().slice(0,10);
+}
+function _cfFillOrder(o){
+  _cfOrderId=o?o.id:null;
+  _cfEl('cf-order').value=o?('№'+o.order_number+' · '+(o.client_name||'')):'';
+  if(!o){_cfEl('cf-products').innerHTML='';return;}
+  if(!_cfEl('cf-client').value)_cfEl('cf-client').value=o.client_name||'';
+  if(!_cfEl('cf-phone').value)_cfEl('cf-phone').value=o.client_phone||o.client_phone2||'';
+  var items=o.order_items||[];
+  _cfEl('cf-products').innerHTML=items.map(function(it){
+    var nm=[it.product_name,it.color,it.dims].filter(Boolean).join(', ');
+    return '<option value="'+esc(nm)+'">';
+  }).join('');
+  if(items.length===1&&!_cfEl('cf-product').value){
+    var it=items[0];
+    _cfEl('cf-product').value=[it.product_name,it.color,it.dims].filter(Boolean).join(', ');
+    if(!_cfEl('cf-supplier').value)_cfEl('cf-supplier').value=it.supplier_manual||it.supplier||'';
+  }
+}
+function cfOrderInput(){
+  var v=_cfEl('cf-order').value, m=/№?\s*(\d{3,})/.exec(v);
+  if(!v.trim()){_cfOrderId=null;_cfEl('cf-products').innerHTML='';return;}
+  if(!m)return;
+  var o=(allOrders||[]).find(function(x){return String(x.order_number)===m[1];});
+  if(o&&o.id!==_cfOrderId)_cfFillOrder(o);
+}
+function cfProductInput(){
+  var o=(allOrders||[]).find(function(x){return x.id===_cfOrderId;});if(!o)return;
+  var v=_cfEl('cf-product').value;
+  var it=(o.order_items||[]).find(function(it){return [it.product_name,it.color,it.dims].filter(Boolean).join(', ')===v;});
+  if(it&&!_cfEl('cf-supplier').value)_cfEl('cf-supplier').value=it.supplier_manual||it.supplier||'';
+}
+function openClaimForm(id,orderId,focusStep){
+  if(_claimsInDb===false){toast('❌ Сначала выполните SQL_обновление_7.20 в Supabase — претензии некуда записывать','err',8000);return;}
+  var c=id?(window._claims||[]).find(function(x){return x.id===id;}):null;
+  _cfId=c?c.id:null;_cfOrderId=null;
+  _cfEl('cf-title').textContent=c?'🛠 Претензия'+(c.client_name?' — '+c.client_name:''):'🛠 Новая претензия';
+  // заказы для подсказки: свежие сверху
+  _cfEl('cf-orders').innerHTML=(allOrders||[]).slice(0,400).map(function(o){
+    return '<option value="№'+esc(o.order_number)+' · '+esc(o.client_name||'')+'">';
+  }).join('');
+  var v=function(k,d){return c&&c[k]!=null?c[k]:(d==null?'':d);};
+  _cfEl('cf-date').value=v('claim_date',new Date().toISOString().slice(0,10));
+  _cfEl('cf-client').value=v('client_name');
+  _cfEl('cf-phone').value=v('client_phone');
+  _cfEl('cf-product').value=v('product');
+  _cfEl('cf-supplier').value=v('supplier');
+  _cfEl('cf-kind').value=v('kind');
+  _cfEl('cf-problem').value=v('problem');
+  _cfEl('cf-factory').checked=!!(c&&c.factory_ordered)||focusStep==='factory';
+  _cfEl('cf-factory-date').value=v('factory_date');
+  _cfEl('cf-factory-what').value=v('factory_what');
+  _cfEl('cf-expected').value=v('expected_date');
+  _cfEl('cf-arrived').checked=!!(c&&c.arrived)||focusStep==='arrived';
+  _cfEl('cf-arrived-date').value=v('arrived_date');
+  _cfEl('cf-resolved').checked=!!(c&&c.resolved)||focusStep==='resolved';
+  _cfEl('cf-resolved-date').value=v('resolved_date');
+  _cfEl('cf-resolution').value=v('resolution');
+  _cfEl('cf-notes').value=v('notes');
+  _cfEl('cf-order').value='';_cfEl('cf-products').innerHTML='';
+  var o=null;
+  if(c&&c.order_id)o=(allOrders||[]).find(function(x){return x.id===c.order_id;});
+  if(!c&&orderId)o=(allOrders||[]).find(function(x){return x.id===orderId;});
+  if(o)_cfFillOrder(o);
+  else if(c&&c.order_number){_cfEl('cf-order').value='№'+c.order_number;}
+  ['factory','arrived','resolved'].forEach(_cfToggle);
+  _cfEl('cf-del').style.display=(c&&_isOwner)?'':'none';
+  _cfEl('modal-claim').classList.add('open');
+  setTimeout(function(){
+    var f=focusStep==='factory'?'cf-factory-what':focusStep==='resolved'?'cf-resolution':focusStep==='arrived'?'cf-arrived-date':(c?null:(o?'cf-problem':'cf-order'));
+    if(f&&_cfEl(f))_cfEl(f).focus();
+  },120);
+}
+function cfSave(){
+  if(_cfSaving)return;
+  var client=_cfEl('cf-client').value.trim(), problem=_cfEl('cf-problem').value.trim();
+  if(!client&&!_cfOrderId){toast('⚠️ Укажите заказ или клиента','err');return;}
+  if(!problem){toast('⚠️ Напишите, что случилось','err');return;}
+  var fo=_cfEl('cf-factory').checked, ar=_cfEl('cf-arrived').checked, rs=_cfEl('cf-resolved').checked;
+  if(rs&&!_cfEl('cf-resolution').value){toast('⚠️ Выберите, как решили','err');_cfEl('cf-resolution').focus();return;}
+  var o=_cfOrderId?(allOrders||[]).find(function(x){return x.id===_cfOrderId;}):null;
+  var numTyped=(/№?\s*(\d{3,})/.exec(_cfEl('cf-order').value)||[])[1]||null;
+  var d=function(id){return _cfEl(id).value||null;};
+  var row={
+    claim_date:d('cf-date')||new Date().toISOString().slice(0,10),
+    order_id:o?o.id:null, order_number:o?String(o.order_number):numTyped,
+    client_name:client||(o&&o.client_name)||null, client_phone:_cfEl('cf-phone').value.trim()||null,
+    product:_cfEl('cf-product').value.trim()||null, supplier:_cfEl('cf-supplier').value.trim()||null,
+    kind:_cfEl('cf-kind').value||null, problem:problem,
+    factory_ordered:fo, factory_date:fo?d('cf-factory-date'):null,
+    factory_what:fo?(_cfEl('cf-factory-what').value.trim()||null):null, expected_date:fo?d('cf-expected'):null,
+    arrived:ar, arrived_date:ar?d('cf-arrived-date'):null,
+    resolved:rs, resolved_date:rs?d('cf-resolved-date'):null, resolution:rs?(_cfEl('cf-resolution').value||null):null,
+    notes:_cfEl('cf-notes').value.trim()||null
+  };
+  var c=_cfId?(window._claims||[]).find(function(x){return x.id===_cfId;}):null;
+  var btn=_cfEl('cf-save-btn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Сохраняем...';_cfSaving=true;
+  var p;
+  if(c){
+    row.updated_at=new Date().toISOString();
+    p=_claimSave(c,row,true);
+  }else{
+    row.manager=_whoName()||null;row.who=_who()||null;
+    p=sbPost('claims',[row]).then(function(res){
+      var saved=(res&&res[0])||Object.assign({id:Date.now()},row);
+      window._claims=[saved].concat(window._claims||[]);
+      if(o)try{logOrder(o,'claim',null,'оформлена претензия: '+(row.kind?row.kind+' — ':'')+problem);}catch(e){}
+      toast('🛠 Претензия записана','ok',4000);
+      _claimsAfterChange();
+    });
+  }
+  p.then(function(){closeModal('modal-claim');}).catch(function(e){
+    var m=String((e&&e.message)||'');
+    if(/claims|does not exist|relation|schema/i.test(m)){_claimsInDb=false;toast('❌ Сначала выполните SQL_обновление_7.20 в Supabase','err',8000);}
+    else toast('❌ Не сохранилось: '+m.slice(0,140),'err',6000);
+  }).finally(function(){btn.disabled=false;btn.innerHTML='💾 Сохранить';_cfSaving=false;});
+}
+function _claimSave(c,patch,quiet){
+  patch=Object.assign({},patch);
+  if(!patch.updated_at)patch.updated_at=new Date().toISOString();
+  return sbPatch('claims',patch,'id=eq.'+c.id).then(function(){
+    var wasResolved=!!c.resolved;
+    Object.assign(c,patch);
+    if(!wasResolved&&c.resolved&&c.order_id){
+      var o=(allOrders||[]).find(function(x){return x.id===c.order_id;});
+      if(o)try{logOrder(o,'claim',null,'претензия решена: '+(c.resolution||''));}catch(e){}
+    }
+    if(!quiet)toast('✅ Сохранено','ok',2500);else toast('💾 Претензия сохранена','ok',3000);
+    _claimsAfterChange();
+  }).catch(function(e){
+    if(quiet)throw e;
+    toast('❌ Не сохранилось: '+String((e&&e.message)||'').slice(0,140),'err',6000);
+  });
+}
+function _claimsAfterChange(){
+  _claimsBadge();
+  var pg=document.getElementById('page-claims');
+  if(pg&&pg.classList.contains('active'))renderClaims();
+  if(typeof _paintOrders==='function')_paintOrders();
+}
+function deleteClaim(id){
+  if(!ownerOnly('Удаление претензии'))return;
+  id=id||_cfId;
+  var c=(window._claims||[]).find(function(x){return x.id===id;});if(!c)return;
+  if(!confirm('Удалить претензию '+(c.client_name?'«'+c.client_name+'» ':'')+'от '+fmtDate(c.claim_date)+'?\n\nЗапись пропадёт совсем. Если вопрос просто решён — лучше отметьте «✅ Решено».'))return;
+  sbDel('claims','id=eq.'+id).then(function(){
+    window._claims=(window._claims||[]).filter(function(x){return x.id!==id;});
+    closeModal('modal-claim');
+    toast('🗑 Претензия удалена','ok',3000);
+    _claimsAfterChange();
+  }).catch(function(e){toast('❌ Не удалилось: '+String((e&&e.message)||'').slice(0,140),'err',6000);});
 }
 // ═══ v6.6: PWA — регистрация service worker ═══
 // Работает только по HTTPS (GitHub Pages) или на localhost; при открытии файла
