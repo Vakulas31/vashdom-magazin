@@ -311,7 +311,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.75</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.77</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -10990,6 +10990,7 @@ var VD_SHOP={
   inn:'312335846562',
   addr:'ул. Дорошенко, д. 55',
   phone:'8-952-427-12-45',
+  hours:'Пн.–Пт. с 09:00 до 18:00, Сб.–Вс. с 09:00 до 17:00', // v7.77: режим работы (для сообщений клиенту)
   city:'г. Короча',
   termDays:60,          // срок передачи, рабочих дней
   warrantyMonths:12,    // гарантия, если её не установил изготовитель
@@ -11843,6 +11844,8 @@ function _msgTomorrow(){return new Date(Date.now()+864e5).toISOString().slice(0,
 var MSG_ORDER_TPL=[
   {k:'created', t:'📝 Заказ оформлен'},
   {k:'arrived', t:'📦 Товар пришёл'},
+  {k:'pickup',  t:'🏬 Можно забирать'},   // v7.76: только для самовывоза
+  {k:'nocall',  t:'📞 Не дозвонились'},   // v7.76
   {k:'delivery',t:'🚚 Доставка назначена'},
   {k:'debt',    t:'💰 Остаток к оплате'},
   {k:'thanks',  t:'🙏 Спасибо за покупку'},
@@ -11861,6 +11864,19 @@ function _msgOrderText(o,k,date){
     if(_msgIsPickup(o))L.push('Забрать его можно по адресу: '+((typeof VD_SHOP!=='undefined'&&VD_SHOP.addr)?VD_SHOP.city+', '+VD_SHOP.addr:'магазин «Ваш Дом»')+'.');
     else L.push('Подскажите, пожалуйста, когда вам удобно принять доставку'+(o.client_address?' по адресу: '+o.client_address:'')+'?');
     var dl2=_msgDebtLine(o,'К оплате при получении');if(dl2)L.push(dl2);
+  }else if(k==='pickup'){
+    // v7.76: самовывоз — товар уже в магазине, клиент приезжает сам
+    var _sh=(typeof VD_SHOP!=='undefined')?VD_SHOP:{};
+    L.push(hi,'Ваш заказ '+num+' поступил в магазин «Ваш Дом» и готов к выдаче.');
+    L.push('Вы можете забрать его по адресу: '+(_sh.city||'г. Короча')+(_sh.addr?', '+_sh.addr:'')+'.');
+    if(_sh.hours)L.push('Режим работы: '+_sh.hours+'.');
+    var dlp=_msgDebtLine(o,'К оплате при получении');if(dlp)L.push(dlp);
+    L.push('Пожалуйста, сообщите, когда планируете приехать, — мы подготовим товар к выдаче.');
+  }else if(k==='nocall'){
+    // v7.76: не смогли дозвониться
+    L.push(hi,'Вас беспокоит магазин мебели «Ваш Дом» по вопросу заказа '+num+' от '+fmtDate(o.order_date)+'.');
+    L.push('Нам не удалось с вами связаться по телефону. Пожалуйста, перезвоните нам в удобное для вас время'+((typeof VD_SHOP!=='undefined'&&VD_SHOP.phone)?' по номеру '+VD_SHOP.phone:'')+'.');
+    if(typeof VD_SHOP!=='undefined'&&VD_SHOP.hours)L.push('Режим работы: '+VD_SHOP.hours+'.');
   }else if(k==='delivery'){
     L.push(hi,'Доставка вашего заказа '+num+' запланирована на '+(date?fmtDate(date):'___')+'.');
     if(o.client_address)L.push('Адрес: '+o.client_address+(o.floor?', этаж '+o.floor:'')+(o.apartment?', кв. '+o.apartment:'')+'.');
@@ -11885,7 +11901,7 @@ function _msgOrderDefault(o){
   if(isCancelled(o))return 'cancel';
   if(isDone(o))return 'thanks';
   var items=o.order_items||[];
-  if(items.length&&items.every(function(it){return it.availability==='Есть';}))return 'arrived';
+  if(items.length&&items.every(function(it){return it.availability==='Есть';}))return _msgIsPickup(o)?'pickup':'arrived';
   if(o.order_date===new Date().toISOString().slice(0,10))return 'created';
   return orderDebt(o)>0?'debt':'created';
 }
@@ -11895,7 +11911,8 @@ var MSG_CLAIM_TPL=[
   {k:'c_new',     t:'🛠 Претензия принята'},
   {k:'c_ordered', t:'🏭 Заказали на фабрике'},
   {k:'c_arrived', t:'📦 Пришло от фабрики'},
-  {k:'c_done',    t:'✅ Вопрос решён'}
+  {k:'c_done',    t:'✅ Вопрос решён'},
+  {k:'c_nocall',  t:'📞 Не дозвонились'}
 ];
 function _msgClaimText(c,k){
   var hi=_msgHello(c.client_name), prod=c.product?('«'+c.product+'»'):'товару', L=[];
@@ -11911,6 +11928,10 @@ function _msgClaimText(c,k){
   }else if(k==='c_arrived'){
     L.push(hi,'По вашему обращению'+ord+' пришло от фабрики'+(c.factory_what?': '+c.factory_what:'')+'.');
     L.push('Подскажите, пожалуйста, когда вам удобно, чтобы мы привезли?');
+  }else if(k==='c_nocall'){
+    L.push(hi,'Вас беспокоит магазин мебели «Ваш Дом» по вашему обращению от '+fmtDate(c.claim_date)+ord+'.');
+    L.push('Нам не удалось с вами связаться по телефону. Пожалуйста, перезвоните нам в удобное для вас время'+((typeof VD_SHOP!=='undefined'&&VD_SHOP.phone)?' по номеру '+VD_SHOP.phone:'')+'.');
+    if(typeof VD_SHOP!=='undefined'&&VD_SHOP.hours)L.push('Режим работы: '+VD_SHOP.hours+'.');
   }else if(k==='c_done'){
     L.push(hi,'Спасибо за терпение! Будем рады, если всё в порядке. Если остались вопросы по '+prod+' — пишите.');
   }
@@ -11934,7 +11955,16 @@ function openMsg(orderId){
   var o=(allOrders||[]).find(function(x){return x.id===orderId;});if(!o)return;
   _msgCtx={kind:'order',id:orderId,tpl:_msgOrderDefault(o)};
   // «Заказ отменён» нужен только отменённому заказу — и ему больше ничего не нужно
-  var tpls=MSG_ORDER_TPL.filter(function(t){return isCancelled(o)?t.k==='cancel':t.k!=='cancel';});
+  // v7.76: самовывозу — «Можно забирать» вместо «Товар пришёл» и без «Доставки»;
+  // «Не дозвонились» — всем, в том числе отменённому заказу
+  var _pk=_msgIsPickup(o);
+  var tpls=MSG_ORDER_TPL.filter(function(t){
+    if(t.k==='nocall')return true;
+    if(isCancelled(o))return t.k==='cancel';
+    if(t.k==='cancel')return false;
+    if(_pk)return t.k!=='arrived'&&t.k!=='delivery';
+    return t.k!=='pickup';
+  });
   _msgOpen(o.client_name,[o.client_phone,o.client_phone2],tpls);
 }
 function openClaimMsg(claimId){
