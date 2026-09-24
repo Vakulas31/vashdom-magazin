@@ -307,11 +307,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <!-- v7.75: претензии — восьмая страница, стоит сразу за «Аналитикой»,
        потому что showPage подсвечивает кнопки по порядку страниц -->
   <button class="nav-btn" onclick="showPage('claims')">🛠 Претензии<span class="nav-badge" id="claims-badge" style="display:none"></span></button>
+  <!-- v7.78: шпаргалка «где искать» — девятая страница, сразу за «Претензиями» -->
+  <button class="nav-btn" onclick="showPage('guide')">📖 Где искать</button>
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.77</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.78</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -524,7 +526,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Товары<br><b id="t-goods" style="font-size:14px;color:#1a1a1a">—</b></div>
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Скидка<br><b id="t-discount" style="font-size:14px;color:#1565C0">—</b></div>
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Товары итого<br><b id="t-discounted" style="font-size:14px;color:#BF360C">—</b></div>
-      <div style="font-size:11px;color:var(--text2);line-height:1.3">Дост.+занос<br><b id="t-delivery" style="font-size:14px;color:#1a1a1a">—</b></div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.3"><span id="t-deliv-lbl">Дост.+занос</span><br><b id="t-delivery" style="font-size:14px;color:#1a1a1a">—</b></div>
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Предоплата<br><b id="t-prepay" style="font-size:14px;color:#1B5E20">—</b></div>
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Долг клиента<br><b id="t-debt" style="font-size:17px;color:#BF360C">—</b></div>
       <button class="btn btn-success" onclick="saveOrder()" id="save-btn" style="margin-left:auto;padding:12px 22px">✅ Сохранить заказ</button>
@@ -980,6 +982,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <input type="text" placeholder="Поиск по клиенту, товару, фабрике, номеру заказа..." id="claims-search" oninput="_claimsSearchLive()">
   </div>
   <div id="claims-list"><div class="empty"><p>Загрузка...</p></div></div>
+</div>
+
+<!-- v7.78: шпаргалка для продавца — какие фабрики смотреть под запрос клиента -->
+<div class="page" id="page-guide">
+  <div style="margin-bottom:12px">
+    <h2 style="font-size:18px;font-weight:700">📖 Где искать — шпаргалка по фабрикам</h2>
+    <p style="font-size:12px;color:var(--text2);margin-top:2px">Напишите, что просит клиент: «обувница», «кровать с ящиками», «недорогой комод», «шкаф-купе подороже», «массив». Покажу, у каких фабрик этого больше всего и какие из них дешевле — а ниже, сколько таких товаров сейчас в загруженных прайсах.</p>
+  </div>
+  <div class="search-wrap" style="margin-bottom:12px">
+    <span class="search-icon">📖</span>
+    <input type="text" id="gd-input" placeholder="Что ищет клиент? Например: обувница, кровать с подъёмным механизмом, дешёвый шкаф-купе" oninput="guideLive()" style="font-size:15px;padding:12px 12px 12px 38px">
+  </div>
+  <div id="gd-results"></div>
 </div>
 
 <div class="page" id="page-cash">
@@ -1728,6 +1743,21 @@ var CANCEL_STATUS='❌ Отменён';
 function isCancelled(o){return !!o&&String((o&&o.status)||'').indexOf('Отмен')>=0;}
 // «Делать по заказу больше нечего» — выполнен или отменён.
 function isClosed(o){return isDone(o)||isCancelled(o);}
+function _cap1(s){s=String(s||'');return s.charAt(0).toUpperCase()+s.slice(1);}
+// v7.78: подпись «Доставка» / «Дост.+занос» по типу доставки заказа.
+// Раньше везде было «Дост.+занос», даже при «🚛 Только доставка» — сбивало.
+// Если занос реально посчитан (lifting_cost>0) — пишем как есть, по деньгам.
+// long=true — словами для текстов: «доставка» / «доставка и занос» / «занос»;
+// long='gen' — «в оплату доставки / доставки и заноса / заноса».
+function delivLabel(o,long){
+  var t=String((o&&o.delivery_type)||''),d=(o&&o.delivery_cost)||0,l=(o&&o.lifting_cost)||0;
+  var k;
+  if(l>0)k=d>0?'both':'lift';
+  else k=(/занос/i.test(t)&&!/только/i.test(t))?'both':'deliv';
+  if(long==='gen')return k==='both'?'доставки и заноса':(k==='lift'?'заноса':'доставки');
+  if(long)return k==='both'?'доставка и занос':(k==='lift'?'занос':'доставка');
+  return k==='both'?'Дост.+занос':(k==='lift'?'Занос':'Доставка');
+}
 // v7.57: ОДНА функция «сколько стоит товар в заказе».
 // Везде стояло `goods_discounted || goods_total` — «сумма со скидкой ИЛИ без».
 // При скидке 100 % сумма со скидкой равна нулю, ноль в JS считается «пусто», и
@@ -1887,7 +1917,7 @@ function showPage(name){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('page-'+name).classList.add('active');
-  var pages=['orders','new','clients','pricelabels','prices','cash','stats','claims']; // v7.75: + претензии
+  var pages=['orders','new','clients','pricelabels','prices','cash','stats','claims','guide']; // v7.75: + претензии; v7.78: + шпаргалка
   var idx=pages.indexOf(name);
   if(idx>=0)document.querySelectorAll('.nav-btn')[idx].classList.add('active');
   if(name==='stats')renderStats();
@@ -1895,6 +1925,7 @@ function showPage(name){
   if(name==='prices'){loadPriceSummary();if(window.renderImportHistory)renderImportHistory();renderCalc();_ssLoadFactories();if(window.loadFabricCats){loadFabricCats().then(function(){if(window._fabSpecInfo)_fabSpecInfo();});}}
   if(name==='cash')renderCash();
   if(name==='claims'&&window.renderClaims)renderClaims(true);
+  if(name==='guide'&&window.renderGuide)renderGuide();
   if(name==='pricelabels'){renderPriceLabel();renderLabelQueue();renderRecentLabels();}
 }
 
@@ -2288,8 +2319,8 @@ function orderCard(o){
     '<div class="ftr-col"><div class="ftr-lbl">Долг клиента</div><div class="ftr-val" style="color:#C62828">'+fmt(totalDebt)+' ₽</div>'+(debtBreakdown?'<div style="font-size:10px;color:#C62828;margin-top:2px">'+debtBreakdown+'</div>':'')+doneDebtWarn+'</div>':
     '<div class="ftr-col"><div class="ftr-lbl">Долг</div><div class="ftr-val" style="color:#1B5E20">✅ 0 ₽</div></div>';
   var ftrDeliv=delivCost>0?(delivExternal?
-    '<div class="ftr-col" style="opacity:.55"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:#888">сторонняя</span></div><div class="ftr-val" style="color:#888">'+fmt(delivCost)+' ₽</div><div style="font-size:9px;color:#999;margin-top:1px">не наша · мимо кассы</div></div>':
-    '<div class="ftr-col"><div class="ftr-lbl">Дост.+занос <span style="font-size:10px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'✅':'⏳')+'</span></div><div class="ftr-val">'+fmt(delivCost)+' ₽</div></div>'):'';
+    '<div class="ftr-col" style="opacity:.55"><div class="ftr-lbl">'+delivLabel(o)+' <span style="font-size:10px;color:#888">сторонняя</span></div><div class="ftr-val" style="color:#888">'+fmt(delivCost)+' ₽</div><div style="font-size:9px;color:#999;margin-top:1px">не наша · мимо кассы</div></div>':
+    '<div class="ftr-col"><div class="ftr-lbl">'+delivLabel(o)+' <span style="font-size:10px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'✅':'⏳')+'</span></div><div class="ftr-val">'+fmt(delivCost)+' ₽</div></div>'):'';
   var ftrPre=(o.prepayment||0)>0?
     '<div class="ftr-col"><div class="ftr-lbl">Предоплата'+(o.payment_method?' <span style="font-size:9px;color:var(--text2)">'+o.payment_method+'</span>':'')+'</div><div class="ftr-val">'+fmt(o.prepayment)+' ₽</div></div>':'';
   // v6.7: сколько уже получено при доставке позиций
@@ -2593,7 +2624,7 @@ function openOrderPay(id){
   document.getElementById('op-title').textContent='💰 Приём оплаты по заказу №'+o.order_number;
   var parts=[];
   if(rem>0)parts.push(fmt(rem)+' ₽ за товар');
-  if(dd>0)parts.push(fmt(dd)+' ₽ доставка и занос');
+  if(dd>0)parts.push(fmt(dd)+' ₽ '+delivLabel(o,true));
   document.getElementById('op-summary').innerHTML='<strong>'+esc(o.client_name||'')+'</strong><br>'
     +(parts.length?'Долг сейчас: <strong>'+fmt(rem+dd)+' ₽</strong> ('+parts.join(' + ')+')'
                   :'Долга по этому заказу нет — записанный платёж станет переплатой.');
@@ -2625,7 +2656,7 @@ function opSave(){
       // денег хватило и на товар, и на доставку с заносом
       var _extra=amt-rem-dd;
       payDeliv=confirm('Получено '+fmt(amt)+' ₽ — это больше долга за товар ('+fmt(rem)+' ₽).\n\n'
-        +'Зачесть '+fmt(dd)+' ₽ в оплату доставки и заноса и пометить их оплаченными?'
+        +'Зачесть '+fmt(dd)+' ₽ в оплату '+delivLabel(o,'gen')+' и пометить как оплаченное?'
         +(_extra>0?'\n\nОставшиеся '+fmt(_extra)+' ₽ станут переплатой.':'')
         +'\n\nНажмёте «Отмена» — платёж всё равно запишется, но доставка останется в долгу и её спросят при закрытии.');
     }else if(dd<=0){
@@ -3171,7 +3202,7 @@ function coDeliveryToggle(){
   // v6.7: напоминание, что часть уже получена при доставке позиций
   var _ipSum=0;(o.order_items||[]).forEach(function(it){_ipSum+=Math.round(it.paid_amount||0);});
   if(_ipSum>0)summary+='<br><span style="color:#1B5E20;font-size:12px">💰 Уже получено при доставке позиций: '+fmt(_ipSum)+' ₽ (учтено в остатке)</span>';
-  if(hasDeliv&&isOur)summary+='<br>Доставка/занос (наша, в кассу): <strong>'+fmt(_closeDelivCost)+' ₽</strong>';
+  if(hasDeliv&&isOur)summary+='<br>'+delivLabel(o)+' (наша, в кассу): <strong>'+fmt(_closeDelivCost)+' ₽</strong>';
   summary+='<br>Итого в кассу: <strong style="color:#C62828;font-size:15px">'+fmt(_closeTarget)+' ₽</strong>';
   if(_closeTarget===0)summary+='<br><span style="color:#1B5E20">К получению в кассу 0 ₽ — просто укажите дату выдачи.</span>';
   document.getElementById('co-summary').innerHTML=summary;
@@ -3180,7 +3211,7 @@ function coDeliveryToggle(){
   if(hasDeliv&&!isOur){
     note.innerHTML='<span style="display:inline-block;background:#F0F0F0;color:#888;padding:3px 8px;border-radius:6px">Сторонняя доставка (не наша): '+fmt(_closeDelivCost)+' ₽ — клиент платит курьеру напрямую, в кассу не идёт.</span>';
   }else if(hasDeliv){
-    note.innerHTML='<span style="color:var(--text2)">Доставка и занос '+fmt(_closeDelivCost)+' ₽ входят в остаток к оплате и в кассу.</span>';
+    note.innerHTML='<span style="color:var(--text2)">'+_cap1(delivLabel(o,true))+' '+fmt(_closeDelivCost)+' ₽ входят в остаток к оплате и в кассу.</span>';
   }else{
     note.innerHTML='';
   }
@@ -8104,6 +8135,457 @@ function toggleGoodsTip(ev,id){
   var el=document.getElementById(id);if(!el)return;
   el.style.display=(el.style.display==='none')?'block':'none';
 }
+// ═══ v7.78: ШПАРГАЛКА «ГДЕ ИСКАТЬ» ═══════════════════════════════════
+// Задумка владельца (24.09.2026): новый продавец вводит, что просит клиент —
+// «обувница», «кровать с ящиками», «дешёвый комод», «массив», — и видит
+// список фабрик, у которых этого больше всего и куда смотреть в первую очередь.
+//
+// Две части:
+//  1. Шпаргалка (GUIDE_CATS ниже) — собрана вручную по всем 63 прайсам из папки
+//     «прайсы» (разбор 24.09.2026): порядок фабрик = у кого больше моделей,
+//     уровень цены = сравнение оптовых цен одинаковых изделий между фабриками.
+//     Это подсказка, а не прайс: сами цены и модели смотреть в поиске.
+//  2. «Сейчас в загруженных прайсах» — живой подсчёт по таблице price_items:
+//     сколько позиций у каждой фабрики по этому запросу и в каком диапазоне
+//     розничных цен. Всегда актуально, само обновляется после загрузки прайсов.
+// В базе ничего не пишется, SQL не нужен.
+
+// Уровень цены: 1 — недорого, 2 — средне, 3 — дороже (относительно нашего
+// ассортимента, по оптовым ценам одинаковых изделий).
+var GUIDE_LVL={1:{t:'недорого',c:'#1B5E20',bg:'#E8F5E9'},2:{t:'средне',c:'#8a6d00',bg:'#FFF8E1'},3:{t:'дороже',c:'#BF360C',bg:'#FBE9E7'}};
+
+// Фабрики: общий уровень цены, из чего делают, что у них главное.
+// al — как фабрика может называться в загруженных прайсах (для кнопки «товары»).
+var GUIDE_F={
+  'МиФ':{l:2,al:['миф'],w:'Самый большой ассортимент корпусной мебели: шкафы, пеналы, тумбы ТВ, комоды, прихожие, кровати (в т.ч. с подъёмным механизмом), двухъярусные, готовые кухни.'},
+  'Браво':{l:3,al:['браво','bravo'],wood:1,w:'Кровати из массива сосны (самый большой выбор), мягкие кровати и диваны «ММ Стандарт», корпус в лаке — комоды, витрины, шкафы. Матрасы Армос.'},
+  'Брянск Мебель':{l:3,al:['брянск'],wood:1,w:'Кровати из массива (спинки + царги + основание), стиль шебби-шик (кровати и корпус), мягкие кровати, столы и стулья.'},
+  'БТС (Мебелони)':{l:2,al:['бтс','мебелони','мтк'],w:'Шкафы-купе Хьюго и Аврора, гардеробная система Тринити, коллекция Пандора, модульные кухни, прихожие, тумбы ТВ.'},
+  'МК Стиль':{l:1,al:['мк стиль','мкстиль'],w:'Кухни (фирменные коллекции, Виола), гостиные-стенки, спальни, детские, шкафы, обеденные группы, полки и стеллажи.'},
+  'РАУС':{l:1,al:['раус'],w:'Кухни Чарли и Студия, готовые кухни 1,6 и 2 м, модульные системы Тесс, Прованс, Янна, детские Колибри и Буква, обувницы, эконом-мебель.'},
+  'МИКОН':{l:1,al:['микон'],w:'Модульные системы (Мередит, Бруклин, Вальтер, Мади, Дюплекс) и модульные кухни. В прайсе базовая цена — розница выше.'},
+  'Интерьер-Центр':{l:1,al:['интерьер'],w:'Модульные кухни (система София), шкафы-купе, пеналы, тумбы ТВ, прихожие.'},
+  'Стендмебель (Пенза)':{l:1,al:['стендмебель','стенд'],w:'Модульные кухни (корпус белый или «крафт»), готовые кухни Хелен, шкафы НОРД, шкафы-купе Альянс, детские кровати Алиса.'},
+  'Термит (Пенза)':{l:1,al:['термит'],w:'Недорогие кровати (мягкие, с подъёмным механизмом), диван-кровати, молодёжная и компьютерная мебель, прихожие, гостиные, малые формы — обувницы, вешалки.'},
+  'Памир':{l:1,al:['памир'],w:'Стулья и табуреты (огромный выбор), обеденные столы (опора + столешница), корпус: шкафы-купе Альянс, прихожие, обувницы, пеналы, витрины.'},
+  'Росток':{l:2,al:['росток'],w:'Гостиные, кухни ЛДСП (Ольвия), кровати (Амалия — парящие), тумбы ТВ, журнальные и компьютерные столы.'},
+  'МебельГрад':{l:2,al:['мебельград'],wood:1,w:'Спальни, детские (двухъярусные), гостиные, прихожие, кровати из сосны (Рино, Эдит), матрасы. Мягкая мебель — угловые диваны (дорогие).'},
+  'Хочу Домой':{l:2,al:['хочу домой'],w:'Шкафы-купе (Классика, Классика Лайт, Smart) и прихожие-купе, кровати, кухонные уголки, столы и комоды.'},
+  'Восход':{l:1,al:['восход'],w:'Шкафы-купе Смарт, спальня Светлана, кровати КСП (без матраса), журнальные столы, обувницы. Есть распродажные цены — остатки уточнять.'},
+  'Союз (Прайс №1)':{l:2,al:['союз','прайс №1','прайс n1'],w:'Модульные системы для гостиной (Мегаполис, Оникс, Денвер и др.), витрины, шкафы, туалетные столики, вешалки.'},
+  'Модена/Фиделия (1С)':{l:3,al:['модена','фиделия'],w:'Прайс «Корпусная и металлическая мебель»: коллекции Модена, Фиделия, Лючия, металлические кровати Скарлетт, туалетные столы.'},
+  'Аскона':{l:3,al:['аскона','sontery'],w:'Матрасы — самый большой выбор серий, кровати (в т.ч. с подъёмным механизмом), основания с ламелями, подушки, наматрасники.'},
+  'ФСМ':{l:2,al:['фсм'],w:'Матрасы (Пионер, Премьер, Фаворит, Флагман, Монарх и др.), детские Кроха, топперы, наматрасники.'},
+  'Квартет':{l:2,al:['квартет'],w:'Диваны (аккордеон, угловые), тахты, кресла, мягкие кровати с подъёмным механизмом. Цена зависит от категории ткани.'},
+  'Про-диван':{l:2,al:['про-диван','продиван'],w:'Диваны, угловые диваны, тахты, кресла, мягкие кровати. Цена зависит от категории ткани.'},
+  'Диваны Про':{l:1,al:['диваны про','диваны pro'],w:'Недорогие диваны-кровати, кресла-кровати, кресла.'},
+  'Боринское':{l:2,al:['боринск'],wood:1,w:'Кухонные уголки (главное), мягкая мебель, шкафы, комоды и кровати из массива сосны, спальные гарнитуры, детские двухъярусные.'},
+  'РИАЛ':{l:2,al:['риал'],w:'Обеденные столы (стекло, керамика, фотопечать), стулья на металле и на опорах из бука, мини-диваны, пуфы.'},
+  'Листвиг':{l:1,al:['листвиг','listvig'],w:'Недорогие стулья и столы, есть распродажа остатков.'},
+  'Каспий':{l:2,al:['каспий'],wood:1,w:'Обеденные столы (раздвижные, бук), стулья.'},
+  'Стул Элит':{l:2,al:['стул элит','стул-элит'],w:'Стулья, табуреты, столы.'},
+  'ВВ Мебель':{l:1,al:['вв мебель','вв-мебель'],w:'Интерьерные и хромированные стулья, столы, шкафы, кухни, модульная система Барыня.'}
+};
+
+// Категории. need — группы слов: категория подходит, если в запросе есть слово
+// из КАЖДОЙ группы (основы слов, без окончаний). q — что искать в прайсах для
+// живого подсчёта (тоже группы: внутри группы «или», между группами «и»).
+// f — фабрики по порядку «у кого больше»: [фабрика, уровень цены именно в этой
+// категории (0 — общий уровень фабрики), пометка].
+var GUIDE_CATS=[
+  // ── Спальня ──
+  {g:'Спальня',n:'Кровати',need:[['кроват']],q:[['кроват']],f:[
+    ['МиФ',2,'больше всех моделей, ЛДСП'],['Браво',2,'массив сосны и мягкие'],['МебельГрад',2,'в т.ч. сосна Рино, Эдит'],['Аскона',3,'мягкие'],
+    ['Памир',1,''],['Термит (Пенза)',1,'самые недорогие'],['Росток',2,'Амалия — парящие'],['БТС (Мебелони)',0,''],['Квартет',0,'мягкие с подъёмным механизмом'],['Брянск Мебель',3,'массив, шебби'],['Боринское',0,'сосна'],['Хочу Домой',0,'']]},
+  {g:'Спальня',n:'Кровати с подъёмным механизмом',need:[['кроват','спальн'],['подъем','механизм','газлифт',' пм ']],q:[['кроват'],['подъем','механизм','газлифт']],f:[
+    ['МиФ',2,'больше всех'],['Аскона',3,''],['Браво',0,'мягкие «ММ Стандарт»'],['Квартет',2,'мягкие'],['Про-диван',2,'мягкие'],['Росток',0,''],['МК Стиль',0,''],['Термит (Пенза)',1,''],['Модена/Фиделия (1С)',0,'Фиделия с газлифтом']]},
+  {g:'Спальня',n:'Кровати с ящиками',need:[['кроват'],['ящик']],q:[['кроват'],['ящик']],f:[
+    ['Браво',0,'выкатные ящики к кроватям из массива'],['Памир',1,''],['МиФ',0,''],['Росток',0,''],['Боринское',0,'комплекты выкатных ящиков'],['МебельГрад',0,'']]},
+  {g:'Спальня',n:'Мебель из массива (дерево)',need:[['массив','дерев','сосн','натуральн',' бук ']],q:[['массив','сосн','бук']],f:[
+    ['Браво',3,'кровати из массива сосны — главный'],['Брянск Мебель',3,'кровати из массива, шебби'],['Боринское',2,'шкафы, комоды, кровати из сосны'],['МебельГрад',2,'кровати Рино, Эдит (сосна)'],
+    ['Каспий',2,'обеденные столы из бука'],['РИАЛ',2,'стулья на опорах из бука'],['Стул Элит',2,'табуреты']]},
+  {g:'Спальня',n:'Двухъярусные кровати и чердаки',need:[['двухъярус','двухярус','2-х ярус','2х ярус','чердак','ярусн']],q:[['ярус','чердак']],f:[
+    ['МиФ',0,'больше всех'],['МебельГрад',0,''],['Памир',1,''],['Браво',3,'массив'],['Боринское',2,'Фламинго, Фрегат — сосна'],['МК Стиль',0,''],['Росток',0,''],['РАУС',0,'чердаки']]},
+  {g:'Спальня',n:'Матрасы',need:[['матрас','матрац','топпер','наматрас']],q:[['матрас','матрац']],f:[
+    ['Аскона',3,'самый большой выбор'],['ФСМ',2,''],['Браво',0,'Армос'],['МебельГрад',0,'матрасы-ортопеды']]},
+  {g:'Спальня',n:'Основания для кровати (ламели)',need:[['основани','ламел','решетк']],q:[['основани','ламел']],f:[
+    ['Аскона',3,''],['Браво',0,'к своим кроватям'],['МебельГрад',0,''],['Боринское',0,''],['Брянск Мебель',0,'комплектующие к кроватям'],['Модена/Фиделия (1С)',0,'']]},
+  {g:'Спальня',n:'Тумбы прикроватные',need:[['прикроват']],q:[['прикроват']],f:[
+    ['МиФ',2,''],['Браво',3,'в лаке'],['БТС (Мебелони)',1,''],['Памир',1,''],['Росток',1,''],['Термит (Пенза)',1,''],['Боринское',2,'массив сосны'],['МК Стиль',1,'']]},
+  {g:'Спальня',n:'Спальные гарнитуры',need:[['спальн'],['гарнитур','комплект','спальня']],q:[['спальн']],f:[
+    ['МебельГрад',2,'больше всех'],['МК Стиль',1,''],['Боринское',2,'массив сосны'],['Термит (Пенза)',1,''],['Росток',0,''],['Восход',1,'Светлана']]},
+  {g:'Спальня',n:'Комоды',need:[['комод']],q:[['комод']],f:[
+    ['МиФ',2,'больше всех'],['Браво',3,'в лаке'],['Памир',2,''],['БТС (Мебелони)',1,''],['Росток',2,''],['МебельГрад',2,''],['МК Стиль',1,'самые недорогие'],['Термит (Пенза)',2,''],
+    ['Брянск Мебель',3,'массив, шебби'],['РАУС',1,''],['МИКОН',1,''],['Боринское',3,'массив сосны']]},
+  {g:'Спальня',n:'Туалетные столики и трюмо',need:[['туалетн','трюмо','косметич','будуар']],q:[['туалетн','трюмо']],f:[
+    ['МиФ',0,''],['Союз (Прайс №1)',0,''],['МебельГрад',0,''],['Модена/Фиделия (1С)',0,''],['Боринское',0,''],['Термит (Пенза)',0,'']]},
+  // ── Шкафы ──
+  {g:'Шкафы',n:'Шкафы распашные',need:[['шкаф'],['распашн','створчат','двер','шкаф']],not:['купе'],q:[['шкаф']],f:[
+    ['МиФ',2,'больше всех'],['МК Стиль',1,''],['Памир',1,''],['Браво',3,'в лаке'],['БТС (Мебелони)',0,''],['МебельГрад',0,''],['Росток',0,''],['Стендмебель (Пенза)',1,'НОРД'],
+    ['Боринское',3,'массив сосны'],['Брянск Мебель',3,'шебби'],['ВВ Мебель',1,'']]},
+  {g:'Шкафы',n:'Шкафы-купе',need:[['купе']],q:[['купе']],f:[
+    ['БТС (Мебелони)',2,'Хьюго, Аврора — главный'],['Хочу Домой',2,'только купе: Классика, Smart, любые фасады'],['МиФ',2,''],['Восход',2,'Смарт'],['МК Стиль',2,''],
+    ['Интерьер-Центр',1,'самые недорогие'],['Росток',1,''],['Стендмебель (Пенза)',1,'Альянс'],['Памир',2,'Альянс'],['Термит (Пенза)',1,'']]},
+  {g:'Шкафы',n:'Гардеробные',need:[['гардероб']],q:[['гардероб']],f:[
+    ['БТС (Мебелони)',2,'Тринити — собирается из корпусов, створок и ящиков']]},
+  {g:'Шкафы',n:'Пеналы',need:[['пенал']],q:[['пенал']],f:[
+    ['МиФ',0,'больше всех'],['Памир',1,''],['МК Стиль',0,''],['БТС (Мебелони)',0,''],['Термит (Пенза)',1,''],['РАУС',1,''],['Интерьер-Центр',1,''],['Союз (Прайс №1)',0,'']]},
+  // ── Гостиная ──
+  {g:'Гостиная',n:'Стенки, гостиные, горки',need:[['стенк','гостин','горк','модульн систем']],q:[['гостин','стенк','горк']],f:[
+    ['МиФ',2,'больше всех'],['МебельГрад',2,''],['Браво',3,'в лаке'],['МК Стиль',1,''],['Союз (Прайс №1)',2,'модульные системы Мегаполис, Оникс…'],['МИКОН',1,'модульные системы'],
+    ['Интерьер-Центр',1,''],['БТС (Мебелони)',0,''],['Росток',0,'Прима'],['Термит (Пенза)',1,''],['Восход',1,'']]},
+  {g:'Гостиная',n:'Тумбы под ТВ',need:[[' тв ',' tv ','телевиз']],q:[[' тв','тв ','tv','телевиз']],f:[
+    ['МиФ',2,'больше всех'],['МК Стиль',1,''],['БТС (Мебелони)',1,''],['Росток',1,'самые недорогие'],['Интерьер-Центр',1,''],['МИКОН',1,''],['РАУС',1,''],
+    ['Термит (Пенза)',1,''],['Союз (Прайс №1)',2,''],['Браво',3,'в лаке']]},
+  {g:'Гостиная',n:'Журнальные столики',need:[['журнальн','кофейн']],q:[['журнальн']],f:[
+    ['Росток',1,''],['МИКОН',1,'самые недорогие'],['МебельГрад',2,''],['МиФ',2,''],['Браво',3,''],['Боринское',2,''],['Восход',1,''],['МК Стиль',1,''],['Стул Элит',3,'']]},
+  {g:'Гостиная',n:'Витрины',need:[['витрин']],q:[['витрин']],f:[
+    ['Браво',3,'в лаке, больше всех'],['Памир',1,''],['МебельГрад',2,''],['Союз (Прайс №1)',2,''],['РАУС',0,''],['Брянск Мебель',3,'']]},
+  {g:'Гостиная',n:'Стеллажи и полки',need:[['стеллаж','полк','этажерк']],q:[['стеллаж','полк']],f:[
+    ['МиФ',0,'больше всех'],['МебельГрад',0,''],['МК Стиль',1,''],['Термит (Пенза)',1,''],['БТС (Мебелони)',0,''],['Памир',1,''],['МИКОН',1,'']]},
+  // ── Прихожая ──
+  {g:'Прихожая',n:'Прихожие',need:[['прихож']],q:[['прихож']],f:[
+    ['МиФ',2,'больше всех'],['БТС (Мебелони)',2,''],['Интерьер-Центр',1,''],['МебельГрад',2,''],['Термит (Пенза)',2,''],['Хочу Домой',3,'прихожие-купе'],
+    ['Браво',2,''],['МК Стиль',2,''],['МИКОН',1,''],['Памир',1,''],['Стендмебель (Пенза)',1,'самые недорогие'],['РАУС',2,'']]},
+  {g:'Прихожая',n:'Обувницы',need:[['обувниц','обув','галошниц']],q:[['обувниц','обув']],f:[
+    ['РАУС',1,'больше всех'],['Памир',1,''],['МиФ',3,''],['БТС (Мебелони)',2,''],['Термит (Пенза)',1,''],['МИКОН',1,''],['МК Стиль',1,''],['Росток',2,''],['Восход',1,'']]},
+  {g:'Прихожая',n:'Вешалки',need:[['вешалк']],q:[['вешалк']],f:[
+    ['МиФ',0,'больше всех'],['Термит (Пенза)',1,''],['Памир',1,''],['Росток',0,''],['Союз (Прайс №1)',0,''],['МебельГрад',0,''],['МК Стиль',0,'']]},
+  {g:'Прихожая',n:'Зеркала',need:[['зеркал']],q:[['зеркал']],f:[
+    ['МиФ',0,'больше всех'],['Браво',3,''],['МебельГрад',0,''],['Росток',0,''],['Памир',1,''],['Союз (Прайс №1)',0,''],['Термит (Пенза)',1,''],['БТС (Мебелони)',0,'']]},
+  {g:'Прихожая',n:'Пуфы и банкетки',need:[['пуф','банкетк']],q:[['пуф','банкетк']],f:[
+    ['Памир',1,'больше всех'],['МебельГрад',2,''],['Термит (Пенза)',1,''],['Квартет',2,''],['Про-диван',2,''],['Браво',0,''],['РИАЛ',2,''],['Каспий',2,'']]},
+  // ── Кухня и столовая ──
+  {g:'Кухня',n:'Кухни',need:[['кухн','гарнитур']],not:['уголок','уголк','стол','стул'],q:[['кухн']],f:[
+    ['МиФ',2,'готовые кухни — больше всех'],['РАУС',1,'Чарли, Студия, готовые 1,6 и 2 м'],['МК Стиль',1,'фирменные коллекции, Виола'],['МИКОН',1,'модульные'],['БТС (Мебелони)',2,'модульные'],
+    ['Интерьер-Центр',1,'модульные София'],['Стендмебель (Пенза)',1,'модульные + готовые Хелен'],['Росток',2,'ЛДСП Ольвия'],['ВВ Мебель',1,'']]},
+  {g:'Кухня',n:'Кухонные уголки',need:[['уголок','уголк','скамь'],['кухн','уголок','уголк']],q:[['уголок','уголк']],f:[
+    ['Боринское',2,'главный — уголок + стол + табуреты'],['Хочу Домой',2,''],['Квартет',2,''],['Про-диван',2,''],['Термит (Пенза)',1,''],['МК Стиль',1,'']]},
+  {g:'Кухня',n:'Обеденные столы',need:[['стол'],['обеден','кухонн','раздвиж','раскладн','стекл','керамик','кругл','овальн','обеда']],q:[['стол'],['обеден','раздвиж','раскладн','стекл','керамик']],f:[
+    ['РИАЛ',2,'главный: стекло, керамика, фотопечать'],['Памир',1,'опора + столешница, много'],['Каспий',2,'раздвижные, бук'],['Листвиг',1,'недорогие'],['Боринское',2,''],['МК Стиль',1,'обеденные группы'],
+    ['ВВ Мебель',1,''],['Хочу Домой',0,''],['Росток',0,''],['Брянск Мебель',3,'']]},
+  {g:'Кухня',n:'Стулья',need:[['стул']],q:[['стул']],f:[
+    ['Памир',2,'огромный выбор'],['Листвиг',1,'самые недорогие'],['РИАЛ',2,'на металле и на буке'],['ВВ Мебель',1,'интерьерные, хром'],['Каспий',2,''],['Стул Элит',2,''],['Боринское',2,''],['МК Стиль',1,''],['Брянск Мебель',3,'']]},
+  {g:'Кухня',n:'Табуреты',need:[['табурет']],q:[['табурет']],f:[
+    ['Памир',0,'больше всех'],['Боринское',0,''],['РИАЛ',0,''],['Стул Элит',0,'массив'],['Каспий',0,'бук']]},
+  {g:'Кухня',n:'Обеденные группы (стол + стулья)',need:[['обеден','стол'],['групп','комплект','стулья','набор']],q:[['обеден','групп']],f:[
+    ['МК Стиль',1,'коллекции обеденных групп'],['Боринское',2,'уголок + стол + табуреты'],['Памир',1,'стол и стулья одной фабрики']]},
+  // ── Мягкая мебель ──
+  {g:'Мягкая',n:'Диваны',need:[['диван','софа']],q:[['диван']],f:[
+    ['Квартет',2,'больше всех, аккордеоны'],['Про-диван',2,''],['МебельГрад',3,''],['Браво',2,'«ММ Стандарт»'],['Боринское',1,''],['Диваны Про',1,'самые недорогие'],['РИАЛ',2,'мини-диваны']]},
+  {g:'Мягкая',n:'Угловые диваны',need:[['диван'],['углов','угол']],q:[['диван'],['углов']],f:[
+    ['МебельГрад',3,''],['Квартет',2,''],['Про-диван',2,''],['Диваны Про',1,'']]},
+  {g:'Мягкая',n:'Диван-кровати (раскладные)',need:[['диван'],['кроват','аккордеон','книжк','раскладн','спальн','еврокниж']],q:[['диван'],['кроват','аккордеон','книжк','сп.мест','спальн']],f:[
+    ['Квартет',2,'аккордеон'],['Про-диван',2,''],['Диваны Про',1,'недорогие'],['Браво',2,''],['Термит (Пенза)',1,'Сантана']]},
+  {g:'Мягкая',n:'Кресла',need:[['кресл']],not:['кроват'],q:[['кресл']],f:[
+    ['Диваны Про',1,''],['Квартет',2,''],['Про-диван',2,''],['МебельГрад',3,''],['Браво',2,''],['Боринское',2,''],['РИАЛ',2,'']]},
+  {g:'Мягкая',n:'Кресла-кровати',need:[['кресл'],['кроват']],q:[['кресл'],['кроват']],f:[
+    ['Диваны Про',1,'больше всех'],['Браво',2,''],['Квартет',2,''],['Про-диван',2,'']]},
+  {g:'Мягкая',n:'Тахты и софы',need:[['тахт','софа','софу','софы']],q:[['тахт','софа','софы']],f:[
+    ['Квартет',2,''],['Про-диван',2,''],['Памир',1,''],['Диваны Про',1,''],['Боринское',2,'']]},
+  // ── Детская и рабочее место ──
+  {g:'Детская',n:'Детская и молодёжная мебель',need:[['детск','молодеж','подростк','ребен','школьн']],q:[['детск','молодеж','подростк']],f:[
+    ['МебельГрад',2,'больше всех'],['МК Стиль',1,''],['Термит (Пенза)',1,'молодёжная'],['Боринское',2,'двухъярусные из сосны'],['РАУС',1,'Колибри, Буква'],['МИКОН',1,''],['МиФ',2,''],['Стендмебель (Пенза)',1,'кровати Алиса']]},
+  {g:'Детская',n:'Письменные и компьютерные столы',need:[['письмен','компьютер','ноутбук','школьн','рабоч']],q:[['письмен','компьютер']],f:[
+    ['МиФ',2,'больше всех'],['Росток',1,''],['МК Стиль',1,''],['Памир',1,''],['БТС (Мебелони)',2,''],['МебельГрад',2,''],['Термит (Пенза)',1,''],['МИКОН',1,''],['Союз (Прайс №1)',2,'']]}
+];
+
+// Слова, которые меняют порядок, а не сам товар
+var _GD_CHEAP=/деш[её]в|недорог|эконом|бюджет|подешевл|попроще|дешевк|самый деш/;
+var _GD_DEAR=/дорог|премиум|элитн|подорож|качествен|получше/;
+var _GD_WOOD=/массив|дерев|сосн|натурал|(^|\s)бук(\s|$)/;
+
+function _gdNorm(s){return ' '+String(s||'').toLowerCase().replace(/ё/g,'е').replace(/[«»"',.;:!?()]/g,' ').replace(/\s+/g,' ').trim()+' ';}
+// Убрать из запроса слова «дешёвый», «подороже» — они про порядок, не про товар
+function _gdStripMods(q){
+  return ' '+String(q).split(' ').filter(function(w){return w&&!_GD_CHEAP.test(w)&&!_GD_DEAR.test(w);}).join(' ')+' ';
+}
+// Совпала ли основа: « тв» и « пм» пишутся с пробелом — это целые слова
+function _gdHas(q,stem){return q.indexOf(stem)>=0;}
+function _gdMatchCats(q){
+  var out=[];
+  GUIDE_CATS.forEach(function(c,i){
+    if(c.not&&c.not.some(function(s){return _gdHas(q,s);}))return;
+    var ok=c.need.every(function(gr){return gr.some(function(s){return _gdHas(q,s);});});
+    if(ok)out.push({c:c,i:i,score:c.need.length});
+  });
+  // Самая точная категория — первой: «кровать с ящиками» важнее «кроватей вообще»
+  out.sort(function(a,b){return b.score-a.score||a.i-b.i;});
+  return out;
+}
+function _gdMatchFactory(q){
+  var t=q.trim();if(t.length<3)return null;
+  for(var name in GUIDE_F){
+    var F=GUIDE_F[name];
+    if(_gdNorm(name).indexOf(t)>=0)return name;
+    if((F.al||[]).some(function(a){return a.length>=3&&(t.indexOf(a)>=0||a.indexOf(t)>=0);}))return name;
+  }
+  return null;
+}
+function _gdLvl(l){
+  var L=GUIDE_LVL[l];if(!L)return'';
+  return '<span style="display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:10px;background:'+L.bg+';color:'+L.c+';white-space:nowrap">'+L.t+'</span>';
+}
+
+var _gdTimer=null,_gdSeq=0,_gdCur=null;
+function guideLive(){
+  clearTimeout(_gdTimer);
+  _gdTimer=setTimeout(renderGuide,200);
+}
+function guidePick(i){
+  var c=GUIDE_CATS[i];if(!c)return;
+  var inp=document.getElementById('gd-input');
+  if(inp)inp.value=c.n.toLowerCase();
+  renderGuide(i);
+}
+function guideReset(){
+  var inp=document.getElementById('gd-input');if(inp){inp.value='';inp.focus();}
+  renderGuide();
+}
+
+// Главная отрисовка. forceIdx — категория, выбранная кликом по списку.
+function renderGuide(forceIdx){
+  var box=document.getElementById('gd-results');if(!box)return;
+  var raw=((document.getElementById('gd-input')||{}).value||'');
+  var q=_gdNorm(raw);
+  var cheap=_GD_CHEAP.test(q),dear=!cheap&&_GD_DEAR.test(q),wood=_GD_WOOD.test(q);
+  var matches=(forceIdx!=null&&GUIDE_CATS[forceIdx])?[{c:GUIDE_CATS[forceIdx],i:forceIdx,score:9}]:(raw.trim().length>=2?_gdMatchCats(q):[]);
+  var fac=(!matches.length&&raw.trim().length>=3)?_gdMatchFactory(q):null;
+  var html='';
+  if(!raw.trim()&&forceIdx==null){
+    html=_gdIndexHtml();
+    _gdCur=null;
+    box.innerHTML=html;
+    return;
+  }
+  if(fac){
+    html+=_gdFactoryHtml(fac);
+    _gdCur=null;
+    box.innerHTML=html;
+    return;
+  }
+  if(!matches.length){
+    html+='<div style="padding:12px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;font-size:13px;line-height:1.5;margin-bottom:12px">'
+      +'В шпаргалке такого раздела нет. Ниже — что нашлось по этим словам в загруженных прайсах. '
+      +'Или выберите раздел из списка: <a href="#" onclick="guideReset();return false" style="color:#1565C0">показать все разделы</a>.</div>';
+    html+='<div id="gd-live"></div>';
+    box.innerHTML=html;
+    _gdLiveRun(null,raw);
+    return;
+  }
+  var main=matches[0].c;
+  _gdCur=main;
+  var list=main.f.map(function(r,ix){
+    var F=GUIDE_F[r[0]]||{};
+    return {name:r[0],lvl:r[1]||F.l||2,note:r[2]||'',wood:!!F.wood||/массив|сосн|бук/i.test(r[2]||''),ix:ix};
+  });
+  var hint=[];
+  if(wood&&!/массив/i.test(main.n)){
+    var w=list.filter(function(x){return x.wood;});
+    if(w.length){list=w;hint.push('только фабрики, у которых есть массив');}
+    else hint.push('у этих фабрик в прайсах массив не отмечен — спросите у владельца');
+  }
+  if(cheap){list.sort(function(a,b){return a.lvl-b.lvl||a.ix-b.ix;});hint.push('сначала недорогие');}
+  if(dear){list.sort(function(a,b){return b.lvl-a.lvl||a.ix-b.ix;});hint.push('сначала подороже');}
+  html+='<div class="card" style="padding:16px 18px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    +'<div style="font-size:17px;font-weight:700">'+esc(main.n)+' <span style="font-size:12px;font-weight:400;color:var(--text2)">· '+esc(main.g)+'</span></div>'
+    +(hint.length?'<div style="font-size:12px;color:#1565C0">'+hint.join(' · ')+'</div>':'<div style="font-size:12px;color:var(--text2)">по порядку: у кого больше выбор</div>')
+    +'</div>';
+  list.forEach(function(x,n){
+    var F=GUIDE_F[x.name]||{};
+    html+='<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--border)">'
+      +'<div style="width:22px;flex-shrink:0;text-align:right;font-weight:700;color:'+(n<3?'#1F4E79':'#9e9e9e')+'">'+(n+1)+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><a href="#" onclick="guideShowFactory(\''+x.name.replace(/'/g,"\\'")+'\');return false" style="font-weight:600;font-size:14px;color:#1a1a1a;text-decoration:none;border-bottom:1px dashed #999">'+esc(x.name)+'</a>'+_gdLvl(x.lvl)
+        +(x.wood?'<span style="font-size:11px;color:#6D4C41">🌲 массив</span>':'')+'</div>'
+        +(x.note?'<div style="font-size:12px;color:var(--text2);margin-top:2px">'+esc(x.note)+'</div>':'')
+      +'</div>'
+      +'<button class="btn btn-outline" style="padding:4px 10px;font-size:12px;flex-shrink:0" onclick="guideToSearch('+GUIDE_CATS.indexOf(main)+',\''+x.name.replace(/'/g,"\\'")+'\')" title="Открыть товары этой фабрики в умном поиске">🔍 товары</button>'
+      +'</div>';
+  });
+  html+='<div style="font-size:11px;color:var(--text2);margin-top:8px;line-height:1.5">«недорого / средне / дороже» — сравнение оптовых цен одинаковых изделий у разных фабрик. Сами цены и модели смотрите кнопкой «🔍 товары» или ниже.</div>'
+    +'</div>';
+  // Остальные подходящие разделы
+  if(matches.length>1){
+    html+='<div style="font-size:12px;color:var(--text2);margin:-6px 0 12px">Ещё по запросу: '
+      +matches.slice(1,6).map(function(m){return '<a href="#" onclick="guidePick('+m.i+');return false" style="color:#1565C0;margin-right:10px">'+esc(m.c.n)+'</a>';}).join('')+'</div>';
+  }
+  html+='<div id="gd-live"></div>';
+  box.innerHTML=html;
+  _gdLiveRun(main,raw);
+}
+
+// Список всех разделов — стартовый экран
+function _gdIndexHtml(){
+  var groups={},order=[];
+  GUIDE_CATS.forEach(function(c,i){if(!groups[c.g]){groups[c.g]=[];order.push(c.g);}groups[c.g].push(i);});
+  var h='<div class="card" style="padding:16px 18px">';
+  order.forEach(function(g){
+    h+='<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">'+esc(g)+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+      +groups[g].map(function(i){return '<button class="btn btn-outline" style="padding:5px 11px;font-size:12.5px" onclick="guidePick('+i+')">'+esc(GUIDE_CATS[i].n)+'</button>';}).join('')
+      +'</div></div>';
+  });
+  h+='<div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px"><div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Фабрики — что у кого есть</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+    +Object.keys(GUIDE_F).map(function(n){return '<button class="btn btn-outline" style="padding:4px 10px;font-size:12px" onclick="guideShowFactory(\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+'</button>';}).join('')
+    +'</div></div></div>';
+  return h;
+}
+
+// Карточка фабрики: что делает и где она в шпаргалке
+function guideShowFactory(name){
+  var box=document.getElementById('gd-results');if(!box)return;
+  box.innerHTML=_gdFactoryHtml(name);
+  try{box.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}
+}
+function _gdFactoryHtml(name){
+  var F=GUIDE_F[name]||{};
+  var cats=[];
+  GUIDE_CATS.forEach(function(c,i){
+    c.f.forEach(function(r,ix){if(r[0]===name)cats.push({i:i,n:c.n,pos:ix+1,lvl:r[1]||F.l});});
+  });
+  cats.sort(function(a,b){return a.pos-b.pos;});
+  var h='<div class="card" style="padding:16px 18px">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><div style="font-size:17px;font-weight:700">🏭 '+esc(name)+'</div>'+_gdLvl(F.l)+(F.wood?'<span style="font-size:12px;color:#6D4C41">🌲 есть массив</span>':'')+'</div>'
+    +(F.w?'<div style="font-size:13px;line-height:1.55;margin-bottom:10px">'+esc(F.w)+'</div>':'')
+    +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Где эта фабрика в шпаргалке (место в списке)</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+    +cats.map(function(c){return '<button class="btn btn-outline" style="padding:4px 10px;font-size:12px" onclick="guidePick('+c.i+')">'+esc(c.n)+' <span style="color:'+(c.pos<=3?'#1B5E20':'#9e9e9e')+';font-weight:700">№'+c.pos+'</span></button>';}).join('')
+    +'</div>'
+    +'<div style="margin-top:12px"><a href="#" onclick="guideReset();return false" style="font-size:12px;color:#1565C0">← все разделы</a></div>'
+    +'</div>';
+  return h;
+}
+
+// ── Живой подсчёт по загруженным прайсам ────────────────────────────
+// Группы основ → условие PostgREST: and(or(…),or(…))
+function _gdConds(groups){
+  var nm=function(v){return (typeof _gsNormCol!=='undefined'&&_gsNormCol)?'search_name.ilike.'+_normPat(v):'product_name.ilike.'+_ilikePat(v);};
+  return groups.map(function(gr){return 'or('+gr.map(function(s){return nm(String(s));}).join(',')+')';});
+}
+function _gdFreeGroups(raw){
+  var q=_gdStripMods(_gdNorm(raw));
+  var words=q.split(' ').filter(function(w){return w.length>=3&&!(typeof _SS_STOP!=='undefined'&&_SS_STOP.test(w));});
+  return words.slice(0,4).map(function(w){return [typeof _ssStem==='function'?_ssStem(w):w];});
+}
+function _gdLiveRun(cat,raw){
+  var el=document.getElementById('gd-live');if(!el)return;
+  var groups=cat?cat.q:_gdFreeGroups(raw);
+  if(!groups.length){el.innerHTML='';return;}
+  var seq=++_gdSeq;
+  el.innerHTML='<div class="card" style="padding:14px 18px"><div style="font-size:13px;color:var(--text2)">📦 Считаю по загруженным прайсам…</div></div>';
+  var conds=_gdConds(groups);
+  var sel='supplier,price_opt,price_retail'+((typeof _gsFactoryCol==='undefined'||_gsFactoryCol)?',factory':'');
+  sbGetAll('price_items','select='+sel+'&and=('+conds.join(',')+')&order=id.asc',6000)
+  .then(function(rows){
+    if(seq!==_gdSeq)return;
+    el.innerHTML=_gdLiveHtml(rows||[],cat,raw);
+  }).catch(function(e){
+    if(seq!==_gdSeq)return;
+    var msg=(e&&e.message)||'';
+    if(typeof _gsNormCol!=='undefined'&&_gsNormCol&&/search_name/i.test(msg)){_gsNormCol=false;_gdLiveRun(cat,raw);return;}
+    if(typeof _gsFactoryCol!=='undefined'&&_gsFactoryCol&&/factory/i.test(msg)){_gsFactoryCol=false;_gdLiveRun(cat,raw);return;}
+    el.innerHTML='<div class="card" style="padding:14px 18px;font-size:13px;color:#c62828">Не удалось посчитать по прайсам: '+esc(msg.slice(0,160))+'</div>';
+  });
+}
+function _gdRetail(r){
+  var ret=+r.price_retail||0;
+  if(ret>0)return ret;
+  return retailFromOpt(+r.price_opt||0);
+}
+function _gdLiveHtml(rows,cat,raw){
+  var by={},total=0;
+  rows.forEach(function(r){
+    var fk=String(r.factory||'').trim();
+    var k=fk||String(r.supplier||'').trim()||'без названия';
+    if(!by[k])by[k]={n:0,p:[],sup:!fk};
+    by[k].n++;total++;
+    var p=_gdRetail(r);if(p>0)by[k].p.push(p);
+  });
+  var list=Object.keys(by).map(function(k){
+    var p=by[k].p.sort(function(a,b){return a-b;});
+    return {name:k,sup:by[k].sup,n:by[k].n,min:p.length?p[0]:0,med:p.length?p[Math.floor(p.length/2)]:0,max:p.length?p[p.length-1]:0};
+  }).sort(function(a,b){return b.n-a.n;});
+  var h='<div class="card" style="padding:16px 18px">'
+    +'<div class="card-title" style="margin-bottom:6px">📦 Сейчас в загруженных прайсах</div>';
+  if(!list.length){
+    return h+'<div style="font-size:13px;color:var(--text2)">В загруженных прайсах по этому запросу ничего не нашлось'+(cat?' — значит, прайсы этих фабрик ещё не загружены или товар называется иначе.':'.')+'</div></div>';
+  }
+  h+='<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Всего позиций: <strong>'+fmt(total)+'</strong>'+(total>=6000?'+ (показаны первые 6000)':'')+' · у '+list.length+' фабрик. Позиция — это строка прайса: у одной модели бывает несколько размеров и цветов. Цены — розничные.</div>';
+  var maxN=list[0].n;
+  list.slice(0,20).forEach(function(x){
+    var w=Math.max(3,Math.round(x.n/maxN*100));
+    var price=x.min?('от '+fmt(x.min)+' ₽'+(x.max>x.min?' до '+fmt(x.max)+' ₽':'')+(x.med&&x.max>x.min?' <span style="color:var(--text2)">· обычно ~'+fmt(x.med)+'</span>':'')):'<span style="color:var(--text2)">без цены</span>';
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border);flex-wrap:wrap">'
+      +'<div style="width:170px;min-width:120px;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.name)+'">'+esc(x.name)+'</div>'
+      +'<div style="flex:1;min-width:120px;display:flex;align-items:center;gap:8px"><div style="height:8px;border-radius:4px;background:#2E75B6;width:'+w+'%;max-width:220px"></div><span style="font-size:12px;font-weight:600">'+fmt(x.n)+'</span></div>'
+      +'<div style="font-size:12px;min-width:170px">'+price+'</div>'
+      +'<button class="btn btn-outline" style="padding:3px 9px;font-size:12px" onclick="guideToSearchRaw(\''+esc(x.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))+'\','+(x.sup?1:0)+')" title="Показать эти товары в умном поиске">🔍</button>'
+      +'</div>';
+  });
+  if(list.length>20)h+='<div style="font-size:12px;color:var(--text2);padding-top:6px">…и ещё '+(list.length-20)+' с меньшим выбором</div>';
+  return h+'</div>';
+}
+
+// ── Переход в умный поиск с фабрикой ─────────────────────────────────
+// Название фабрики в шпаргалке и в загруженных прайсах может отличаться
+// («МиФ» / «МИФ Прайс-лист…»), поэтому ищем по псевдонимам среди вариантов
+// списка «Фабрика» умного поиска.
+function _gdQueryText(cat){
+  var raw=((document.getElementById('gd-input')||{}).value||'').trim();
+  // Раздел выбран кликом — в поле его название («Стенки, гостиные, горки»):
+  // умный поиск искал бы ВСЕ эти слова сразу и не нашёл бы ничего. Берём
+  // по одной основе из каждой группы раздела.
+  if(cat&&(!raw||raw.toLowerCase()===cat.n.toLowerCase()))
+    return cat.q.map(function(gr){return String(gr[0]).trim();}).join(' ');
+  return _gdStripMods(_gdNorm(raw)).replace(/\s+/g,' ').trim();
+}
+function _gdOpenSmart(text,factoryValue,supplierValue){
+  showPage('prices');
+  var inp=document.getElementById('ss-input');
+  var sel=document.getElementById('ss-factory');
+  if(inp)inp.value=text||'';
+  if(sel){
+    if(factoryValue&&!Array.prototype.some.call(sel.options,function(o){return o.value===factoryValue;})){
+      var op=document.createElement('option');op.value=factoryValue;op.textContent=factoryValue;sel.appendChild(op);
+    }
+    sel.value=factoryValue||'';
+  }
+  var sup=document.getElementById('ss-supplier');
+  if(sup){
+    if(supplierValue&&!Array.prototype.some.call(sup.options,function(o){return o.value===supplierValue;})){
+      var op2=document.createElement('option');op2.value=supplierValue;op2.textContent=supplierValue;sup.appendChild(op2);
+    }
+    sup.value=supplierValue||'';
+  }
+  if(typeof smartSearchLive==='function')smartSearchLive();
+  setTimeout(function(){var c=inp&&inp.closest('.card');if(c)try{c.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}},150);
+}
+function guideToSearch(catIdx,name){
+  var cat=GUIDE_CATS[catIdx];
+  var F=GUIDE_F[name]||{};
+  var text=_gdQueryText(cat);
+  // список фабрик из прайсов (RPC) — чтобы попасть в точное название
+  sb('POST','rpc/price_summary',null).catch(function(){return null;}).then(function(g){
+    var names={};
+    (g||[]).forEach(function(r){if(r.factory)names[String(r.factory).trim()]=1;});
+    var al=(F.al||[]).concat([_supNorm(name)]);
+    var hit=Object.keys(names).filter(function(n){var nn=_supNorm(n);return al.some(function(a){return a&&nn.indexOf(a)>=0;});});
+    if(!hit.length){
+      _gdOpenSmart(text,'');
+      toast('Фабрики «'+name+'» в загруженных прайсах не нашлось — показываю по всем фабрикам','',5000);
+      return;
+    }
+    if(hit.length>1)toast('У «'+name+'» в прайсах несколько названий ('+hit.slice(0,4).join(', ')+') — показываю «'+hit[0]+'», другие можно выбрать в поле «Фабрика»','',7000);
+    _gdOpenSmart(text,hit[0]);
+  });
+}
+function guideToSearchRaw(dbName,isSupplier){
+  if(isSupplier)_gdOpenSmart(_gdQueryText(_gdCur),'',dbName);
+  else _gdOpenSmart(_gdQueryText(_gdCur),dbName,'');
+}
 function qrDataUrl(text,size){
   // QR генерируется ЛОКАЛЬНО встроенной библиотекой (data:URL) — печатается всегда,
   // даже без интернета. Раньше был внешний сервис api.qrserver.com — он не грузился,
@@ -8597,7 +9079,7 @@ function printOrder(id){
     var dparts=[];
     if(o.delivery_cost>0)dparts.push('доставка '+fmt(o.delivery_cost)+' ₽');
     if(o.lifting_cost>0)dparts.push('занос '+fmt(o.lifting_cost)+' ₽');
-    moneyRows+='<div class="mrow"><span>Доставка/занос ('+dparts.join(' + ')+')</span><strong>'
+    moneyRows+='<div class="mrow"><span>'+delivLabel(o)+' ('+dparts.join(' + ')+')</span><strong>'
       +(delivExternal?'<span style="color:#888">сторонняя — курьеру напрямую</span>':(delivPaid?'<span style="color:#1B5E20">оплачено ✅</span>':fmt(delivCost)+' ₽'))
       +'</strong></div>';
   }
@@ -8733,7 +9215,7 @@ function resetForm(){
   // v7.35: этаж, квартира, лифт и признак «занос вписан руками»
   ['f-floor','f-apartment'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
   var _lf=document.getElementById('f-lift');if(_lf)_lf.value='no';
-  var _lc=document.getElementById('f-lifting');if(_lc)delete _lc.dataset.manual;
+  var _lc=document.getElementById('f-lifting');if(_lc){delete _lc.dataset.manual;_lc.readOnly=false;_lc.style.opacity='';}
   var _ln=document.getElementById('f-lift-note');if(_ln)_ln.innerHTML='';
   document.getElementById('form-items').innerHTML='';
   itemCount=0;itemPrices={};addFormItem();recalcTotals();
@@ -8935,6 +9417,9 @@ function restoreDraft(){
     collapseItem(id2);
   });
   var b=document.getElementById('draft-banner');if(b)b.style.display='none';
+  // v7.78: у «Только доставка» поле заноса закрыто
+  var _dl=document.getElementById('f-lifting'),_dn=/только/i.test((document.getElementById('f-delivery-type')||{}).value||'');
+  if(_dl){_dl.readOnly=_dn;_dl.style.opacity=_dn?'.55':'';}
   recalcTotals();
   toast('📝 Черновик восстановлен');
 }
@@ -9039,6 +9524,16 @@ function _liftPieces(){
 function recalcLift(force){
   var el=document.getElementById('f-lifting');if(!el)return;
   var note=document.getElementById('f-lift-note');
+  var _t0=((document.getElementById('f-delivery-type')||{}).value||'');
+  // v7.78: «Только доставка» — заноса нет по определению. Раньше при указанном
+  // этаже занос всё равно считался и попадал в заказ.
+  var _noLift=/только/i.test(_t0);
+  el.readOnly=_noLift;el.style.opacity=_noLift?'.55':'';
+  if(_noLift){
+    delete el.dataset.manual;el.value=0;
+    if(note)note.innerHTML='Только доставка — занос не считается. Нужен занос — выберите «🚚 Доставка + занос».';
+    recalcTotals();return;
+  }
   if(!force&&el.dataset.manual==='1'){
     if(note)note.innerHTML='✏️ Сумма заноса вписана вручную. <a href="#" onclick="resetLift();return false" style="color:#1565C0">Посчитать по этажу</a>';
     return;
@@ -9451,6 +9946,11 @@ function recalcTotals(){
   document.getElementById('t-discount').textContent=save?'− '+fmt(save)+' ₽':'—';
   document.getElementById('t-discounted').textContent=discounted?fmt(discounted)+' ₽':'—';
   document.getElementById('t-delivery').textContent=delivery?fmt(delivery)+' ₽':'—';
+  // v7.78: подпись итога по выбранному типу доставки
+  var _tdl=document.getElementById('t-deliv-lbl');
+  if(_tdl)_tdl.textContent=delivLabel({delivery_type:(document.getElementById('f-delivery-type')||{}).value,
+    delivery_cost:parseFloat(document.getElementById('f-delivery').value)||0,
+    lifting_cost:parseFloat(document.getElementById('f-lifting').value)||0});
   document.getElementById('f-disc-save').textContent=save?'− '+fmt(save)+' ₽':'—';
   // v7.70: при правке заказа деньги, уже принятые отдельными платежами (и за
   // позиции при доставке), с долга списаны. Форма обязана их видеть — иначе
@@ -9839,6 +10339,11 @@ function editOrder(id){
   var _elc=document.getElementById('f-lifting');if(_elc)_elc.dataset.manual='1';
   var _eln=document.getElementById('f-lift-note');
   if(_eln)_eln.innerHTML='✏️ Сумма заноса взята из заказа. <a href="#" onclick="resetLift();return false" style="color:#1565C0">Посчитать заново по этажу</a>';
+  // v7.78: у «Только доставка» поле заноса закрыто. Старый заказ, где занос всё
+  // же записан, не трогаем — деньги в нём уже согласованы с клиентом.
+  if(_elc){var _nl=/только/i.test(o.delivery_type||'')&&!((o.lifting_cost||0)>0);
+    _elc.readOnly=_nl;_elc.style.opacity=_nl?'.55':'';
+    if(_nl&&_eln)_eln.innerHTML='Только доставка — занос не считается.';}
   // v6.8: при редактировании дата заказа видна, баннер черновика прячем
   var _dr=document.getElementById('f-date-row');if(_dr)_dr.style.display='grid';
   var _db=document.getElementById('draft-banner');if(_db)_db.style.display='none';
@@ -11835,7 +12340,7 @@ function _msgDebtLine(o,prefix){
   var d=orderDebt(o);
   if(d<=0)return '';
   var goods=Math.max(0,Math.round(o.remainder||0)),dl=d-goods;
-  return (prefix||'Остаток к оплате')+': '+fmt(d)+' ₽'+(goods>0&&dl>0?' (товар '+fmt(goods)+' ₽ + доставка и занос '+fmt(dl)+' ₽)':'')+'.';
+  return (prefix||'Остаток к оплате')+': '+fmt(d)+' ₽'+(goods>0&&dl>0?' (товар '+fmt(goods)+' ₽ + '+delivLabel(o,true)+' '+fmt(dl)+' ₽)':'')+'.';
 }
 function _msgIsPickup(o){return /самовыв/i.test(o.delivery_type||'');}
 function _msgTomorrow(){return new Date(Date.now()+864e5).toISOString().slice(0,10);}
