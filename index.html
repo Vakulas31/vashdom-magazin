@@ -313,7 +313,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.78</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.79</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -4638,7 +4638,22 @@ function onPriceSheetChange(){
   var detValid=det?_plValidCount(_collectRows(_plData,{start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:det.cascade,supplier:'x',sheetName:sn})):0;
   // v7.21: прайс модульных систем (Союз, Брянск «Корпусная») колонками не описать —
   // если такой разбор даёт больше товаров, включаем его и говорим об этом.
-  _plModSys=null;_plSeries=null;
+  _plModSys=null;_plSeries=null;_plTri=null;
+  // v7.79: «товар в три строки» (Росток) — узнаём первым: признак однозначный
+  var _tr=_autoDetectTri(_plData);
+  if(_tr){
+    var _trRows=_collectTri(_plData,Object.assign({supplier:'x',sheetName:sn},_tr));
+    var _trN=_plValidCount(_trRows);
+    var _trEx=(_trRows[0]&&_trRows[0].product_name)||'';
+    if(_trN>=detValid&&_trN>=tplValid&&_trN>0){
+      _plTri=_tr;
+      _buildPriceColSelects();
+      if(se){se.style.cssText='display:block;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';
+        se.innerHTML='📐 Прайс «товар в три строки» (ширина, высота и глубина — друг под другом): '+_trN+' позиций. Цвет пойдёт в название'+(_trEx?' («'+esc(_trEx)+'»)':'')+', размеры — в характеристику и в умный поиск, раздел — в категорию. Цена — колонка «'+esc(_tr.priceHdr||'цена')+'». Колонки настраивать не нужно — жмите «Импортировать этот лист».';}
+      _renderPricePreview();
+      return;
+    }
+  }
   // v7.72: прайс «серии с цветами» (HANDIS) — колонками его не описать
   var _se=_autoDetectSeries(_plData,_plBookIsSeries()?1:3);
   if(_se){
@@ -5743,6 +5758,116 @@ function _collectSeries(data,cfg){
   }
   return rows;
 }
+// ═══ v7.79: «ТОВАР В ТРИ СТРОКИ» (Росток) ═══════════════════════════════
+// Устройство листа: товар занимает ТРИ строки. В первой — №, название, цвет,
+// «Ш» и ширина, вес, упаковки, объём и цена; во второй — «В» и высота; в
+// третьей — «Г» и глубина. Разделы («КУХНИ ЛДСП», «Гостиные», «Бьянка») — строки
+// с одним текстом без цены. Шапка «Наименование» объединена на две колонки,
+// а само название лежит во второй из них, — поэтому обычное автоопределение
+// брало пустую колонку и из 440 товаров находило 18 строк мусора.
+function _plTriMark(v){return String(v==null?'':v).replace(/[\s.:]/g,'').toUpperCase();}
+function _autoDetectTri(data){
+  // колонка-метка: «Ш», под ней «В», под ней «Г» — хотя бы 5 раз
+  var cnt={};
+  for(var r=0;r+2<data.length;r++){
+    var row=data[r]||[],r1=data[r+1]||[],r2=data[r+2]||[];
+    for(var c=0;c<row.length;c++){
+      if(_plTriMark(row[c])==='Ш'&&_plTriMark(r1[c])==='В'&&_plTriMark(r2[c])==='Г')cnt[c]=(cnt[c]||0)+1;
+    }
+  }
+  var mc=-1,best=0;
+  for(var k in cnt)if(cnt[k]>best){best=cnt[k];mc=parseInt(k);}
+  if(mc<1||best<2)return null; // «Ш/В/Г» друг под другом — признак однозначный, хватит двух товаров
+  var items=[];
+  for(var r2i=0;r2i+2<data.length;r2i++){
+    var a=data[r2i]||[];
+    if(_plTriMark(a[mc])==='Ш'&&_plTriMark((data[r2i+1]||[])[mc])==='В'&&_plTriMark((data[r2i+2]||[])[mc])==='Г')items.push(r2i);
+  }
+  var first=items[0];
+  // шапка — над первым товаром: ищем подписи колонок
+  var hdr={};
+  for(var hr=Math.max(0,first-8);hr<first;hr++){
+    var hrow=data[hr]||[];
+    for(var hc=0;hc<hrow.length;hc++){var t=_plHdrRaw(hrow[hc]).toLowerCase();if(t&&(hdr[hc]||'').split(' / ').indexOf(t)<0)hdr[hc]=(hdr[hc]?hdr[hc]+' / ':'')+t;}
+  }
+  // колонка цены: правее метки, число почти в каждой строке товара; из таких
+  // берём ту, что подписана «опт/цена/базов», иначе самую правую
+  var numCols=[];
+  var maxC=0;items.forEach(function(r){maxC=Math.max(maxC,(data[r]||[]).length);});
+  for(var pc=mc+2;pc<maxC;pc++){
+    var n=0;items.forEach(function(r){if(_plToNum((data[r]||[])[pc])>=50)n++;});
+    if(n>=items.length*0.7)numCols.push(pc);
+  }
+  if(!numCols.length)return null;
+  var priceCol=-1,retCol=-1;
+  numCols.forEach(function(c){
+    var h=hdr[c]||'';
+    if(/розн|ррц|рекоменд/.test(h)){if(retCol<0)retCol=c;}
+    else if(/опт|цена|базов|стоим|руб/.test(h)&&!/вес|объ[её]м|упак|кол/.test(h)){if(priceCol<0)priceCol=c;}
+  });
+  if(priceCol<0){
+    // подписи нет — самая правая числовая, но не вес/объём/упаковки
+    for(var q=numCols.length-1;q>=0;q--){if(!/вес|объ[её]м|упак|кол/.test(hdr[numCols[q]]||'')&&numCols[q]!==retCol){priceCol=numCols[q];break;}}
+  }
+  if(priceCol<0)return null;
+  // колонки текста левее метки: название — где текста больше всего и он длиннее;
+  // цвет — подписанная «цвет» или вторая по длине
+  var txt=[];
+  for(var tc=0;tc<mc;tc++){
+    var nn=0,len=0;
+    items.forEach(function(r){var v=_plClean((data[r]||[])[tc]);if(v&&!_plIsPlainNumCell(v)){nn++;len+=v.length;}});
+    if(nn>=items.length*0.3)txt.push({c:tc,n:nn,avg:len/Math.max(1,nn),h:hdr[tc]||''});
+  }
+  if(!txt.length)return null;
+  var colorCol=-1;
+  txt.forEach(function(x){if(colorCol<0&&/цвет|декор|отделк/.test(x.h))colorCol=x.c;});
+  var nameCand=txt.filter(function(x){return x.c!==colorCol;}).sort(function(a,b){return (b.n*b.avg)-(a.n*a.avg);});
+  if(!nameCand.length)return null;
+  var nameCol=nameCand[0].c;
+  if(colorCol<0&&nameCand[1])colorCol=nameCand[1].c;
+  return{markCol:mc,nameCol:nameCol,colorCol:colorCol,priceCol:priceCol,retCol:retCol,items:items.length,firstRow:Math.max(0,first-8),
+    priceHdr:hdr[priceCol]||''};
+}
+function _collectTri(data,cfg){
+  var rows=[];
+  var _drop=_plNewDrop();
+  try{Object.defineProperty(rows,'_drop',{value:_drop,enumerable:false});}catch(e){rows._drop=_drop;}
+  var mc=cfg.markCol,section='';
+  var dimOf=function(r){var v=_plToNum((data[r]||[])[mc+1]);return (v>=50&&v<=6000)?Math.round(v):null;};
+  for(var i=(cfg.firstRow||0);i<data.length;i++){
+    var row=data[i]||[];
+    var mk=_plTriMark(row[mc]);
+    if(mk==='В'||mk==='Г')continue; // вторая и третья строки товара
+    var price=_plToNum(row[cfg.priceCol]);
+    var nm=_plClean(row[cfg.nameCol]);
+    if(mk!=='Ш'){
+      // строка раздела: текст левее метки, цены нет. Шапку («Наименование»,
+      // «Габариты») разделом не считаем.
+      if(!(price>0)){
+        var st='';
+        for(var c=0;c<mc;c++){var v=_plClean(row[c]);if(v&&!_plIsPlainNumCell(v)){st=v;break;}}
+        if(st&&!/^(№|наименован|цвет|технич|габарит|п\/п)/i.test(st))section=st;
+      }
+      continue;
+    }
+    if(!(price>0)){if(nm)_drop.noprice++;continue;}
+    _drop.scanned++;
+    if(!nm){_drop.noname++;continue;}
+    if(price>_PL_PRICE_MAX){_drop.weird++;continue;}
+    var colour=cfg.colorCol>=0?_plClean(row[cfg.colorCol]):'';
+    if(colour==='-')colour='';
+    var w=dimOf(i),h=dimOf(i+1),d=dimOf(i+2);
+    var dimsTxt=(w||h||d)?[w||'—',h||'—',d||'—'].join('×')+' мм (Ш×В×Г)':'';
+    var name=colour?nm+' · '+colour:nm;
+    var ret=cfg.retCol>=0?_plToNum(row[cfg.retCol]):0;
+    var at=_extractAttrs(name,'','',cfg.dimOrder);
+    if(!at.ptype&&section)at.ptype=_extractAttrs(section,'','','').ptype;
+    rows.push({supplier:cfg.supplier,product_name:name,price_opt:Math.round(price*100)/100,price_retail:ret>0?Math.round(ret*100)/100:0,
+      article:[dimsTxt,section].filter(Boolean).join(' · '),category:section,sheet_name:cfg.sheetName||'',compatibility:null,
+      dim_w:w,dim_h:h,dim_d:d,ptype:at.ptype,color:at.color,doors:at.doors,material:at.material});
+  }
+  return rows;
+}
 // ── МАТРИЧНЫЙ ПРАЙС (цены по размерам в столбцах: 800/900/1200…) ──
 function _plIsSize(v){var s=String(v==null?'':v).trim();if(!/^\d{2,4}$/.test(s))return false;var n=parseInt(s);return n>=50&&n<=2500;}
 // v7.58: похоже ли содержимое ячейки на НАЗВАНИЕ ТОВАРА, а не на подпись колонки
@@ -6387,6 +6512,7 @@ function _markImportedSheets(){
 
 var _plModSys=null; // разметка листа «модульные системы» (v7.21)
 var _plSeries=null; // v7.72: разметка листа «серии с цветами» (HANDIS)
+var _plTri=null;    // v7.79: разметка листа «товар в три строки» (Росток)
 // v7.62: описательные колонки (размеры/цвет/материал), найденные автоопределением
 // для ТЕКУЩЕГО листа. Раньше они доезжали только до «Все листы сразу», а при
 // загрузке одного листа кнопкой молча терялись.
@@ -6404,7 +6530,10 @@ async function importPriceList(){
   var sheetName=document.getElementById('pl-sheet').value;
   var rows=[],isMatrix=false;
   var isMulti=document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked;
-  if(_plSeries&&!isMulti){
+  if(_plTri&&!isMulti){
+    rows=_collectTri(_plData,Object.assign({supplier:supplier,sheetName:sheetName},_plTri));
+    isMatrix=rows.length>0; // колонками не описать — шаблон помечаем как особый
+  }else if(_plSeries&&!isMulti){
     rows=_collectSeries(_plData,Object.assign({supplier:supplier,sheetName:sheetName},_plSeries));
     isMatrix=rows.length>0; // колонками не описать — шаблон помечаем как особый
   }else if(_plModSys&&!isMulti){
@@ -6446,7 +6575,7 @@ async function importPriceList(){
   // цена стоит лишь в «Стекле» (керамика, фотопечать), терялись совсем — их
   // строка выглядела как «без цены». Галочку «Цены в нескольких колонках» надо
   // было вспомнить самому. Теперь спрашиваем прямо, с цифрами.
-  if(!isMulti&&!_plModSys&&!_plSeries){
+  if(!isMulti&&!_plModSys&&!_plSeries&&!_plTri){
     var _mu=_autoDetectMulti(_plData);
     if(_mu&&_mu.varCols&&_mu.varCols.length>=2){
       var _mrows=_collectMulti(_plData,{supplier:supplier,sheetName:sheetName,
@@ -6539,6 +6668,10 @@ async function importAllSheets(){
     // v7.72: серии с цветами (HANDIS) — самым первым: при РАВНОМ числе товаров
     // плоское автоопределение набирает столько же строк, но с сериями вместо
     // названий товаров. Побеждать должен разбор, который понимает устройство.
+    // v7.79: «товар в три строки» (Росток)
+    var trA=_autoDetectTri(data);
+    if(trA)cands.push({rows:_collectTri(data,Object.assign({supplier:supplier,sheetName:sn},trA)),
+      src:'товар в три строки ('+trA.items+')',cfg:null,kind:'matrix'});
     var seA=_autoDetectSeries(data,_bookSeries?1:3);
     if(seA)cands.push({rows:_collectSeries(data,Object.assign({supplier:supplier,sheetName:sn},seA)),
       src:'серии с цветами ('+seA.series+')',cfg:null,kind:'matrix'});
@@ -9831,6 +9964,14 @@ function selectModel(id,item){
   var _dimFilled=false;
   // Вспомогательная функция: парсим второй размер, убирая слипшуюся цифру категории
   // напр. "1202" → 120 (120 см + категория 2), "0902" → 90
+  // v7.79: единица по величине чисел. Раньше всегда дописывалось «см», и
+  // шкаф из прайса «1500×2200×600 мм» попадал в заказ как «1500×2200 см».
+  // Четырёхзначные числа (≥ 300) — это миллиметры; матрасы «200×080» — сантиметры.
+  function _dimTxt(m){
+    var a=parseInt(m[1]),b=parseInt(m[2]),c=m[3]?parseInt(m[3]):null;
+    if(a>=300||b>=300)return a+'×'+b+(c?'×'+c:'')+' мм';
+    return m[1]+'×'+parseDim2(m[2])+' см';
+  }
   function parseDim2(s){
     var n=parseInt(s);
     // Слипшийся формат "размер+категория": напр. "1202" = 120 см + категория 2
@@ -9841,11 +9982,11 @@ function selectModel(id,item){
   if(item.article){
     var art=String(item.article);
     // Размер: ищем паттерн вида "800х1870", "1200x2000", "160×200", "200*080"
-    var dimMatch=art.match(/(\d{2,4})\s*[хxХX×*]\s*(\d{2,4})/);
+    var dimMatch=art.match(/(\d{2,4})\s*[хxХX×*]\s*(\d{2,4})(?:\s*[хxХX×*]\s*(\d{2,4}))?/);
     // Цвет: ищем "цвет ..." или "вариант ..."
     var colorMatch=art.match(/цвет\s+([^,\n]+)/i)||art.match(/вариант\s+([^,\n]+)/i);
     if(dimsEl&&dimMatch){
-      dimsEl.value=dimMatch[1]+'×'+parseDim2(dimMatch[2])+' см';
+      dimsEl.value=_dimTxt(dimMatch);
       _dimFilled=true;
     }
     if(colorEl){
@@ -9861,8 +10002,8 @@ function selectModel(id,item){
   // Всегда обновляем поле при новом выборе модели (даже если там уже было значение)
   if(!_dimFilled&&dimsEl){
     var nm=String(item.name||'');
-    var nmDim=nm.match(/(\d{2,4})\s*[*×хxХX]\s*(\d{2,4})/);
-    if(nmDim)dimsEl.value=nmDim[1]+'×'+parseDim2(nmDim[2])+' см';
+    var nmDim=nm.match(/(\d{2,4})\s*[*×хxХX]\s*(\d{2,4})(?:\s*[*×хxХX]\s*(\d{2,4}))?/);
+    if(nmDim)dimsEl.value=_dimTxt(nmDim);
   }
   document.getElementById('ib-'+id).classList.add('matched');
   recalcTotals();
