@@ -313,7 +313,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.80</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.81</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -4693,6 +4693,7 @@ function onPriceSheetChange(){
   _plDetDimOrder=(tpl&&tpl.dimOrder)||(det&&det.dimOrder)||'';
   _plDetVar=(tpl&&tpl.col_var!=null?tpl.col_var:((det&&det.colVar)||'')); // v7.68
   _plDetCat=(tpl&&tpl.cat_col!=null?tpl.cat_col:((det&&det.catCol)||''));
+  _plDetOptNote=(det&&det.optNote)||'';
   var se=document.getElementById('pl-tpl-status');
   // Сравниваем шаблон и автоопределение по числу валидных цен — берём лучший.
   // Так устаревший/битый шаблон («Столбец 1 / Столбец 1») не мешает.
@@ -5082,7 +5083,7 @@ function _collectRows(data,cfg){
   var rows=[];
   var _drop=_plNewDrop();
   try{Object.defineProperty(rows,'_drop',{value:_drop,enumerable:false});}catch(e){rows._drop=_drop;}
-  var currentGroupName='',groupIsHeader=false,currentSection='';
+  var currentGroupName='',groupIsHeader=false,currentSection='',_subSection='';
   var noteBuf='',groupStart=0; // примечание-совместимость текущей группы (этап C)
   for(var i=cfg.start-1;i<data.length;i++){
     var row=data[i]||[];
@@ -5098,11 +5099,23 @@ function _collectRows(data,cfg){
       var _dp=[];for(var _k=0;_k<cfg.descCols.length;_k++){var _dv=_plClean(row[cfg.descCols[_k]]);if(_dv&&(!/^\d+([.,]\d+)?$/.test(_dv)||/^0\d/.test(_dv)))_dp.push(_dv);}
       if(_dp.length){var _ds=_dp.join(' · ');artVal=artVal?artVal+' · '+_ds:_ds;}
     }
+    if(cfg.optNote&&nameVal&&optNum)artVal=artVal?artVal+' · '+cfg.optNote:cfg.optNote; // v7.81
     var rowCategory='',rowCompat='';
     // v7.68: строка-раздел выгрузки 1С — запоминаем и вешаем на следующие товары
     if(cfg.catCol!==''&&cfg.catCol!=null&&!nameVal&&!optNum){
       var _sv=_plClean(row[parseInt(cfg.catCol)]);
-      if(_sv&&_plLooksSection(_sv))currentSection=_sv;
+      // v7.81: разделы бывают и не заглавными: «Купе «Смарт»», «Прихожая «Луиза»»
+      // (Восход). Берём такую строку, если в ней больше ничего нет, кроме
+      // однобуквенных пометок (у Восхода по буквам написано «РАСПРОДАЖА»).
+      var _alone=true;
+      for(var _sc=0;_sc<row.length;_sc++){if(_sc===parseInt(cfg.catCol))continue;var _sx=_plClean(row[_sc]);if(_sx&&_sx.length>1){_alone=false;break;}}
+      if(_sv&&_plLooksSection(_sv)){currentSection=_sv;_subSection='';}
+      else if(_sv&&_alone&&_sv.length>=3&&_sv.length<=60&&/^[А-ЯЁA-Z«"„]/.test(_sv)&&/[А-Яа-яЁё]{3}/.test(_sv)){
+        // подраздел («Кельн», «Золотая опора», «Купе «Смарт»») — категорией не
+        // делаем (разделы остаются прежними), а дописываем в характеристику:
+        // так он виден продавцу и находится поиском
+        _subSection=_sv;
+      }
     }
     if(cfg.cascade){
       if(nameVal&&!optNum){
@@ -5168,7 +5181,7 @@ function _collectRows(data,cfg){
     optNum=Math.round(optNum*100)/100;retVal=Math.round(retVal*100)/100;
     var _at=_extractAttrs(nameVal,artVal,'',cfg.dimOrder);
     var _cmp=[noteBuf,rowCompat].filter(Boolean).join(' · ').slice(0,900)||null;
-    rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:artVal,category:rowCategory||currentSection,sheet_name:cfg.sheetName||'',compatibility:_cmp,dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
+    rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:(_subSection&&String(artVal||'').indexOf(_subSection)<0?(artVal?artVal+' · ':'')+_subSection:artVal),category:rowCategory||currentSection,sheet_name:cfg.sheetName||'',compatibility:_cmp,dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
   }
   return rows;
 }
@@ -5334,9 +5347,23 @@ function _autoDetectSheet(data){
       // в характеристику. Иначе «220*1500*184» из отдельной колонки пропадало, и
       // умному поиску нечем было отличить полку 1500 от полки 1800.
       var _desc=[],_dimOrd='';
-      for(var _dc=0;_dc<row.length;_dc++){
+      // v7.81: шапка в ДВЕ строки (Восход: «Продукция | Полное наименование |
+      // | 4 группа», а строкой ниже «Размер Выс*Шир*Гл | Венге/Дуб мол. …»).
+      // Вторую строку раньше не читали — колонка размеров не находилась, и у
+      // всех 150 товаров Восхода размеров в базе не было.
+      var _row2=data[r+1]||[],_cont=false;
+      // объединённая ячейка шапки («Полное наименование» на две строки) после
+      // раскрытия объединений стоит в обеих строках — это тоже продолжение шапки
+      if(!_plClean(_row2[d.name])||_plClean(_row2[d.name])===_plClean(row[d.name])){
+        var _txt2=0,_num2=0;
+        for(var _c2=0;_c2<_row2.length;_c2++){var _v2=_plClean(_row2[_c2]);if(!_v2||_v2===_plClean(row[_c2]))continue;if(_plToNum(_v2)>=50&&_plIsPlainNumCell(_v2))_num2++;else _txt2++;}
+        _cont=_txt2>=1&&_num2===0;
+      }
+      var _hdrOf=function(c){var a=_plHdrText(row[c]),b=_cont?_plHdrText(_row2[c]):'';return (a+' '+(b===a?'':b)).replace(/\s+/g,' ').trim();};
+      var _maxC=Math.max(row.length,_cont?_row2.length:0);
+      for(var _dc=0;_dc<_maxC;_dc++){
         if(_dc===d.name||_dc===opt||_dc===d.art||_dc===d.ret)continue;
-        var _dh=_plHdrText(row[_dc]).toLowerCase();
+        var _dh=_hdrOf(_dc).toLowerCase();
         if(!_dh||_dh.length>35)continue;
         // v7.66: «Ткани» — тоже описание товара. У РИАЛ один и тот же стул идёт
         // двумя строками с разной ценой, и различает их ТОЛЬКО колонка тканей:
@@ -5344,10 +5371,13 @@ function _autoDetectSheet(data){
         // v7.68: «Хар код» — код исполнения, по которому поставщик принимает
         // заказ («000052145»). Продавцу его надо продиктовать, значит он должен
         // быть виден и находиться поиском.
-        if(!/размер|габарит|цвет|отделк|материал|исполнен|фасад|ткан|обивк|опор|^хар\.?\s?код|^код\s*характер/.test(_dh))continue;
-        if(/размер|габарит/.test(_dh)&&!_dimOrd){
-          // «Размеры В*Ш*Г», «Размеры ВхШхГ» — шапка сама говорит порядок чисел
-          var _om=_plHdrRaw(row[_dc]).toUpperCase().match(/([ВШГ])\s*[X\u0425*×]\s*([ВШГ])(?:\s*[X\u0425*×]\s*([ВШГ]))?/);
+        // v7.81: «В x Ш x Г» без слова «размер» (Олмеко) — тоже колонка размеров
+        var _isDim=/размер|габарит/.test(_dh)||/(^|\s)(в|ш|г|выс|шир|гл|дл)[а-яё.]*\s*[xх×*]\s*(в|ш|г|выс|шир|гл|дл)/.test(_dh);
+        if(!_isDim&&!/цвет|отделк|материал|исполнен|фасад|ткан|обивк|опор|^хар\.?\s?код|^код\s*характер/.test(_dh))continue;
+        if(_isDim&&!_dimOrd){
+          // «Размеры В*Ш*Г», «Размеры ВхШхГ», «Выс*Шир*Гл» — шапка сама говорит порядок чисел
+          var _hu=_hdrOf(_dc).toUpperCase().replace(/ВЫС[А-ЯЁ.]*/g,'В').replace(/ШИР[А-ЯЁ.]*/g,'Ш').replace(/ГЛ[А-ЯЁ.]*/g,'Г').replace(/ДЛ[А-ЯЁ.]*/g,'Ш');
+          var _om=_hu.match(/([ВШГ])\s*[X\u0425*×]\s*([ВШГ])(?:\s*[X\u0425*×]\s*([ВШГ]))?/);
           if(_om)_dimOrd=(_om[1]+_om[2]+(_om[3]||''));
         }
         var _dn=0;
@@ -5367,7 +5397,17 @@ function _autoDetectSheet(data){
       // строкой ниже.
       var _vr=(d.vr>=0&&d.vr!==d.name&&d.vr!==opt&&d.vr!==d.art&&_desc.indexOf(d.vr)<0
         &&_plDupNames(data,r+1,d.name))?d.vr:-1;
-      return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):'',cascade:cascade,descCols:_desc,dimOrder:_dimOrd||'',colVar:(_vr>=0?String(_vr):''),catCol:(_cat>=0?String(_cat):'')};
+      // v7.81: цвета, на которые действует цена колонки («4 группа: Венге/Дуб
+      // мол./Шимо тем./Шимо свет») — одни на весь прайс. Пишем их каждому товару
+      // в характеристику, чтобы умный поиск «шкаф венге» находил и Восход.
+      var _optNote='';
+      if(_cont){
+        var _oc=_plHdrText(_row2[opt]);
+        var _ol=_oc.toLowerCase().replace(/ё/g,'е');
+        if(_oc&&_COLORS.some(function(k){return _ol.indexOf(k.replace(/ё/g,'е'))>=0;}))
+          _optNote='цвета: '+String(_row2[opt]).split(/[\n\/,;]+/).map(function(x){return x.replace(/\s+/g,' ').trim();}).filter(Boolean).join(', ');
+      }
+      return{headerRow:r,colName:d.name,colOpt:opt,colRet:d.ret>=0?String(d.ret):'',colArt:d.art>=0?String(d.art):'',cascade:cascade,descCols:_desc,dimOrder:_dimOrd||'',colVar:(_vr>=0?String(_vr):''),catCol:(_cat>=0?String(_cat):''),optNote:_optNote};
     }
   }
   // ── Запасной СТРУКТУРНЫЙ детектор ──────────────────────────────────────
@@ -6585,6 +6625,7 @@ var _plDetDesc=null;
 var _plDetDimOrder='';  // объявленный в шапке порядок габаритов, напр. «ВШГ»
 // v7.68: колонка исполнения («Характеристика») и колонка разделов прайса
 var _plDetVar='',_plDetCat='';
+var _plDetOptNote=''; // v7.81: цвета группы из шапки над ценой
 async function importPriceList(){
   if(!ownerOnly('Загрузка прайсов'))return; // v7.60
   var supplier=(document.getElementById('pl-sup').value||'').trim();
@@ -6622,7 +6663,7 @@ async function importPriceList(){
       cascade:document.getElementById('pl-cascade').checked,
       modular:document.getElementById('pl-modular').checked,
       descCols:_plDetDesc,dimOrder:_plDetDimOrder, // v7.62
-      colVar:_plDetVar,catCol:_plDetCat};            // v7.68
+      colVar:_plDetVar,catCol:_plDetCat,optNote:_plDetOptNote}; // v7.68, v7.81
     rows=_collectRows(_plData,cfg);
   }
   // Фолбэк: колонки не выбраны или ничего не собралось → пробуем матрицу (цены по размерам)
@@ -6743,13 +6784,13 @@ async function importAllSheets(){
     // v7.21: автоопределение идёт ПЕРВЫМ — при равном числе товаров выигрывает оно,
     // а не сохранённый (возможно, ошибочный) шаблон листа.
     if(det){
-      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,modular:_plModularOn(),descCols:det.descCols,dimOrder:det.dimOrder||'',colVar:det.colVar||'',catCol:det.catCol||'',supplier:supplier,sheetName:sn};
+      var cfgA={start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:!!det.cascade,modular:_plModularOn(),descCols:det.descCols,dimOrder:det.dimOrder||'',colVar:det.colVar||'',catCol:det.catCol||'',optNote:det.optNote||'',supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgA),src:'автоопределение'+(det.cascade?' (каскад)':''),cfg:cfgA,kind:'flat'});
     }
     if(tpl&&!tpl.matrix_multi&&tpl.col_name!==''&&tpl.col_opt!==''&&!tpl.matrix){
       // descCols (рисунки обивки и т.п.) наследуем от автоопределения, чтобы старый
       // сохранённый шаблон не терял описательные столбцы при переимпорте.
-      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),descCols:(tpl.descCols||(det&&det.descCols)),dimOrder:(tpl.dimOrder||(det&&det.dimOrder)||''),colVar:(tpl.col_var!=null?tpl.col_var:((det&&det.colVar)||'')),catCol:(tpl.cat_col!=null?tpl.cat_col:((det&&det.catCol)||'')),supplier:supplier,sheetName:sn};
+      var cfgT={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colOpt:parseInt(tpl.col_opt),colRet:tpl.col_ret,colArt:tpl.col_art,cascade:!!tpl.cascade,modular:(tpl.modular!=null?!!tpl.modular:_plModularOn()),descCols:(tpl.descCols||(det&&det.descCols)),dimOrder:(tpl.dimOrder||(det&&det.dimOrder)||''),colVar:(tpl.col_var!=null?tpl.col_var:((det&&det.colVar)||'')),catCol:(tpl.cat_col!=null?tpl.cat_col:((det&&det.catCol)||'')),optNote:((det&&det.optNote)||''),supplier:supplier,sheetName:sn};
       cands.push({rows:_collectRows(data,cfgT),src:'по шаблону',cfg:cfgT,kind:'flat'});
     }
     var m=_autoDetectMatrix(data);
