@@ -313,7 +313,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.81</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.82</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -645,7 +645,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <div class="card" style="border:1.5px solid var(--gold,#C9A227)">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div class="card-title" style="margin:0">🧠 Умный поиск по параметрам</div>
+      <span style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-outline owner-only" onclick="backfillAttrs()" id="ss-backfill-btn" style="padding:5px 10px;font-size:12px">🔧 Разобрать атрибуты</button>
+      <!-- v7.82: размеры из каталогов фабрик (с сайтов) для товаров, у которых в прайсе размеров нет -->
+      <button class="btn btn-outline owner-only" onclick="catalogAttrsRun()" id="ss-catattr-btn" style="padding:5px 10px;font-size:12px" title="Взять размеры с сайтов фабрик для товаров, у которых их нет в прайсе. Заполняет только пустые поля.">🔗 Размеры с сайтов фабрик</button>
+      </span>
     </div>
     <p style="font-size:12px;color:var(--text2);margin:4px 0 8px">Пишите, как говорит клиент: «компьютерный стол шириной не менее 1400», «шкаф белый 2 двери до 1,2 м», «кровать 160 на 200 орех», «тумба под ТВ от 1500 до 1800». Товары, у которых размер в прайсе не указан, не теряются — они в отдельной группе «уточнить».</p>
     <div class="search-wrap" style="margin-bottom:6px">
@@ -7589,8 +7593,15 @@ function _ssMM(num,unit){
 }
 function _parseSmartQuery(q){
   var low=' '+String(q||'').toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ')+' ';
-  var res={ptype:null,ptypeStem:null,kinds:[],color:null,material:null,doors:null,free:[],cons:[]};
+  var res={ptype:null,ptypeStem:null,kinds:[],color:null,material:null,doors:null,free:[],cons:[],codes:[]};
   var i,m;
+  // v7.82: коды моделей «СВ-20», «ШР-3», «ТВ15» — раньше «св» (2 буквы) и «20»
+  // (голое число) выбрасывались, и запрос «св-20» оставался пустым. Буквы в
+  // начале — не мерки размера («до1200», «ш1400» не код).
+  low=low.replace(/(\s)([a-zа-яе]{1,5})(-?)(\d+(?:[.\-\/]\d+)*[a-zа-яе]?)(?=\s)/g,function(all,sp,let,dash,num){
+    if(/^(до|от|ш|в|г|д|н|х|x|м|шир|выс|гл|дл|мм|см)$/.test(let))return all;
+    res.codes.push(let+(dash||'-')+num);return sp+' ';
+  });
   // ── размеры, названные словом: «шириной не менее 1400», «высота до 2 м»,
   //    «глубиной от 400 до 600», «шире 1,4 м» ──
   // число и единица; «х» после числа — это «1200х800», а не слово
@@ -7724,6 +7735,7 @@ function _ssRun(q){
   if(pmax!=null)chips.push('цена ≤ '+fmt(pmax));
   if(factory)chips.push('фабрика: '+factory);
   if(supplier)chips.push('поставщик: '+supplier);
+  if(P.codes.length)chips.push('код: '+P.codes.join(', ').toUpperCase());
   if(P.free.length)chips.push('слова: '+P.free.join(', '));
   pb.innerHTML=chips.length?'Понял: <strong>'+chips.join('</strong> · <strong>')+'</strong>':'Не распознаны параметры — ищу по названию.';
   // ── запрос в базу: тип, подвид, цвет, слова, цена, фабрика. Размеры —
@@ -7735,7 +7747,11 @@ function _ssRun(q){
   P.kinds.forEach(function(k){conds.push('or('+k.any.map(_nm).join(',')+')');});
   if(P.color)conds.push('or(color.ilike.'+_ilikePat(P.color)+','+_nm(_ssStem(P.color))+')');
   if(P.material)conds.push('or(material.ilike.'+_ilikePat(P.material)+','+_nm(P.material)+')');
-  P.free.forEach(function(w){conds.push(_nm(w));});
+  // код ищем в трёх написаниях: «св-20», «св20», «св 20»
+  P.codes.forEach(function(c){var k=c.split('-'),L=k.shift(),N=k.join('-');conds.push('or('+[L+'-'+N,L+N,L+' '+N].map(_nm).join(',')+')');});
+  // v7.82: слово может быть фабрикой или поставщиком («шкаф восход»), как в
+  // глобальном поиске — раньше искалось только в названии и не находилось
+  P.free.forEach(function(w){conds.push('or('+_nm(w)+(_gsFactoryCol?',factory.ilike.'+_ilikePat(w):'')+',supplier.ilike.'+_ilikePat(w)+')');});
   if(pmin!=null)conds.push('price_opt.gte.'+Math.floor(pmin/mk));
   if(pmax!=null)conds.push('price_opt.lte.'+Math.ceil(pmax/mk));
   var _eqLit=function(v){return encodeURIComponent('"'+String(v).replace(/(["\\])/g,'\\$1')+'"');};
@@ -8824,6 +8840,130 @@ function guideToSearch(catIdx,name){
 function guideToSearchRaw(dbName,isSupplier){
   if(isSupplier)_gdOpenSmart(_gdQueryText(_gdCur),'',dbName);
   else _gdOpenSmart(_gdQueryText(_gdCur),dbName,'');
+}
+// ═══ v7.82: РАЗМЕРЫ ИЗ КАТАЛОГОВ ФАБРИК ═══════════════════════════════
+// Замер 27.09.2026: у 11 тыс. товаров из 37 тыс. в базе нет размеров — в
+// прайсе их просто нет. Зато у фабрик на сайтах они есть, и сборщик (GitHub
+// Actions, таблица catalog_items) уже собрал каталог Браво: 1 245 товаров,
+// у 1 219 — размеры. Не хватало связи «строка прайса ↔ товар с сайта».
+//
+// Как ищем пару. Названия в прайсе и на сайте разные:
+//   прайс: «БРЕНТА (ЛАК-БЕЛЫЙ) шкаф ШР-3»
+//   сайт:  «Брента Шкаф распашной ШР-3 - белый»
+// Пара засчитывается, только если совпадают:
+//   • модель (первое слово названия в прайсе есть в названии на сайте);
+//   • ГЛАВНЫЙ тип изделия (первое слово-тип: шкаф, комод, полка…) — иначе
+//     «комплект полок на шкаф» получал размеры шкафа;
+//   • все коды из названия в прайсе («ШР-3», «94.08»);
+// из подходящих берём ту, где больше общих слов. Если лучших несколько и
+// размеры у них разные — не угадываем, пропускаем.
+// Цвет не сравниваем: размеры от цвета не зависят. Цвет с сайта берём,
+// только если этот же цвет написан в строке прайса.
+//
+// Пишем через rpc/apply_attrs (SQL 7.19): функция ТОЛЬКО ДОПОЛНЯЕТ пустые
+// поля и только для владельца. Всё, что пришло из прайса, остаётся как есть.
+// После переимпорта прайса размеры пропадают вместе со строками — нажать
+// кнопку ещё раз.
+
+// «комплект»/«набор»/«пакет» — это ЧАСТЬ к изделию («комплект полок на шкаф»):
+// стоят первыми, чтобы стать главным типом и не получить размеры шкафа
+var _CA_TYPES=['комплект','набор','пакет','полок','кроват','диван','шкаф','комод','тумб','зеркал','витрин','стеллаж','полк','антресол','кресл','пуф','банкетк','стол','стул','прихож','вешалк','пенал','матрас','основан','кушетк','тахт','софа','гостин','кухн','сервант','буфет','трюмо','обувниц','табурет','скамь','надстройк','этажерк','ящик','ножк','опор'];
+var _CA_STOP={'для':1,'с':1,'и':1,'на':1,'в':1,'из':1,'без':1,'шт':1,'мм':1,'см':1,'новинка':1,'лак':1};
+// Пометки серии: «Гориция NEW» и «Гориция НСМ» — разные изделия с разными
+// размерами. Такие слова работают как код: должны совпасть с обеих сторон.
+var _CA_SERIES={'new':1,'нсм':1};
+function _caTok(s){
+  return String(s||'').toLowerCase().replace(/ё/g,'е').replace(/[«»"'()\[\],:;!]/g,' ')
+    .split(/\s+/).map(function(w){return w.replace(/^[-.]+|[-.]+$/g,'');})
+    .filter(function(w){return w.length>=2&&!_CA_STOP[w];});
+}
+function _caInfo(s){
+  var t=_caTok(s);
+  var main='',pos=1e9;
+  _CA_TYPES.forEach(function(k){for(var i=0;i<t.length&&i<pos;i++){if(t[i].indexOf(k)===0){pos=i;main=k;break;}}});
+  return{model:t[0]||'',main:main,
+    codes:t.filter(function(w){return (/\d/.test(w)&&/[а-яa-z]/.test(w))||_CA_SERIES[w];}),
+    set:(function(){var o={};t.forEach(function(w){o[w]=1;});return o;})(),n:t.length};
+}
+function _caFacKey(s){return _caTok(s)[0]||'';}
+
+// План: какие строки прайса получат какие размеры. Ничего не пишет.
+async function catalogAttrsPlan(progress){
+  var cat=await sbGetAll('catalog_items','select=id,factory,name,color,dim_w,dim_h,dim_d,material&order=id.asc',50000);
+  cat=(cat||[]).filter(function(c){return c.dim_w||c.dim_h||c.dim_d;});
+  if(!cat.length)return{factories:[],pairs:[],note:'в каталогах фабрик нет товаров с размерами'};
+  // фабрики каталогов → фабрики прайсов (по первому слову: «Браво Мебель» ↔ «Браво»)
+  var byCat={};cat.forEach(function(c){var k=_caFacKey(c.factory);if(k)(byCat[k]=byCat[k]||[]).push(c);});
+  var sum=await sb('POST','rpc/price_summary',null).catch(function(){return[];});
+  var priceFac={};(sum||[]).forEach(function(r){var f=String(r.factory||'').trim();if(f&&byCat[_caFacKey(f)])priceFac[f]=1;});
+  var out={factories:[],pairs:[]};
+  for(var pf in priceFac){
+    if(progress)progress('Сравниваю «'+pf+'»…');
+    var C=byCat[_caFacKey(pf)].map(function(c){return Object.assign({c:c},_caInfo(c.name));});
+    var rows=await sbGetAll('price_items','select=id,product_name,article,dim_w,dim_h,dim_d,color&factory=eq.'+encodeURIComponent(pf)+'&order=id.asc',50000);
+    var need=rows.filter(function(r){return r.dim_w==null&&r.dim_h==null&&r.dim_d==null;});
+    var st={factory:pf,total:rows.length,need:need.length,found:0,ambiguous:0};
+    need.forEach(function(r){
+      var I=_caInfo(r.product_name);
+      if(!I.model||(!I.main&&!I.codes.length))return; // без типа и без кода — не угадываем
+      var best=[],bs=-1;
+      C.forEach(function(x){
+        if(x.model!==I.model&&!x.set[I.model])return;
+        if(I.main&&x.main!==I.main)return;
+        for(var i=0;i<I.codes.length;i++)if(!x.set[I.codes[i]])return;
+        var sc=0;for(var w in I.set)if(x.set[w])sc++;
+        // у товара на сайте есть код, которого нет в прайсе (ШР-2 против ШР-3) — штраф
+        for(var j=0;j<x.codes.length;j++)if(!I.set[x.codes[j]])sc-=2;
+        if(sc>bs){bs=sc;best=[x];}else if(sc===bs)best.push(x);
+      });
+      if(!best.length||bs<2)return;
+      var d0=best[0].c,same=best.every(function(x){return x.c.dim_w==d0.dim_w&&x.c.dim_h==d0.dim_h&&x.c.dim_d==d0.dim_d;});
+      if(!same){st.ambiguous++;return;}
+      var it={id:r.id,dim_w:d0.dim_w||null,dim_h:d0.dim_h||null,dim_d:d0.dim_d||null};
+      // цвет — только если он же написан в строке прайса
+      if(!r.color){
+        var txt=_caTok(r.product_name+' '+(r.article||'')).join(' ');
+        best.some(function(x){var col=_caTok(x.c.color)[0];if(col&&col.length>=4&&txt.indexOf(col)>=0){it.color=String(x.c.color).toLowerCase();return true;}return false;});
+      }
+      out.pairs.push({item:it,price:r.product_name,site:d0.name});
+      st.found++;
+    });
+    out.factories.push(st);
+  }
+  return out;
+}
+
+async function catalogAttrsRun(){
+  if(!ownerOnly('Размеры из каталогов фабрик'))return;
+  var btn=document.getElementById('ss-catattr-btn');if(btn&&btn.disabled)return;
+  var old=btn?btn.textContent:'';
+  if(btn)btn.disabled=true;
+  var say=function(t){if(btn)btn.textContent='🔗 '+t;};
+  try{
+    var plan=await catalogAttrsPlan(say);
+    if(!plan.pairs.length){
+      toast('Пар не нашлось'+(plan.note?': '+plan.note:'')+'. '+plan.factories.map(function(f){return f.factory+': без размеров '+f.need;}).join('; '),'',8000);
+      return;
+    }
+    var lines=plan.factories.map(function(f){return '• '+f.factory+': без размеров '+f.need+' из '+f.total+' → найдено '+f.found+(f.ambiguous?' (спорных пропущено '+f.ambiguous+')':'');});
+    var ex=plan.pairs.filter(function(p,i){return i%Math.max(1,Math.floor(plan.pairs.length/6))===0;}).slice(0,6)
+      .map(function(p){return '  '+p.price.slice(0,45)+'  →  '+[p.item.dim_w,p.item.dim_h,p.item.dim_d].map(function(v){return v||'—';}).join('×');});
+    if(!confirm('Размеры с сайтов фабрик\n\n'+lines.join('\n')+'\n\nНапример:\n'+ex.join('\n')
+      +'\n\nЗаполнятся только ПУСТЫЕ поля — то, что пришло из прайса, не тронется. Записать?'))return;
+    var items=plan.pairs.map(function(p){return p.item;}),done=0;
+    for(var i=0;i<items.length;i+=500){
+      say('записываю '+Math.min(i+500,items.length)+' из '+items.length+'…');
+      try{var n=await sb('POST','rpc/apply_attrs',{items:items.slice(i,i+500)});done+=parseInt(n)||0;}
+      catch(e){
+        var t=(e&&e.message)||'';
+        if(/apply_attrs|does not exist|PGRST202/i.test(t))throw new Error('Выполните в Supabase SQL_обновление_7.19 (функция apply_attrs)');
+        if(/permission|denied|42501|владелец/i.test(t))throw new Error('Нет прав: войдите как владелец (и выполните SQL_обновление_7.19)');
+        throw e;
+      }
+    }
+    toast('✅ Размеры с сайтов записаны: '+items.length+' товаров. После новой загрузки прайса нажмите кнопку ещё раз.','ok',8000);
+  }catch(e){toast('❌ '+String((e&&e.message)||e).slice(0,200),'err',8000);}
+  finally{if(btn){btn.disabled=false;btn.textContent=old;}}
 }
 function qrDataUrl(text,size){
   // QR генерируется ЛОКАЛЬНО встроенной библиотекой (data:URL) — печатается всегда,
