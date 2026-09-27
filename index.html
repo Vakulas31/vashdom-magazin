@@ -313,7 +313,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.79</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.80</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -4201,7 +4201,12 @@ function openMoreMenu(ev,id){
     if(_isOwner)h+='<button onclick="closeMoreMenu();restoreOrder('+id+')">↩ Вернуть заказ в работу</button>';
     else h+='<div class="mm-note">Вернуть отменённый заказ в работу может только владелец.</div>';
   }
-  if(isDone(o))h+='<div class="mm-note">Заказ выполнен — отменить его нельзя. Если клиент вернул товар, оформите претензию.</div>';
+  if(isDone(o)){
+    // v7.80: «Выполнен» нажали по ошибке — вернуть заказ в работу
+    if(_isOwner)h+='<button onclick="closeMoreMenu();reopenDone('+id+')">↩ Отменить «Выполнен» (нажали по ошибке)</button>';
+    else h+='<div class="mm-note">«Выполнен» нажали по ошибке? Вернуть заказ в работу может только владелец — скажите ему номер заказа.</div>';
+    h+='<div class="mm-note">Заказ выполнен — отменить его нельзя. Если клиент вернул товар, оформите претензию.</div>';
+  }
   m.innerHTML=h;
   document.body.appendChild(m);
   var r=btn&&btn.getBoundingClientRect?btn.getBoundingClientRect():{left:20,bottom:100,right:240};
@@ -4350,6 +4355,66 @@ function restoreOrder(id){
     toast('↩ Заказ №'+o.order_number+' снова в работе. Долг за товар: '+fmt(rem)+' ₽','ok',5000);
     filterOrders();
   }).catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);});
+}
+
+// ═══ v7.80: ОТМЕНА «ВЫПОЛНЕН», НАЖАТОГО ПО ОШИБКЕ ═══════════════════════
+// 27.09.2026: продавец перепутала заказы и закрыла не тот. Вернуть было нечем:
+// «🔐 Закрытие» меняет только дату и способы оплаты, а «Изменить» статус
+// «Выполнен» не трогает (иначе до 7.28 правка воскрешала долг).
+// Что делает: убирает деньги, записанные при закрытии (pay_cash/card/transfer),
+// дату и комментарий закрытия, возвращает остаток, статус оплаты и признак
+// «доставка оплачена» к тому, что было ДО закрытия. Старые значения берём из
+// журнала заказа (запись «Заказ закрыт»); если записи нет — считаем заново.
+// Только владелец: деньги закрытия уходят из кассы, а их могли уже забрать.
+async function reopenDone(id){
+  if(!ownerOnly('Отменить «Выполнен»'))return;
+  var o=allOrders.find(function(x){return x.id===id;});if(!o||!isDone(o))return;
+  var got=Math.round((o.pay_cash||0)+(o.pay_card||0)+(o.pay_transfer||0));
+  var parts=[];
+  if(o.pay_cash)parts.push(fmt(o.pay_cash)+' ₽ наличными');
+  if(o.pay_card)parts.push(fmt(o.pay_card)+' ₽ картой');
+  if(o.pay_transfer)parts.push(fmt(o.pay_transfer)+' ₽ переводом');
+  // что было до закрытия — из журнала
+  var prev={};
+  try{
+    var log=await sbGet('order_log','select=field,old_val,action,at&order_id=eq.'+o.id+'&action=eq.close&order=at.desc&limit=50');
+    if(log&&log.length){
+      var lastAt=log[0].at;
+      log.forEach(function(r){if(r.at===lastAt&&r.field)prev[r.field]=r.old_val;});
+    }
+  }catch(e){}
+  // запасной расчёт — как при возврате отменённого заказа
+  var goods=Math.round(orderGoods(o));
+  var paid=Math.round(o.prepayment||0)+orderItemsPaid(o)+orderPaysSum(o);
+  var rem=Math.max(0,goods-paid);
+  var st=paid<=0?'🔴 Не оплачено':((goods>0&&paid>=goods)?'✅ Оплачено':'⚠️ Частичная');
+  if(prev['Статус']&&!/Выполнен|Отмен/.test(prev['Статус']))st=prev['Статус'];
+  if(prev['Остаток']!=null&&isFinite(parseFloat(prev['Остаток'])))rem=Math.round(parseFloat(prev['Остаток']));
+  var patch={status:st,remainder:rem,closed_at:null,close_comment:null,pay_cash:0,pay_card:0,pay_transfer:0};
+  // доставку помечали оплаченной при закрытии — возвращаем «не оплачена»
+  if(prev['Доставка оплачена']!=null){patch.delivery_paid=prev['Доставка оплачена']||'no';}
+  else{
+    var deliv=Math.round((o.delivery_cost||0)+(o.lifting_cost||0));
+    if(o.delivery_paid==='yes'&&o.delivery_our!==false&&deliv>0&&got>=rem+deliv)patch.delivery_paid='no';
+  }
+  if(prev['Наша доставка']!=null&&prev['Наша доставка']!=='')patch.delivery_our=(prev['Наша доставка']!=='false');
+  var msg='Вернуть заказ №'+o.order_number+' ('+(o.client_name||'')+') в работу?\n\n'
+    +(got>0?'При закрытии записано получено '+fmt(got)+' ₽ ('+parts.join(' + ')+'). Эти деньги уберутся из «Учёта».\n'
+      +'Если клиент их на самом деле заплатил — после возврата примите их кнопкой «💰 Принять оплату».\n\n'
+      :'При закрытии денег не записывали.\n\n')
+    +'Долг клиента за товар станет '+fmt(rem)+' ₽'+(patch.delivery_paid==='no'&&o.delivery_paid==='yes'?', доставка снова «не оплачена»':'')+'.'
+    +(prev['Статус']?'':'\n(Записи о закрытии в истории нет — остаток посчитан заново по предоплате и платежам.)');
+  if(!confirm(msg))return;
+  var before=Object.assign({},o);
+  try{
+    await sbPatch('orders',patch,'id=eq.'+o.id);
+  }catch(e){toast('❌ '+((e&&e.message)||'').slice(0,160),'err',6000);return;}
+  Object.assign(o,patch);
+  try{logOrder(o,'reopen',diffOrder(before,o).concat(got>0?[{field:'Оплата при закрытии',old:fmt(got)+' ₽',new:'убрана'}]:[]),'«Выполнен» отменён — заказ снова в работе');}catch(e){}
+  toast('↩ Заказ №'+o.order_number+' снова в работе','ok',5000);
+  filterOrders();
+  var cashPage=document.getElementById('page-cash');
+  if(cashPage&&cashPage.classList.contains('active')&&window.renderCash)renderCash();
 }
 function onPriceFile(input){
   var file=input.files[0]; if(!file)return;
