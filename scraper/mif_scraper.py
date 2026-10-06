@@ -45,7 +45,7 @@ def _sb_headers():
     return h
 
 
-def fetch(url):
+def fetch(url, min_len=500):
     # Сайт МиФ при частых запросах отвечает 503 «Service Temporarily Unavailable»
     # (проверено 27.09.2026). Тогда ждём и пробуем снова: 10, 30, 60 секунд.
     for wait in (0, 10, 30, 60):
@@ -54,7 +54,7 @@ def fetch(url):
             time.sleep(wait)
         try:
             r = session.get(url, timeout=TIMEOUT)
-            if r.status_code == 200 and len(r.text) > 500 and "Service Temporarily Unavailable" not in r.text[:2000]:
+            if r.status_code == 200 and len(r.text) > min_len and "Service Temporarily Unavailable" not in r.text[:2000]:
                 return r.text
             print(f"  ! ответ {r.status_code}")
             if r.status_code not in (429, 502, 503, 504):
@@ -80,10 +80,14 @@ def fetch(url):
 def product_urls():
     """sitemap.xml → вложенные sitemap → адреса /catalog/<раздел>/<номер>/"""
     urls, seen = [], set()
-    top = fetch(SITE + "/sitemap.xml") or ""
+    # Главный sitemap.xml у МиФ совсем короткий (две ссылки, меньше 500 знаков) —
+    # обычная проверка «страница не пустая» его отбрасывала (запуск №1, 06.10.2026).
+    top = fetch(SITE + "/sitemap.xml", min_len=50) or ""
     maps = [SITE + "/sitemap.xml"] + [u for u in re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", top) if u.endswith(".xml")]
+    if len(maps) == 1:                      # главный не отдался — идём сразу в известный
+        maps.append(SITE + "/sitemap-iblock-6.xml")
     for sm in maps:
-        xml = top if sm == SITE + "/sitemap.xml" else (fetch(sm) or "")
+        xml = top if sm == SITE + "/sitemap.xml" else (fetch(sm, min_len=50) or "")
         for loc in re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", xml):
             u = loc.split("?")[0]
             path = re.sub(r"^https?://[^/]+", "", u)
