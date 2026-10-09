@@ -313,7 +313,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.87</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.88</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -627,9 +627,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       </div>
     </div>
     <!-- Превью -->
-    <div class="card" style="display:flex;flex-direction:column;align-items:center">
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;align-self:start;position:sticky;top:12px">
       <div class="card-title" style="align-self:flex-start">Предпросмотр</div>
-      <div id="pl-preview" style="margin:auto"></div>
+      <div id="pl-preview"></div>
     </div>
   </div>
 
@@ -9455,7 +9455,7 @@ function addLabelChip(i){
 // ── «Заполнить из прайса»: ищем в загруженных прайсах (price_items) ──
 var _plFindRows=[];
 function _plFindSel(full){
-  return 'supplier,product_name,price_opt,price_retail,article'+(_gsFactoryCol?',factory':'')+(full?',dim_w,dim_h,dim_d,color':'');
+  return 'supplier,product_name,price_opt,price_retail,article'+(_gsFactoryCol?',factory':'')+(full?',dim_w,dim_h,dim_d,color,ptype,material,category,compatibility':'');
 }
 async function plFindInPrice(){
   var q=_plVal('pl-find');
@@ -9469,6 +9469,7 @@ async function plFindInPrice(){
     :'or=(and('+words.map(function(w){return 'product_name.ilike.'+_ilikePat(w);}).join(',')+'),article.ilike.'+_ilikePat(q)+')';
   var rows=null;
   try{rows=await sbGet('price_items','select='+_plFindSel(true)+'&'+params+'&limit=200&order=product_name.asc');}
+  catch(e0){try{rows=await sbGet('price_items','select='+_plFindSel(false)+',dim_w,dim_h,dim_d,color&'+params+'&limit=200&order=product_name.asc');}
   catch(e){
     // нет колонок размеров/цвета или search_name — пробуем проще
     try{rows=await sbGet('price_items','select='+_plFindSel(false)+'&'+params+'&limit=200&order=product_name.asc');}
@@ -9476,7 +9477,7 @@ async function plFindInPrice(){
       try{rows=await sbGet('price_items','select='+_plFindSel(false)+'&and=('+words.map(function(w){return 'product_name.ilike.'+_ilikePat(w);}).join(',')+')&limit=200&order=product_name.asc');}
       catch(e3){box.innerHTML='<div style="padding:8px 10px;font-size:12px;color:#c62828">Не удалось выполнить поиск: '+esc(e3.message||e3)+'</div>';return;}
     }
-  }
+  }}
   rows=rows||[];
   if(typeof _gsRank==='function')rows=_gsRank(rows,words);
   rows=rows.slice(0,15);
@@ -9486,50 +9487,136 @@ async function plFindInPrice(){
     var ret=p.price_opt?retailFromOpt(p.price_opt):(p.price_retail||0);
     var sub=[p.factory||'',p.supplier||'',p.article||''].filter(Boolean).join(' · ');
     return '<div onclick="plPickFromPrice('+i+')" style="cursor:pointer;display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
-      +'<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">'+esc(p.product_name)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">'+esc(String(p.product_name||'').split(/\n/)[0])+'</div>'
       +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(sub)+'</div>':'')+'</div>'
       +'<div style="font-size:12.5px;font-weight:700;white-space:nowrap">'+(ret?fmt(ret)+' ₽':'—')+'</div></div>';
   }).join('');
 }
+// v7.87.1: строка прайса → поля ценника. В прайсах всё слеплено в название:
+// «шкаф-купе Фортуна · венге/дуб белфорд», «Стол … \n ОПОРЫ ЧЕРНЫЕ \n Керамика …»,
+// размеры и ткани — в артикуле/примечании («742*950*2032», «Длина 150 см …», «кат. IV»).
+// Разбираем по частям; что не удалось — оставляем пустым (продавец допишет).
+var _PL_COLOR_RX=/(бел|чёрн|черн|сер|граф|бетон|дуб|венге|орех|ясень|сонома|бук|ольх|вишн|мокко|капуч|беж|корич|шоколад|крем|молоч|сливоч|слонов|зел|син|голуб|красн|бордо|жёлт|желт|оранж|роз|фиолет|лаванд|изумруд|терракот|мрамор|камень|лофт|крафт|эмбер|антрацит|кашемир|латте|ванил|айвори|ivory|white|black|grey|gray|beige|oak|walnut|\/)/i;
+var _PL_MECHS=['еврокнижка','книжка','клик-кляк','аккордеон','дельфин','выкатной','пантограф','тик-так','французская раскладушка','седафлекс','американская раскладушка','подъемный механизм','подъёмный механизм','реклайнер','кушетка'];
+var _PL_MATS={'лдсп':'ЛДСП','мдф':'МДФ','дсп':'ДСП','хдф':'ХДФ','массив':'Массив','металл':'Металл','стекло':'Стекло','экокожа':'Экокожа','велюр':'Велюр','рогожка':'Рогожка','шенилл':'Шенилл','микровелюр':'Микровелюр','керамика':'Керамика'};
+function _plCap(s){s=String(s||'').trim();return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
 function _plDimsStr(w,d,h){
-  var a=[w,d,h].map(function(x){return +x||0;});
-  if(!a.some(Boolean))return '';
-  return a.map(function(x){return x?String(Math.round(x)):'—';}).join('×')+' мм';
+  var a=[w,d,h].map(function(x){return Math.round(+x||0);});
+  var n=a.filter(Boolean).length;
+  // один размер (часто «угадан» из кода модели) не печатаем — только полный или почти полный
+  if(n<2)return '';
+  return a.map(function(x){return x?String(x):'—';}).join('×')+' мм';
+}
+// размеры из свободного текста: «Длина 150 см Глубина 83 см Высота 80 см» / «46х64х100»
+function _plDimsFromText(t){
+  t=String(t||'');
+  var num=function(rx){var m=t.match(rx);return m?parseFloat(m[1].replace(',','.')):0;};
+  var L=num(/(?:длина|ширина|шир\.?|дл\.?)\s*[:\-]?\s*(\d+(?:[.,]\d+)?)/i);
+  var D=num(/(?:глубина|гл\.?)\s*[:\-]?\s*(\d+(?:[.,]\d+)?)/i);
+  var H=num(/(?:высота|выс\.?|в\.?)\s*[:\-]?\s*(\d+(?:[.,]\d+)?)\s*(?:см|мм|м\b)/i);
+  if([L,D,H].filter(Boolean).length>=2){
+    var cm=/см/i.test(t)||Math.max(L,D,H)<400;
+    var k=cm?10:1;
+    return _plDimsStr(L*k,D*k,H*k);
+  }
+  var m=t.match(/(\d{2,4})\s*[*xхX×]\s*(\d{2,4})\s*[*xхX×]\s*(\d{2,4})/);
+  if(m){var a=[+m[1],+m[2],+m[3]];var unit=Math.max.apply(null,a)<400?' см':' мм';return a.join('×')+unit;}
+  return '';
+}
+function _plParsePriceRow(p){
+  var out={name:'',kind:'',dims:'',sleep:'',mech:'',mat:'',color:'',features:'',incl:'',qr:''};
+  var raw=String(p.product_name||'');
+  // 1) строки: первая — название, остальные — описание (опоры, ткани, вставки…)
+  var lines=raw.split(/\r?\n/).map(function(x){return x.replace(/\s+/g,' ').trim();}).filter(Boolean);
+  var head=lines.shift()||'';
+  // 2) «Название · исполнение»: последний кусок после « · » — обычно цвет/исполнение
+  var parts=head.split(/\s+·\s+/).map(function(x){return x.trim();}).filter(Boolean);
+  var variant='';
+  if(parts.length>1){
+    var last=parts[parts.length-1];
+    if(_PL_COLOR_RX.test(last)||(p.color&&_eNorm(last).indexOf(_eNorm(p.color))>=0)){variant=last;parts.pop();}
+  }
+  var nm=parts.join(' · ').replace(/^корпус:\s*/i,'Корпус ');
+  // «(цена без матраца)» — это не название, а что входит в цену
+  var incl='';
+  nm=nm.replace(/\s*\(([^()]*(?:цена|без|не входит|в комплекте)[^()]*)\)\s*/i,function(_m,t){incl=_plCap(t.trim());return ' ';}).trim();
+  // цвет в хвосте названия: «Корпус 110ГНГ-1 Дуб крафт серый» → цвет «Дуб крафт серый»
+  if(!variant&&p.color){
+    var at=_eNorm(nm).indexOf(_eNorm(String(p.color).trim()));
+    var tail=at>0?nm.slice(at).trim():'';
+    if(tail&&tail.length<=40&&at>=nm.length/3&&/^[^\d]*$/.test(tail)){variant=tail;nm=nm.slice(0,at).replace(/[\s,·\-–]+$/,'');}
+  }
+  out.name=_plCap(nm);
+  out.incl=incl;
+  // 3) цвет: исполнение из названия точнее, чем слово, которое угадал импорт («дуб» из «венге/дуб белфорд»)
+  out.color=_plCap(variant||p.color||'');
+  // 4) строка «тип · фабрика»; тип не дублируем, если он уже в названии
+  var pt=String(p.ptype||'').trim();
+  var kind=[];
+  if(pt&&_eNorm(out.name).indexOf(_eNorm(pt))<0)kind.push(_plCap(pt));
+  if(p.factory)kind.push(String(p.factory).trim());
+  out.kind=kind.join(' · ');
+  // 5) текст для поиска характеристик: название + артикул + примечание
+  var extra=[raw,String(p.article||''),String(p.compatibility||'')].join(' \n ');
+  var low=_eNorm(extra);
+  // размеры: из колонок прайса; если там пусто — из текста
+  out.dims=_plDimsStr(p.dim_w,p.dim_d,p.dim_h)||_plDimsFromText(String(p.article||'')+' '+String(p.compatibility||''))||_plDimsFromText(raw);
+  // матрас «200*080» — размер в названии
+  if(!out.dims&&/матрас/i.test(pt+' '+head)){var mm=head.match(/(\d{2,3})\s*[*xх×]\s*(\d{2,3})/);if(mm)out.dims=(+mm[2])+'×'+(+mm[1])+' см';}
+  // спальное место
+  var sm=extra.match(/спальн\S*\s*(?:мест\S*)?[^\d]{0,12}(\d{2,4})\s*[*xхX×]\s*(\d{2,4})/i);
+  if(sm)out.sleep=sm[1]+'×'+sm[2]+(Math.max(+sm[1],+sm[2])<400?' см':' мм');
+  // механизм
+  for(var i=0;i<_PL_MECHS.length;i++){if(low.indexOf(_eNorm(_PL_MECHS[i]))>=0){out.mech=_plCap(_PL_MECHS[i]);break;}}
+  // материал / обивка: колонка material, слова из текста, категория ткани
+  var mats=[];
+  if(p.material){var mk=_eNorm(p.material).trim();mats.push(_PL_MATS[mk]||_plCap(p.material));}
+  Object.keys(_PL_MATS).forEach(function(k){if(mats.indexOf(_PL_MATS[k])<0&&new RegExp('(^|[^а-яё])'+k+'([^а-яё]|$)','i').test(low)&&!(k==='велюр'&&low.indexOf('микровелюр')>=0))mats.push(_PL_MATS[k]);});
+  var cat=extra.match(/кат(?:егория)?\.?\s*([IVX]{1,4}|\d{1,2})(?![\dа-яё])/i);
+  out.mat=mats.slice(0,2).join(', ')+(cat?(mats.length?', ':'Ткань ')+'кат. '+cat[1].toUpperCase():'');
+  // 6) остальные строки названия — в преимущества (по одной на строку, не больше 4)
+  out.features=lines.map(function(x){return _plCap(x.toLowerCase()===x.toUpperCase()?x:(x===x.toUpperCase()?x.toLowerCase():x));})
+    .filter(function(x){return x.length>2&&x.length<70;}).slice(0,4).join('\n');
+  // 7) QR: артикул — только если это похоже на код, а не на описание
+  var art=String(p.article||'').split(/\s+·\s+/)[0].trim();
+  if(/^[\wА-Яа-яЁё\-./]{3,30}$/.test(art))out.qr=art;
+  return out;
 }
 async function plPickFromPrice(i){
   var p=_plFindRows[i];
   if(!p)return;
   var set=function(id,v){var el=document.getElementById(id);if(el&&v!=null)el.value=v;};
-  set('pl-name',p.product_name||'');
-  set('pl-kind',p.factory||'');
+  var f=_plParsePriceRow(p);
+  set('pl-name',f.name);set('pl-kind',f.kind);
+  set('pl-dims',f.dims);set('pl-sleep',f.sleep);set('pl-mech',f.mech);set('pl-mat',f.mat);set('pl-color',f.color);
+  set('pl-features',f.features);set('pl-incl',f.incl);
   var ret=p.price_opt?retailFromOpt(p.price_opt):(p.price_retail||0);
   set('pl-price',ret?String(ret):'');
   set('pl-oldprice','');
   set('pl-supplier',p.supplier||'');
-  set('pl-dims',_plDimsStr(p.dim_w,p.dim_d,p.dim_h));
-  set('pl-color',p.color||'');
-  set('pl-qr',p.article||'');
+  set('pl-qr',f.qr);
   var box=document.getElementById('pl-find-res');
   if(box){box.style.display='none';box.innerHTML='';}
   renderPriceLabel();
-  var filled=['название','цена'+(p.price_opt?' (розница по наценке)':'')];
-  if(_plVal('pl-dims'))filled.push('размер');
-  if(_plVal('pl-color'))filled.push('цвет');
+  var filled=['название','цена'];
+  [['pl-dims','размер'],['pl-sleep','спальное место'],['pl-mech','механизм'],['pl-mat','материал'],['pl-color','цвет'],['pl-features','описание']].forEach(function(x){if(_plVal(x[0]))filled.push(x[1]);});
   // каталог фабрики (с сайта): ссылка для QR, а если в прайсе нет — размер и цвет
   try{
-    var c=await _plCatalogMatch(p);
+    var c=await _plCatalogMatch(p,f.name);
     if(c){
-      if(c.url){set('pl-qr',c.url);filled.push('QR на страницу фабрики');}
+      if(c.url){set('pl-qr',c.url);filled.push('QR на сайт фабрики');}
       if(!_plVal('pl-dims')){var ds=_plDimsStr(c.dim_w,c.dim_d,c.dim_h);if(ds){set('pl-dims',ds);filled.push('размер с сайта');}}
-      if(!_plVal('pl-color')&&c.color){set('pl-color',c.color);filled.push('цвет с сайта');}
+      if(!_plVal('pl-color')&&c.color){set('pl-color',_plCap(c.color));filled.push('цвет с сайта');}
       renderPriceLabel();
     }
   }catch(e){}
-  toast('📦 Заполнено: '+filled.join(', ')+'. Проверьте и допишите характеристики',null,5000);
+  var miss=[];
+  if(!_plVal('pl-dims'))miss.push('размера');
+  toast('📦 Заполнено: '+filled.join(', ')+'.'+(miss.length?' В прайсе нет '+miss.join(', ')+' — впишите вручную.':' Проверьте перед печатью.'),null,6000);
 }
 // Ищем тот же товар в каталогах фабрик: все значимые слова названия должны совпасть
-async function _plCatalogMatch(p){
-  var words=String(p.product_name||'').replace(/[()«»"',.]/g,' ').split(/\s+/)
+async function _plCatalogMatch(p,nm){
+  var words=String(nm||p.product_name||'').replace(/[()«»"',.]/g,' ').split(/\s+/)
     .filter(function(w){return w.length>=3&&!/^\d+$/.test(w);}).slice(0,4);
   if(!words.length)return null;
   var conds=words.map(function(w){return _gsNormCol?'search_name.ilike.'+_normPat(w):'name.ilike.'+_ilikePat(w);}).join(',');
