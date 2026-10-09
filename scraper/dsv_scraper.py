@@ -21,9 +21,6 @@
     берём «Высота общая».
   • Модульная система «Роза» на сайте одной страницей без размеров модулей —
     её строки прайса (Комод 1300, Шкаф 900…) отсюда размеры не получат.
-  • Запуск №2 (09.10.2026): серверам GitHub сайт отдаёт заглушку вместо данных
-    (ответ 200, но не JSON) — такое теперь распознаётся, и страница берётся
-    через Firecrawl (секрет FIRECRAWL_API_KEY, тот же, что у Браво).
 """
 import os, re, sys, time, json
 import requests
@@ -45,6 +42,10 @@ DELAY = 2.0
 TIMEOUT = 40
 session = requests.Session()
 session.headers.update(HEADERS)
+# Хостинг Beget защищает сайт простой проверкой: отдаёт скрипт, который ставит
+# cookie «beget=begetok» и перезагружает страницу (видно в логе запуска №5).
+# Ставим этот cookie сразу — тогда сайт отдаёт обычные страницы без Firecrawl.
+session.cookies.set("beget", "begetok", domain="dsv-mebel.ru", path="/")
 stats = {"pages": 0, "products": 0, "rows": 0, "with_dims": 0, "saved": 0, "firecrawl": 0, "errors": 0}
 
 
@@ -85,6 +86,10 @@ def fetch(url, min_len=500, kind="html"):
             r = session.get(url, timeout=TIMEOUT)
             if r.status_code == 200 and len(r.text) > min_len and _looks_ok(r.text, kind):
                 return r.text
+            if r.status_code == 200 and "beget=begetok" in r.text and not wait:
+                # проверка Beget всё равно пришла — ставим cookie на точный домен и повторяем
+                session.cookies.set("beget", "begetok")
+                continue
             if r.status_code == 200:
                 head = re.sub(r"\s+", " ", r.text[:160])
                 print(f"  ! сайт ответил, но не то, что нужно (защита от ботов?): «{head}»")
@@ -100,6 +105,13 @@ def fetch(url, min_len=500, kind="html"):
             fr = requests.post("https://api.firecrawl.dev/v2/scrape",
                                headers={"Authorization": f"Bearer {FIRECRAWL_KEY}"},
                                json={"url": url, "formats": ["rawHtml"]}, timeout=120)
+            if fr.status_code == 429:
+                # бесплатный Firecrawl — не больше ~10 страниц в минуту: ждём минуту и повторяем
+                print("  … Firecrawl просит паузу, жду 60 с")
+                time.sleep(61)
+                fr = requests.post("https://api.firecrawl.dev/v2/scrape",
+                                   headers={"Authorization": f"Bearer {FIRECRAWL_KEY}"},
+                                   json={"url": url, "formats": ["rawHtml"]}, timeout=120)
             if fr.ok:
                 data = fr.json().get("data") or {}
                 html = data.get("rawHtml") or data.get("html") or ""
@@ -135,7 +147,6 @@ def product_list():
         try:
             arr = json.loads(txt)
         except Exception:
-            print("  ! список товаров пришёл, но это не JSON")
             break
         if not isinstance(arr, list) or not arr:
             break
