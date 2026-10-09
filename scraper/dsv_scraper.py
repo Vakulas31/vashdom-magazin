@@ -21,6 +21,9 @@
     берём «Высота общая».
   • Модульная система «Роза» на сайте одной страницей без размеров модулей —
     её строки прайса (Комод 1300, Шкаф 900…) отсюда размеры не получат.
+  • Запуск №2 (09.10.2026): серверам GitHub сайт отдаёт заглушку вместо данных
+    (ответ 200, но не JSON) — такое теперь распознаётся, и страница берётся
+    через Firecrawl (секрет FIRECRAWL_API_KEY, тот же, что у Браво).
 """
 import os, re, sys, time, json
 import requests
@@ -53,33 +56,65 @@ def _sb_headers():
     return h
 
 
-def fetch(url, min_len=500):
-    for wait in (0, 10, 30, 60):
+def _looks_ok(text, kind):
+    """Проверка, что пришло то, что просили, а не заглушка защиты от ботов.
+    Запуск №2 (09.10.2026): сайт отдал серверам GitHub ответ 200, но не JSON —
+    сборщик молча получил «0 товаров». Теперь такое распознаём."""
+    t = (text or "").lstrip()
+    if kind == "json":
+        return t.startswith("[") or t.startswith("{")
+    if kind == "xml":
+        return "<loc>" in t
+    return ("rey-wcPanel" in t) or ("woocommerce" in t and "<h1" in t)
+
+
+def _json_from_firecrawl(html):
+    """Firecrawl отдаёт JSON, завёрнутый в <pre> страницы браузера — достаём."""
+    import html as _h
+    t = _h.unescape(re.sub(r"<[^>]+>", "", html or "")).strip()
+    a, b = t.find("["), t.rfind("]")
+    return t[a:b + 1] if a >= 0 and b > a else ""
+
+
+def fetch(url, min_len=500, kind="html"):
+    for wait in (0, 10, 30):
         if wait:
             print(f"  … сайт просит паузу, жду {wait} с")
             time.sleep(wait)
         try:
             r = session.get(url, timeout=TIMEOUT)
-            if r.status_code == 200 and len(r.text) > min_len:
+            if r.status_code == 200 and len(r.text) > min_len and _looks_ok(r.text, kind):
                 return r.text
+            if r.status_code == 200:
+                head = re.sub(r"\s+", " ", r.text[:160])
+                print(f"  ! сайт ответил, но не то, что нужно (защита от ботов?): «{head}»")
+                break
             print(f"  ! ответ {r.status_code}")
             if r.status_code not in (429, 502, 503, 504):
                 break
         except Exception as e:
             print(f"  ! прямой запрос не удался: {e}")
-    if FIRECRAWL_KEY and not url.endswith((".xml",)) and "/wp-json/" not in url:
+            break
+    if FIRECRAWL_KEY:
         try:
             fr = requests.post("https://api.firecrawl.dev/v2/scrape",
                                headers={"Authorization": f"Bearer {FIRECRAWL_KEY}"},
-                               json={"url": url, "formats": ["rawHtml"]}, timeout=90)
+                               json={"url": url, "formats": ["rawHtml"]}, timeout=120)
             if fr.ok:
                 data = fr.json().get("data") or {}
                 html = data.get("rawHtml") or data.get("html") or ""
-                if len(html) > 500:
+                if kind == "json":
+                    html = _json_from_firecrawl(html)
+                if len(html) > min_len and _looks_ok(html, kind):
                     stats["firecrawl"] += 1
                     return html
+                print(f"  ! firecrawl тоже отдал не то ({len(html)} знаков)")
+            else:
+                print(f"  ! firecrawl: ответ {fr.status_code} {fr.text[:120]}")
         except Exception as e:
             print(f"  ! firecrawl не удался: {e}")
+    else:
+        print("  ! ключа FIRECRAWL_API_KEY нет — обойти защиту нечем")
     return None
 
 
@@ -94,12 +129,13 @@ def product_list():
     """[{name, url, photo, price, category}] — из API магазина, иначе из sitemap."""
     out, seen = [], set()
     for page in range(1, 11):
-        txt = fetch(f"{SITE}/wp-json/wc/store/v1/products?per_page=100&page={page}", min_len=2)
+        txt = fetch(f"{SITE}/wp-json/wc/store/v1/products?per_page=100&page={page}", min_len=2, kind="json")
         if not txt:
             break
         try:
             arr = json.loads(txt)
         except Exception:
+            print("  ! список товаров пришёл, но это не JSON")
             break
         if not isinstance(arr, list) or not arr:
             break
@@ -129,7 +165,7 @@ def product_list():
     if out:
         return out
     # запасной путь — sitemap
-    xml = fetch(SITE + "/product-sitemap.xml", min_len=50) or ""
+    xml = fetch(SITE + "/product-sitemap.xml", min_len=50, kind="xml") or ""
     for loc in re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", xml):
         u = loc.split("?")[0]
         if re.search(r"/mebel/[^/]+/?$", u) and u not in seen:
