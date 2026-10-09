@@ -313,7 +313,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.86</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.87</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -549,48 +549,73 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
 <div class="page" id="page-pricelabels">
   <h2 style="font-size:18px;font-weight:700;margin-bottom:4px">🏷 Ценники</h2>
-  <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Заполните данные и распечатайте ценник. QR-код автоматически генерируется из артикула или ссылки.</p>
+  <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Один стиль для всего зала: название, характеристики строками, преимущества списком, крупная цена. Можно подтянуть товар из прайса. QR-код делается из артикула или ссылки.</p>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-    <!-- Форма -->
+    <!-- Форма (v7.87: единый стиль ценника) -->
     <div class="card">
       <div class="card-title">Данные ценника</div>
+      <!-- v7.87: подтянуть товар из загруженных прайсов -->
+      <div style="background:var(--alt);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px">📦 Заполнить из прайса</div>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="pl-find" class="inp-gold" placeholder="Название или артикул, напр. «милан угловой»" onkeydown="if(event.key==='Enter'){event.preventDefault();plFindInPrice();}">
+          <button class="btn btn-outline" onclick="plFindInPrice()" style="padding:6px 12px;flex-shrink:0">🔍 Найти</button>
+        </div>
+        <div id="pl-find-res" style="display:none;margin-top:6px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:#fff"></div>
+      </div>
       <div class="fg" style="margin-bottom:10px"><label>Название товара</label>
-        <input type="text" id="pl-name" class="inp-gold" placeholder="Диван угловой Милан" oninput="renderPriceLabel()"></div>
-      <div class="fg" style="margin-bottom:10px"><label>Цвет / Ткань</label>
-        <input type="text" id="pl-color" class="inp-gold" placeholder="Серый, кат. 3" oninput="renderPriceLabel()"></div>
-      <div class="fg" style="margin-bottom:10px"><label>Размер</label>
-        <input type="text" id="pl-dims" class="inp-gold" placeholder="2600×1500 мм" oninput="renderPriceLabel()"></div>
-      <div class="fg" style="margin-bottom:10px"><label>Доп. характеристики / преимущества</label>
-        <input type="text" id="pl-features" class="inp-gold" placeholder="Независимые пружины, съёмные чехлы, ящик для белья..." oninput="renderPriceLabel()"></div>
+        <input type="text" id="pl-name" class="inp-gold" placeholder="Милан" oninput="renderPriceLabel()"></div>
+      <div class="fg" style="margin-bottom:10px"><label>Тип · фабрика (строка под названием)</label>
+        <input type="text" id="pl-kind" class="inp-gold" placeholder="Угловой диван · Мебелони" oninput="renderPriceLabel()"></div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin:4px 0 6px">Характеристики <span style="font-weight:400">(пустые строки на ценник не попадут)</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-bottom:10px">
+        <div class="fg"><label>Размер (Ш×Г×В)</label>
+          <input type="text" id="pl-dims" class="inp-gold" placeholder="2600×1500×900 мм" oninput="renderPriceLabel()"></div>
+        <div class="fg"><label>Спальное место</label>
+          <input type="text" id="pl-sleep" class="inp-gold" placeholder="1950×1400 мм" oninput="renderPriceLabel()"></div>
+        <div class="fg"><label>Механизм</label>
+          <input type="text" id="pl-mech" class="inp-gold" placeholder="Еврокнижка" oninput="renderPriceLabel()"></div>
+        <div class="fg"><label>Обивка / материал</label>
+          <input type="text" id="pl-mat" class="inp-gold" placeholder="Велюр, кат. 3" oninput="renderPriceLabel()"></div>
+        <div class="fg" style="grid-column:1/-1"><label>Цвет</label>
+          <input type="text" id="pl-color" class="inp-gold" placeholder="Серый" oninput="renderPriceLabel()"></div>
+      </div>
+      <div class="fg" style="margin-bottom:4px"><label>Преимущества — каждое с новой строки (на ценник до 4)</label>
+        <textarea id="pl-features" class="inp-gold" rows="4" placeholder="Ящик для белья&#10;Независимый пружинный блок&#10;Съёмные чехлы" oninput="renderPriceLabel()" style="resize:vertical;font-family:inherit"></textarea></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <select id="pl-chiptype" class="inp-gold" onchange="renderLabelChips()" style="width:auto;padding:4px 8px;font-size:12px">
+          <option value="sofa">Диван</option><option value="bed">Кровать</option><option value="case">Шкаф / корпус</option>
+          <option value="kitchen">Кухня</option><option value="mattress">Матрас</option><option value="table">Стол / стулья</option>
+        </select>
+        <div id="pl-chips" style="display:contents"></div>
+      </div>
+      <div class="fg" style="margin-bottom:10px"><label>Что входит в цену (мелко внизу, необязательно)</label>
+        <input type="text" id="pl-incl" class="inp-gold" placeholder="Диван с механизмом. Подушки и пуф — отдельно" oninput="renderPriceLabel()"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-        <div class="fg"><label>Цена</label>
+        <div class="fg"><label>Цена, ₽</label>
           <input type="number" id="pl-price" class="inp-gold" placeholder="45000" oninput="renderPriceLabel()"></div>
-        <div class="fg"><label>Старая цена</label>
+        <div class="fg"><label>Старая цена (если скидка)</label>
           <input type="number" id="pl-oldprice" class="inp-gold" placeholder="52000" oninput="renderPriceLabel()"></div>
       </div>
+      <div class="fg" style="margin-bottom:10px"><label>Рассрочка — банк (строка печатается, только если банк указан)</label>
+        <input type="text" id="pl-bank" class="inp-gold" list="pl-bank-list" placeholder="напр. ОТП Банк" oninput="renderPriceLabel()">
+        <datalist id="pl-bank-list"><option value="ОТП Банк"><option value="Т-Банк"><option value="Альфа-Банк"><option value="Хоум Банк"><option value="Почта Банк"><option value="Сбербанк"></datalist></div>
       <div class="fg" style="margin-bottom:10px"><label>Артикул / ссылка для QR</label>
         <input type="text" id="pl-qr" class="inp-gold" placeholder="MIL-2026 или https://..." oninput="renderPriceLabel()"></div>
       <div class="fg" style="margin-bottom:14px"><label>Поставщик (не печатается, для памяти)</label>
         <input type="text" id="pl-supplier" class="inp-gold" placeholder="ДСВ, Пинскдрев..."></div>
       <div style="display:flex;gap:10px;margin-bottom:10px">
-        <div class="fg" style="flex:1"><label>Стиль</label>
-          <select id="pl-style" class="inp-gold" onchange="renderPriceLabel()">
-            <option value="A">A — акцент на цене</option>
-            <option value="B">B — премиум-карточка</option>
-          </select>
-        </div>
-        <div class="fg" style="flex:1"><label>Формат</label>
+        <div class="fg" style="flex:2"><label>Формат</label>
           <select id="pl-format" class="inp-gold" onchange="renderPriceLabel()">
-            <option value="half">Половина А4 (148×105 мм)</option>
+            <option value="half">Большой 19×13 см (2 на листе А4)</option>
             <option value="small">Маленький 6×8 см</option>
           </select>
         </div>
         <div class="fg" style="flex:1"><label>Кол-во копий</label>
           <input type="number" id="pl-copies" class="inp-gold" value="1" min="1" max="20" oninput="renderPriceLabel()"></div>
       </div>
-      <div class="fg" style="margin-bottom:10px"><label>Плашка стиля B (гарантия / рассрочка, необязательно)</label>
-        <input type="text" id="pl-promo" class="inp-gold" placeholder="Гарантия 18 мес · Рассрочка 0%" oninput="renderPriceLabel()"></div>
+      <div id="pl-warn" style="display:none;font-size:12px;color:#8a5a18;background:#fbf0e2;border-radius:7px;padding:7px 10px;margin-bottom:10px;line-height:1.45"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="printPriceLabel()" style="flex:1;justify-content:center;min-width:150px">🖨 Печать (одиночно)</button>
         <button class="btn btn-success" onclick="addLabelToQueue()" style="flex:1;justify-content:center;min-width:150px">➕ В лист печати</button>
@@ -601,7 +626,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div id="pl-recent" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
     </div>
-
     <!-- Превью -->
     <div class="card" style="display:flex;flex-direction:column;align-items:center">
       <div class="card-title" style="align-self:flex-start">Предпросмотр</div>
@@ -9144,62 +9168,111 @@ function qrDataUrl(text,size){
   // Резерв, если библиотека вдруг не загрузилась
   return'https://api.qrserver.com/v1/create-qr-code/?size='+size+'x'+size+'&data='+encodeURIComponent(text);
 }
-// Единый шаблон ценника (мм/pt) — предпросмотр и печать используют ОДИН и тот же код,
-// поэтому масштаб надписей на печати совпадает с предпросмотром (превью просто уменьшено transform:scale).
+// ═══ v7.87: ЕДИНЫЙ СТИЛЬ ЦЕННИКА ═══════════════════════════════════════
+// Раньше было два стиля (A/B), характеристики одной строкой, преимущества через запятую.
+// Теперь один макет для всего зала (решение владельца, исследование 10.2026):
+//   шапка — название + «тип · фабрика», логотип, черта;
+//   середина — характеристики строками «Размер / Спальное место / Механизм / Обивка / Цвет»
+//              (пустые не печатаются) и преимущества списком ✓ (каждое с новой строки, до 4);
+//              мелко — «В цену входит…»;
+//   низ — крупная цена: обычная чёрная; при скидке красная, старая зачёркнута,
+//         плашка «Выгода N ₽» (в рублях, не в %); строка рассрочки — ТОЛЬКО с названием банка
+//         (ст. 28 Закона о рекламе). Дату окончания акции владелец решил не печатать.
+// Предпросмотр и печать используют ОДИН и тот же код, масштаб совпадает
+// (превью просто уменьшено transform:scale). Если текста много, он плавно уменьшается
+// (_fitLabels), чтобы ничего не обрезалось.
+var LABEL_MAX_FEATS=4;
 function _labelSpec(){
   var half=document.getElementById('pl-format').value==='half';
-  return half
-    ?{half:true, pw:'210mm',ph:'297mm',w:190,h:130, pad:'8mm',logoH:'14mm',
-      nameBase:34,nameMin:14,nameComfy:16, infoBase:22,infoMin:13,infoComfy:30,
-      priceBase:46,priceMin:26,oldSize:'24pt', qrMm:'26mm',qrPx:150, discMm:'16mm',discFont:'12pt',gap:'3mm'}
-    :{half:false,pw:'60mm', ph:'80mm', w:52, h:72, pad:'3mm',logoH:'6mm',
-      nameBase:15,nameMin:7,nameComfy:14, infoBase:11,infoMin:7.5,infoComfy:26,
-      priceBase:20,priceMin:13,oldSize:'12pt', qrMm:'12mm',qrPx:64, discMm:'8mm',discFont:'6pt',gap:'1.5mm'};
+  return half?_labelSpec2():_labelSpecSmall();
+}
+// Крупный: 2 на листе A4 (19×13 см, горизонтальный — середина в две колонки)
+function _labelSpec2(){
+  return{half:true,wide:true,pw:'210mm',ph:'297mm',w:190,h:130,pad:'7mm',logoH:'12mm',gap:'2.5mm',
+    nameBase:30,nameMin:15,nameComfy:22, subPt:12, specPt:13, featPt:13, incPt:9.5,
+    priceBase:52,priceMin:30, oldPt:18, badgePt:13, bankPt:9.5, qrMm:'26mm',qrPx:150};
+}
+// Средний: 4 на листе A4 (сетка 2×2, вертикальный — середина столбиком)
+function _labelSpec4(){
+  return{half:true,wide:false,pw:'210mm',ph:'297mm',w:92,h:128,pad:'5mm',logoH:'8mm',gap:'2mm',
+    nameBase:20,nameMin:11,nameComfy:18, subPt:9, specPt:10, featPt:10, incPt:7.5,
+    priceBase:32,priceMin:18, oldPt:12, badgePt:9, bankPt:7, qrMm:'18mm',qrPx:110};
+}
+// Маленький 6×8 см
+function _labelSpecSmall(){
+  return{half:false,wide:false,pw:'60mm',ph:'80mm',w:52,h:72,pad:'3mm',logoH:'5mm',gap:'1.2mm',
+    nameBase:13,nameMin:7,nameComfy:16, subPt:6.5, specPt:7, featPt:7, incPt:5.5,
+    priceBase:20,priceMin:12, oldPt:8, badgePt:6.5, bankPt:5.5, qrMm:'12mm',qrPx:64};
 }
 function _fitPt(base,min,len,comfy){
   if(!len||len<=comfy)return base;
   return Math.max(min,Math.round(base*Math.sqrt(comfy/len)*10)/10);
 }
 function _labelCss(s){
-  return '.lbl{width:'+s.w+'mm;height:'+s.h+'mm;border:1.5px solid #bbb;border-radius:5px;padding:'+s.pad+';box-sizing:border-box;display:flex;flex-direction:column;position:relative;background:#fff;overflow:hidden;font-family:Arial,sans-serif;color:#111}'
-    +'.lbl .top-row{display:flex;align-items:center;justify-content:space-between;flex-shrink:0}'
-    +'.lbl .logo{height:'+s.logoH+';object-fit:contain}'
-    +'.lbl .disc-tag{background:#c62828;color:#fff;border-radius:50%;width:'+s.discMm+';height:'+s.discMm+';display:flex;align-items:center;justify-content:center;font-size:'+s.discFont+';font-weight:700;flex-shrink:0}'
-    +'.lbl .pname{font-weight:700;color:#111;line-height:1.15;flex:1;display:flex;align-items:center;margin:'+s.gap+' 0;word-break:break-word}'
-    +'.lbl .pinfo{color:#444;margin-bottom:'+s.gap+';flex-shrink:0;line-height:1.3}'
-    +'.lbl .lbl-date{position:absolute;right:'+s.pad+';bottom:1.5mm;font-size:5.5pt;color:#b0b0b0;line-height:1;letter-spacing:.2px}'
-    +'.lbl .pdim{font-weight:700;color:#111}'
-    +'.lbl .pcol{color:#555}'
-    +'.lbl .pfeat{color:#1B5E20;line-height:1.35;margin-bottom:'+s.gap+';flex-shrink:0;font-weight:600}'
-    +'.lbl.bstyle .bfeat{color:#1B5E20;line-height:1.35;margin:'+s.gap+' 0;flex-shrink:0;font-weight:600}'
-    +'.lbl .bottom-row{display:flex;align-items:flex-end;justify-content:space-between;gap:2mm;flex-shrink:0}'
-    +'.lbl .oldprice{font-size:'+s.oldSize+';color:#777;font-weight:700;text-decoration:line-through;text-decoration-color:#c62828;text-decoration-thickness:2px}'
-    +'.lbl .newprice{font-weight:800;color:#1B5E20;line-height:1;white-space:nowrap}'
-    +'.lbl .newprice.nodata{color:#ccc}'
+  var k=function(pt){return 'calc('+pt+'pt * var(--k))';};
+  return '.lbl{--k:1;width:'+s.w+'mm;height:'+s.h+'mm;border:1.5px solid #bbb;border-radius:5px;padding:'+s.pad+';box-sizing:border-box;display:flex;flex-direction:column;position:relative;background:#fff;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#111}'
+    +'.lbl .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:'+s.gap+';border-bottom:2px solid #111;padding-bottom:'+s.gap+';flex-shrink:0}'
+    +'.lbl .hd-t{min-width:0;flex:1}'
+    +'.lbl .nm{font-weight:700;line-height:1.1;word-break:break-word}'
+    +'.lbl .sub{color:#555;margin-top:.2em;font-size:'+k(s.subPt)+';line-height:1.2}'
+    +'.lbl .logo{height:'+s.logoH+';object-fit:contain;flex-shrink:0}'
+    +'.lbl .bd{flex:1;min-height:0;overflow:hidden;padding:'+s.gap+' 0}'
+    +'.lbl.wide .bd{display:grid;grid-template-columns:1.15fr 1fr;grid-template-rows:minmax(0,1fr);gap:0 5mm}'
+    +'.lbl .bd>div{min-height:0;overflow:hidden}'
+    +'.lbl .sp{display:grid;grid-template-columns:auto 1fr;gap:.3em .8em;margin:0;font-size:'+k(s.specPt)+';line-height:1.2}'
+    +'.lbl .sp dt{color:#777;margin:0;white-space:nowrap}'
+    +'.lbl .sp dd{margin:0;font-weight:700;word-break:break-word}'
+    +'.lbl .fl{font-size:'+k(s.featPt)+';line-height:1.25}'
+    +'.lbl:not(.wide) .sp+.fl{margin-top:.6em}'
+    +'.lbl .fl>div{display:flex;gap:.4em;margin-bottom:.25em}'
+    +'.lbl .fl .ck{color:#1B5E20;font-weight:700;flex-shrink:0}'
+    +'.lbl .inc{font-size:'+k(s.incPt)+';color:#666;margin-top:.5em;line-height:1.25}'
+    +'.lbl .pb{display:flex;align-items:flex-end;justify-content:space-between;gap:2mm;flex-shrink:0;border-top:1px solid #ddd;padding-top:'+s.gap+'}'
+    +'.lbl .pr{min-width:0}'
+    +'.lbl .oldl{display:flex;align-items:center;gap:.6em;flex-wrap:wrap;margin-bottom:.15em}'
+    +'.lbl .old{font-size:'+s.oldPt+'pt;color:#777;font-weight:700;text-decoration:line-through;text-decoration-color:#c62828;text-decoration-thickness:2px;white-space:nowrap}'
+    +'.lbl .bdg{background:#c62828;color:#fff;font-weight:700;font-size:'+s.badgePt+'pt;padding:.15em .5em;border-radius:.3em;white-space:nowrap}'
+    +'.lbl .np{font-weight:800;line-height:1;white-space:nowrap;color:#111}'
+    +'.lbl .np.sale{color:#c62828}'
+    +'.lbl .np.nodata{color:#ccc}'
+    +'.lbl .bank{font-size:'+s.bankPt+'pt;color:#555;margin-top:.35em;line-height:1.2}'
     +'.lbl .qrimg{width:'+s.qrMm+';height:'+s.qrMm+';flex-shrink:0}'
-    // ── Стиль B «Премиум-карточка» ──
-    +'.lbl.bstyle{justify-content:flex-start}'
-    +'.lbl.bstyle .bhdr{display:flex;justify-content:space-between;align-items:flex-start;gap:'+s.gap+';border-bottom:2px solid #1B5E20;padding-bottom:'+s.gap+';flex-shrink:0}'
-    +'.lbl.bstyle .bname{font-weight:800;color:#111;line-height:1.12;word-break:break-word}'
-    +'.lbl.bstyle .bgrid{display:grid;grid-template-columns:1fr 1fr;gap:'+s.gap+' 4mm;margin:'+s.gap+' 0;flex:1;align-content:center}'
-    +'.lbl.bstyle .bcell{color:#333;line-height:1.2}'
-    +'.lbl.bstyle .bcell b{color:#111}'
-    +'.lbl.bstyle .bplash{display:flex;align-items:baseline;justify-content:space-between;gap:2mm;background:#EAF4EC;border-radius:4px;padding:'+s.gap+' '+s.pad+';flex-shrink:0}'
-    +'.lbl.bstyle .bpromo{font-size:'+s.oldSize+';color:#1B5E20;margin-top:'+s.gap+';text-align:center;flex-shrink:0}';
+    +'.lbl .lbl-date{position:absolute;right:'+s.pad+';bottom:1.2mm;font-size:5.5pt;color:#b0b0b0;line-height:1;letter-spacing:.2px}';
 }
+// Преимущества: каждое с новой строки. «;» тоже делит.
+// Запятая делит ТОЛЬКО в старых сохранённых ценниках (до v7.87), где их так и вводили.
+function _labelFeats(d){
+  var t=String((d&&d.features)||'');
+  var arr;
+  if(/\n/.test(t))arr=t.split(/\n+/);
+  else if(d&&d.v>=2)arr=t.split(/;+/);
+  else arr=t.split(/[;,]+/);
+  return arr.map(function(x){return x.replace(/^[\s✓•\-–—*]+/,'').trim();}).filter(Boolean);
+}
+// Строки характеристик (подпись → значение), пустые пропускаются
+function _labelSpecRows(d){
+  return [['Размер',d.dims],['Спальное место',d.sleep],['Механизм',d.mech],['Обивка',d.mat],['Цвет',d.color]]
+    .filter(function(r){return String(r[1]||'').trim();});
+}
+function _plVal(id){var el=document.getElementById(id);return el?String(el.value||'').trim():'';}
 // Данные текущего ценника из формы
 function _labelData(){
   return{
-    name:document.getElementById('pl-name').value.trim(),
-    color:document.getElementById('pl-color').value.trim(),
-    dims:document.getElementById('pl-dims').value.trim(),
-    features:(document.getElementById('pl-features')?document.getElementById('pl-features').value:'').trim(),
+    v:2,
+    name:_plVal('pl-name'),
+    kind:_plVal('pl-kind'),
+    dims:_plVal('pl-dims'),
+    sleep:_plVal('pl-sleep'),
+    mech:_plVal('pl-mech'),
+    mat:_plVal('pl-mat'),
+    color:_plVal('pl-color'),
+    features:_plVal('pl-features'),
+    incl:_plVal('pl-incl'),
     price:document.getElementById('pl-price').value,
     oldprice:document.getElementById('pl-oldprice').value,
-    qr:document.getElementById('pl-qr').value.trim(),
-    supplier:(document.getElementById('pl-supplier').value||'').trim(),
-    promo:(document.getElementById('pl-promo')?document.getElementById('pl-promo').value:'').trim(),
-    style:(document.getElementById('pl-style')?document.getElementById('pl-style').value:'A'),
+    bank:_plVal('pl-bank'),
+    qr:_plVal('pl-qr'),
+    supplier:_plVal('pl-supplier'),
     // v7.34: количество копий раньше жило только в printPriceLabel и терялось
     // при добавлении в лист печати — «Печать листа» всегда выдавала по одному
     copies:Math.max(1,Math.min(20,parseInt((document.getElementById('pl-copies')||{}).value)||1))
@@ -9214,93 +9287,121 @@ function _printedStamp(){
 }
 function _labelHtml(s,d){
   d=d||_labelData();
-  var name=d.name||'';
-  var color=d.color||'';
-  var dims=d.dims||'';
-  var price=d.price;
-  var oldprice=d.oldprice;
-  var qr=(d.qr||'').trim();
-  var discount=oldprice&&price?Math.round((1-parseFloat(price)/parseFloat(oldprice))*100):0;
-  // Характеристики крупнее и раздельно: размер и цвет заметными строками
-  var infoParts=[];
-  if(dims)infoParts.push('<span class="pdim">'+dims+'</span>');
-  if(color)infoParts.push('<span class="pcol">'+color+'</span>');
-  var info=infoParts.join('<br>');
-  var shown=name||'Название товара';
-  // авторазмер: название заполняет ценник, длинный текст пропорционально мельче
+  var shown=d.name||'Название товара';
+  var price=parseFloat(d.price)||0;
+  var old=parseFloat(d.oldprice)||0;
+  var sale=price>0&&old>price;              // старая цена показывается только если она выше
+  var qr=String(d.qr||'').trim();
+  // старые ценники (до v7.87): плашка «гарантия/рассрочка» уходит в преимущества
+  var feats=_labelFeats(d);
+  if(!d.v&&d.promo)feats=feats.concat(String(d.promo).split(/[·;]+/).map(function(x){return x.trim();}).filter(Boolean));
+  feats=feats.slice(0,LABEL_MAX_FEATS);
+  var rows=_labelSpecRows(d);
+  // авторазмер названия: длинное — пропорционально мельче
   var nameSize=_fitPt(s.nameBase,s.nameMin,shown.length,s.nameComfy);
-  var _infoLen=(dims+' '+color).trim().length; // длина без HTML-тегов
-  var infoSize=_fitPt(s.infoBase,s.infoMin,_infoLen,s.infoComfy);
-  var priceStr=price?fmt(parseFloat(price))+' ₽':'— ₽';
+  var priceStr=price?fmt(price)+' ₽':'— ₽';
   var priceSize=_fitPt(s.priceBase,s.priceMin,priceStr.length,qr?9:12);
-  var oldHtml=oldprice?'<div class="oldprice">'+fmt(parseFloat(oldprice))+' ₽</div>':'';
-  var qrHtml=qr?'<img src="'+qrDataUrl(qr,s.qrPx)+'" class="qrimg" alt="QR">':'';
-  // Доп. характеристики / преимущества → список с галочками
-  var featList=(d.features||'').split(/[;,\n]+/).map(function(x){return x.trim();}).filter(Boolean);
-  var featSize=Math.max(s.infoMin,infoSize*0.82);
-  // Преимущества — списком (каждое с новой строки), а не в одну строчку
-  var _featItems=featList.map(function(f){return '<div style="display:flex;gap:3px;align-items:flex-start"><span>✓</span><span>'+f+'</span></div>';}).join('');
-  var featA=featList.length?'<div class="pfeat" style="font-size:'+featSize+'pt">'+_featItems+'</div>':'';
-  var featB=featList.length?'<div class="bfeat" style="font-size:'+featSize+'pt">'+_featItems+'</div>':'';
-  if((d.style||'A')==='B'){
-    // Стиль B «Премиум-карточка»
-    var bNameSize=_fitPt(s.nameBase*0.72,s.nameMin,shown.length,s.nameComfy*1.3);
-    var cells='';
-    if(dims)cells+='<div class="bcell" style="font-size:'+infoSize+'pt"><b>'+dims+'</b><br><span style="color:#777">размер</span></div>';
-    if(color)cells+='<div class="bcell" style="font-size:'+infoSize+'pt"><b>'+color+'</b><br><span style="color:#777">цвет / ткань</span></div>';
-    return '<div class="lbl bstyle">'
-      +'<div class="bhdr"><div class="bname" style="font-size:'+bNameSize+'pt">'+shown+'</div>'
-      +(qrHtml||'<img src="'+LOGO+'" class="logo" alt="">')+'</div>'
-      +(cells?'<div class="bgrid">'+cells+'</div>':(featB?'':'<div style="flex:1"></div>'))
-      +featB
-      +'<div class="bplash">'+oldHtml
-      +'<div class="newprice'+(price?'':' nodata')+'" style="font-size:'+(priceSize*0.85)+'pt">'+priceStr+'</div>'
-      +(discount>0?'<div class="disc-tag">-'+discount+'%</div>':'')+'</div>'
-      +(d.promo?'<div class="bpromo">'+d.promo+'</div>':'')
-      +_printedStamp()
-      +'</div>';
+  var spHtml=rows.length?'<dl class="sp">'+rows.map(function(r){return '<dt>'+esc(r[0])+'</dt><dd>'+esc(r[1])+'</dd>';}).join('')+'</dl>':'';
+  var flHtml=feats.length?'<div class="fl">'+feats.map(function(f){return '<div><span class="ck">✓</span><span>'+esc(f)+'</span></div>';}).join('')+'</div>':'';
+  var incHtml=d.incl?'<div class="inc">В цену входит: '+esc(d.incl)+'</div>':'';
+  var body;
+  if(s.wide){
+    // две колонки: слева характеристики, справа преимущества + «что входит»
+    var right=flHtml+incHtml;
+    if(!spHtml&&!right)body='<div></div><div></div>';
+    else if(!spHtml)body='<div>'+right+'</div><div></div>';
+    else body='<div>'+spHtml+'</div><div>'+right+'</div>';
+  }else{
+    body='<div>'+spHtml+flHtml+incHtml+'</div>';
   }
-  // Стиль A «Акцент на цене» (по умолчанию)
-  return '<div class="lbl">'
-    +'<div class="top-row"><img src="'+LOGO+'" class="logo" alt="">'
-    +(discount>0?'<div class="disc-tag">-'+discount+'%</div>':'')
-    +'</div>'
-    +'<div class="pname" style="font-size:'+nameSize+'pt">'+shown+'</div>'
-    +(info?'<div class="pinfo" style="font-size:'+infoSize+'pt">'+info+'</div>':'')
-    +featA
-    +'<div class="bottom-row">'
-    +'<div class="prices">'+oldHtml
-    +'<div class="newprice'+(price?'':' nodata')+'" style="font-size:'+priceSize+'pt">'+priceStr+'</div>'
-    +'</div>'
-    +qrHtml
-    +'</div>'
+  var oldHtml=sale?'<div class="oldl"><span class="old">'+fmt(old)+' ₽</span><span class="bdg">Выгода '+fmt(old-price)+' ₽</span></div>':'';
+  var bankHtml=d.bank?'<div class="bank">Рассрочка: '+esc(d.bank)+'. Условия — у продавца</div>':'';
+  var qrHtml=qr?'<img src="'+qrDataUrl(qr,s.qrPx)+'" class="qrimg" alt="QR">':'';
+  return '<div class="lbl'+(s.wide?' wide':'')+'">'
+    +'<div class="hd"><div class="hd-t"><div class="nm" style="font-size:calc('+nameSize+'pt * var(--k))">'+esc(shown)+'</div>'
+    +(d.kind?'<div class="sub">'+esc(d.kind)+'</div>':'')+'</div>'
+    +'<img src="'+LOGO+'" class="logo" alt=""></div>'
+    +'<div class="bd">'+body+'</div>'
+    +'<div class="pb"><div class="pr">'+oldHtml
+    +'<div class="np'+(price?'':' nodata')+(sale?' sale':'')+'" style="font-size:'+priceSize+'pt">'+priceStr+'</div>'
+    +bankHtml+'</div>'+qrHtml+'</div>'
     +_printedStamp()
     +'</div>';
+}
+// Если текст не влезает — уменьшаем шрифт названия/характеристик/преимуществ шагами,
+// но не меньше половины. Цена не уменьшается.
+function _lblOver(l){
+  var parts=[l].concat([].slice.call(l.querySelectorAll('.hd-t,.bd,.bd>div')));
+  return parts.some(function(e){return e.scrollHeight>e.clientHeight+1;});
+}
+function _fitLabels(root){
+  [].slice.call(root.querySelectorAll('.lbl')).forEach(function(l){
+    var k=1;l.style.setProperty('--k','1');
+    for(var i=0;i<12&&_lblOver(l);i++){
+      k=Math.round((k-0.05)*100)/100;
+      if(k<0.5)break;
+      l.style.setProperty('--k',String(k));
+    }
+  });
+}
+// Подсказки под формой: что может пойти не так
+function _labelWarnings(d){
+  var w=[];
+  var price=parseFloat(d.price)||0,old=parseFloat(d.oldprice)||0;
+  var nf=_labelFeats(d).length;
+  if(nf>LABEL_MAX_FEATS)w.push('Преимуществ '+nf+' — на ценник попадут первые '+LABEL_MAX_FEATS+'. Оставьте самые важные для покупателя.');
+  if(old&&price&&old<=price)w.push('Старая цена не больше новой — зачёркнутая цена на ценник не попадёт.');
+  if(old&&price&&old>price*1.5)w.push('Старая цена выше новой больше чем в 1,5 раза. По закону зачёркнутая цена должна быть настоящей (товар реально продавался по ней) — иначе ФАС может оштрафовать.');
+  if(old&&!price)w.push('Указана только старая цена — заполните текущую.');
+  return w;
 }
 function renderPriceLabel(){
   var s=_labelSpec();
   var prev=document.getElementById('pl-preview');
+  var d=_labelData();
   var MM=96/25.4; // мм → px экрана
   var pxW=s.w*MM,pxH=s.h*MM;
   var maxW=340; // ширина зоны предпросмотра
   var scale=Math.min(1,maxW/pxW);
   prev.innerHTML='<style>'+_labelCss(s)+'</style>'
     +'<div style="width:'+Math.round(pxW*scale)+'px;height:'+Math.round(pxH*scale)+'px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:5px">'
-    +'<div style="transform:scale('+scale+');transform-origin:top left">'+_labelHtml(s)+'</div>'
+    +'<div style="transform:scale('+scale+');transform-origin:top left">'+_labelHtml(s,d)+'</div>'
     +'</div>'
     +'<div style="font-size:11px;color:var(--text2);margin-top:8px;text-align:center">'
     +(scale<1?'Предпросмотр уменьшен до '+Math.round(scale*100)+'%. ':'')
     +'Печать — в масштабе 1:1 ('+s.w+'×'+s.h+' мм), пропорции надписей совпадают.</div>';
+  _fitLabels(prev);
+  var wb=document.getElementById('pl-warn');
+  if(wb){var ws=_labelWarnings(d);wb.style.display=ws.length?'block':'none';wb.innerHTML=ws.map(function(x){return '⚠️ '+esc(x);}).join('<br>');}
+  renderLabelChips();
+}
+function _openPrintWindow(html){
+  var w=window.open('','_blank');
+  if(!w){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4000);return null;}
+  w.document.write(html);w.document.close();
+  // Ждём загрузки всех изображений (QR, лого), подгоняем текст и печатаем
+  var imgs=Array.from(w.document.querySelectorAll('img'));
+  var waitLoad=imgs.length>0?Promise.all(imgs.map(function(img){return new Promise(function(r){if(img.complete)r();else{img.onload=r;img.onerror=r;}});})):Promise.resolve();
+  waitLoad.then(function(){try{_fitLabels(w.document);}catch(e){}setTimeout(function(){w.print();},300);});
+  return w;
+}
+function _labelPage(pageRules,layoutCss,s,body){
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ценники</title><style>'
+    +pageRules
+    +'body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +layoutCss+_labelCss(s)
+    +'</style></head><body>'+body+'</body></html>';
 }
 function printPriceLabel(){
   var s=_labelSpec();
-  var copies=Math.max(1,Math.min(20,parseInt(document.getElementById('pl-copies').value)||1));
-  var one=_labelHtml(s);
+  var d=_labelData();
+  var copies=d.copies;
+  var one=_labelHtml(s,d);
   var labelHtml='';
   for(var i=0;i<copies;i++)labelHtml+=one;
   var pageRules,layoutCss;
   if(s.half){
-    // 2 ценника (по пол-листа A4) на одном листе КНИЖНОЙ ориентации
+    // 2 ценника на одном листе A4 КНИЖНОЙ ориентации
     pageRules='@page{size:A4 portrait;margin:8mm}';
     layoutCss='.lbl{margin:0 auto 8mm;page-break-inside:avoid}'
       +'.lbl:nth-of-type(2n){page-break-after:always}'
@@ -9309,26 +9410,143 @@ function printPriceLabel(){
     pageRules='@page{size:'+s.pw+' '+s.ph+';margin:4mm}';
     layoutCss='.lbl{page-break-after:always}.lbl:last-child{page-break-after:auto}';
   }
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'
-    +pageRules
-    +'body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    +layoutCss
-    +_labelCss(s)
-    +'</style></head><body>'+labelHtml+'</body></html>';
-  var w=window.open('','_blank');
-  if(!w){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4000);return;}
-  w.document.write(html);
-  w.document.close();
-  // Ждём загрузки всех изображений (QR, лого) перед печатью
-  var imgs=Array.from(w.document.querySelectorAll('img'));
-  var waitLoad=imgs.length>0
-    ?Promise.all(imgs.map(function(img){return new Promise(function(r){if(img.complete)r();else{img.onload=r;img.onerror=r;}});}))
-    :Promise.resolve();
-  waitLoad.then(function(){setTimeout(function(){w.print();},300);});
+  _pushRecent(d);
+  _openPrintWindow(_labelPage(pageRules,layoutCss,s,labelHtml));
 }
+var _PL_FORM_IDS=['pl-name','pl-kind','pl-dims','pl-sleep','pl-mech','pl-mat','pl-color','pl-features','pl-incl','pl-price','pl-oldprice','pl-bank','pl-qr','pl-supplier'];
 function clearPriceLabel(){
-  ['pl-name','pl-color','pl-dims','pl-features','pl-price','pl-oldprice','pl-qr','pl-supplier','pl-promo'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  _PL_FORM_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var r=document.getElementById('pl-find-res');if(r){r.style.display='none';r.innerHTML='';}
   renderPriceLabel();
+}
+
+// ── Быстрые преимущества по типу товара (клик — добавить строкой) ──
+var LABEL_CHIPS={
+  sofa:['Ящик для белья','Независимый пружинный блок','Пружинная змейка','ППУ высокой плотности','Съёмные чехлы','Ежедневное спальное место','Ткань «антикоготь»','Гарантия 18 мес'],
+  bed:['Подъёмный механизм','Ящик для белья','Ортопедическое основание','Мягкое изголовье','Матрас в комплекте','Гарантия 18 мес'],
+  'case':['Доводчики','Зеркало','Регулируемые полки','Штанга для одежды','Кромка ПВХ','Сборка и доставка'],
+  kitchen:['Доводчики','Фасады МДФ','Столешница 38 мм','Изготовим под ваши размеры','Мойка в комплекте','Сборка и доставка'],
+  mattress:['Независимый пружинный блок','Беспружинный','Разная жёсткость сторон','Кокосовая койра','Эффект памяти','Съёмный чехол','Нагрузка до 120 кг'],
+  table:['Раздвижной','Металлический каркас','Столешница с защитой от царапин','Мягкое сиденье','Нагрузка до 120 кг']
+};
+function renderLabelChips(){
+  var box=document.getElementById('pl-chips');
+  var sel=document.getElementById('pl-chiptype');
+  if(!box||!sel)return;
+  var have={};_labelFeats({features:_plVal('pl-features'),v:2}).forEach(function(f){have[f.toLowerCase()]=1;});
+  var list=LABEL_CHIPS[sel.value]||[];
+  box.innerHTML=list.map(function(c,i){
+    var on=have[c.toLowerCase()];
+    return '<span onclick="addLabelChip('+i+')" title="'+(on?'Уже добавлено':'Добавить строкой в преимущества')+'" style="cursor:'+(on?'default':'pointer')+';font-size:11px;padding:3px 9px;border-radius:12px;border:1px solid '+(on?'#A5D6A7':'var(--border)')+';background:'+(on?'#E8F5E9':'#fff')+';color:'+(on?'#1B5E20':'inherit')+';white-space:nowrap">'+(on?'✓ ':'+ ')+esc(c)+'</span>';
+  }).join('');
+}
+function addLabelChip(i){
+  var sel=document.getElementById('pl-chiptype');
+  var c=(LABEL_CHIPS[sel.value]||[])[i];
+  if(!c)return;
+  var ta=document.getElementById('pl-features');
+  var cur=_labelFeats({features:ta.value,v:2});
+  if(cur.some(function(f){return f.toLowerCase()===c.toLowerCase();}))return;
+  cur.push(c);
+  ta.value=cur.join('\n');
+  renderPriceLabel();
+}
+
+// ── «Заполнить из прайса»: ищем в загруженных прайсах (price_items) ──
+var _plFindRows=[];
+function _plFindSel(full){
+  return 'supplier,product_name,price_opt,price_retail,article'+(_gsFactoryCol?',factory':'')+(full?',dim_w,dim_h,dim_d,color':'');
+}
+async function plFindInPrice(){
+  var q=_plVal('pl-find');
+  var box=document.getElementById('pl-find-res');
+  if(q.length<2){toast('Введите хотя бы 2 буквы названия или артикул','err');return;}
+  box.style.display='block';
+  box.innerHTML='<div style="padding:8px 10px;font-size:12px;color:var(--text2)">Ищу «'+esc(q)+'»…</div>';
+  var words=q.split(/\s+/).filter(Boolean).slice(0,6);
+  var params=_gsNormCol
+    ?'and=('+words.map(function(w){return 'search_name.ilike.'+_normPat(w);}).join(',')+')'
+    :'or=(and('+words.map(function(w){return 'product_name.ilike.'+_ilikePat(w);}).join(',')+'),article.ilike.'+_ilikePat(q)+')';
+  var rows=null;
+  try{rows=await sbGet('price_items','select='+_plFindSel(true)+'&'+params+'&limit=200&order=product_name.asc');}
+  catch(e){
+    // нет колонок размеров/цвета или search_name — пробуем проще
+    try{rows=await sbGet('price_items','select='+_plFindSel(false)+'&'+params+'&limit=200&order=product_name.asc');}
+    catch(e2){
+      try{rows=await sbGet('price_items','select='+_plFindSel(false)+'&and=('+words.map(function(w){return 'product_name.ilike.'+_ilikePat(w);}).join(',')+')&limit=200&order=product_name.asc');}
+      catch(e3){box.innerHTML='<div style="padding:8px 10px;font-size:12px;color:#c62828">Не удалось выполнить поиск: '+esc(e3.message||e3)+'</div>';return;}
+    }
+  }
+  rows=rows||[];
+  if(typeof _gsRank==='function')rows=_gsRank(rows,words);
+  rows=rows.slice(0,15);
+  _plFindRows=rows;
+  if(!rows.length){box.innerHTML='<div style="padding:8px 10px;font-size:12px;color:var(--text2)">Ничего не нашлось. Попробуйте одно слово из названия или артикул.</div>';return;}
+  box.innerHTML=rows.map(function(p,i){
+    var ret=p.price_opt?retailFromOpt(p.price_opt):(p.price_retail||0);
+    var sub=[p.factory||'',p.supplier||'',p.article||''].filter(Boolean).join(' · ');
+    return '<div onclick="plPickFromPrice('+i+')" style="cursor:pointer;display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
+      +'<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">'+esc(p.product_name)+'</div>'
+      +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(sub)+'</div>':'')+'</div>'
+      +'<div style="font-size:12.5px;font-weight:700;white-space:nowrap">'+(ret?fmt(ret)+' ₽':'—')+'</div></div>';
+  }).join('');
+}
+function _plDimsStr(w,d,h){
+  var a=[w,d,h].map(function(x){return +x||0;});
+  if(!a.some(Boolean))return '';
+  return a.map(function(x){return x?String(Math.round(x)):'—';}).join('×')+' мм';
+}
+async function plPickFromPrice(i){
+  var p=_plFindRows[i];
+  if(!p)return;
+  var set=function(id,v){var el=document.getElementById(id);if(el&&v!=null)el.value=v;};
+  set('pl-name',p.product_name||'');
+  set('pl-kind',p.factory||'');
+  var ret=p.price_opt?retailFromOpt(p.price_opt):(p.price_retail||0);
+  set('pl-price',ret?String(ret):'');
+  set('pl-oldprice','');
+  set('pl-supplier',p.supplier||'');
+  set('pl-dims',_plDimsStr(p.dim_w,p.dim_d,p.dim_h));
+  set('pl-color',p.color||'');
+  set('pl-qr',p.article||'');
+  var box=document.getElementById('pl-find-res');
+  if(box){box.style.display='none';box.innerHTML='';}
+  renderPriceLabel();
+  var filled=['название','цена'+(p.price_opt?' (розница по наценке)':'')];
+  if(_plVal('pl-dims'))filled.push('размер');
+  if(_plVal('pl-color'))filled.push('цвет');
+  // каталог фабрики (с сайта): ссылка для QR, а если в прайсе нет — размер и цвет
+  try{
+    var c=await _plCatalogMatch(p);
+    if(c){
+      if(c.url){set('pl-qr',c.url);filled.push('QR на страницу фабрики');}
+      if(!_plVal('pl-dims')){var ds=_plDimsStr(c.dim_w,c.dim_d,c.dim_h);if(ds){set('pl-dims',ds);filled.push('размер с сайта');}}
+      if(!_plVal('pl-color')&&c.color){set('pl-color',c.color);filled.push('цвет с сайта');}
+      renderPriceLabel();
+    }
+  }catch(e){}
+  toast('📦 Заполнено: '+filled.join(', ')+'. Проверьте и допишите характеристики',null,5000);
+}
+// Ищем тот же товар в каталогах фабрик: все значимые слова названия должны совпасть
+async function _plCatalogMatch(p){
+  var words=String(p.product_name||'').replace(/[()«»"',.]/g,' ').split(/\s+/)
+    .filter(function(w){return w.length>=3&&!/^\d+$/.test(w);}).slice(0,4);
+  if(!words.length)return null;
+  var conds=words.map(function(w){return _gsNormCol?'search_name.ilike.'+_normPat(w):'name.ilike.'+_ilikePat(w);}).join(',');
+  var rows;
+  try{rows=await sbGet('catalog_items','select=factory,name,url,color,dim_w,dim_h,dim_d&and=('+conds+')&limit=5');}
+  catch(e){
+    if(!_gsNormCol)return null;
+    rows=await sbGet('catalog_items','select=factory,name,url,color,dim_w,dim_h,dim_d&and=('+words.map(function(w){return 'name.ilike.'+_ilikePat(w);}).join(',')+')&limit=5');
+  }
+  rows=rows||[];
+  if(!rows.length)return null;
+  // если указана фабрика — предпочитаем её
+  var f=_eNorm(p.factory||'');
+  if(f){var same=rows.filter(function(r){return _eNorm(r.factory||'').indexOf(f.slice(0,4))>=0||f.indexOf(_eNorm(r.factory||'').slice(0,4))>=0;});if(same.length)rows=same;}
+  // одинаковые названия у разных фабрик → не угадываем
+  if(rows.length>1&&!f)return null;
+  return rows[0];
 }
 
 // ── ЦЕННИКИ: ЛИСТ ПЕЧАТИ (несколько разных) + ПОСЛЕДНИЕ ─────
@@ -9352,20 +9570,18 @@ function addLabelToQueue(){
 function removeLabelQ(i){_labelQ.splice(i,1);_saveLabelQ();renderLabelQueue();}
 function clearLabelQueue(){if(!_labelQ.length)return;if(!confirm('Очистить лист печати ('+_labelQ.length+' шт.)?'))return;_labelQ=[];_saveLabelQ();renderLabelQueue();}
 function _fillLabelForm(d){
-  document.getElementById('pl-name').value=d.name||'';
-  document.getElementById('pl-color').value=d.color||'';
-  document.getElementById('pl-dims').value=d.dims||'';
-  if(document.getElementById('pl-features'))document.getElementById('pl-features').value=d.features||'';
-  document.getElementById('pl-price').value=d.price||'';
-  document.getElementById('pl-oldprice').value=d.oldprice||'';
-  document.getElementById('pl-qr').value=d.qr||'';
-  document.getElementById('pl-supplier').value=d.supplier||'';
-  if(document.getElementById('pl-promo'))document.getElementById('pl-promo').value=d.promo||'';
-  if(document.getElementById('pl-style')&&d.style)document.getElementById('pl-style').value=d.style;
+  var set=function(id,v){var el=document.getElementById(id);if(el)el.value=v==null?'':v;};
+  // старые ценники (до v7.87): преимущества были через запятую, плашка — отдельным полем
+  var feats=_labelFeats(d);
+  if(!d.v&&d.promo)feats=feats.concat(String(d.promo).split(/[·;]+/).map(function(x){return x.trim();}).filter(Boolean));
+  set('pl-name',d.name);set('pl-kind',d.kind);
+  set('pl-dims',d.dims);set('pl-sleep',d.sleep);set('pl-mech',d.mech);set('pl-mat',d.mat);set('pl-color',d.color);
+  set('pl-features',feats.join('\n'));set('pl-incl',d.incl);
+  set('pl-price',d.price);set('pl-oldprice',d.oldprice);set('pl-bank',d.bank);
+  set('pl-qr',d.qr);set('pl-supplier',d.supplier);
   // v7.34: количество копий тоже восстанавливаем — иначе загрузка из листа печати
   // или из «последних» молча сбрасывала его на 1
-  var _c=document.getElementById('pl-copies');
-  if(_c)_c.value=Math.max(1,Math.min(20,parseInt(d.copies)||1));
+  set('pl-copies',Math.max(1,Math.min(20,parseInt(d.copies)||1)));
   renderPriceLabel();
 }
 function loadLabelQ(i){var d=_labelQ[i];if(d)_fillLabelForm(d);}
@@ -9379,7 +9595,7 @@ function renderLabelQueue(){
   cnt.textContent='· '+_labelQ.length+' назв., '+_tot+' шт. на печать';
   list.innerHTML=_labelQ.map(function(d,i){
     return '<div style="display:flex;align-items:center;gap:6px;background:var(--alt);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">'
-      +'<span style="cursor:pointer" onclick="loadLabelQ('+i+')" title="Загрузить в форму">'+(i+1)+'. '+_labelTitle(d).replace(/</g,'&lt;')
+      +'<span style="cursor:pointer" onclick="loadLabelQ('+i+')" title="Загрузить в форму">'+(i+1)+'. '+esc(_labelTitle(d))
       +((parseInt(d.copies)||1)>1?' <strong style="color:#1F4E79">× '+(parseInt(d.copies)||1)+'</strong>':'')+'</span>'
       +'<button onclick="removeLabelQ('+i+')" style="background:none;border:none;cursor:pointer;color:#c62828;font-size:14px;line-height:1">✕</button></div>';
   }).join('');
@@ -9391,30 +9607,10 @@ function renderRecentLabels(){
   if(!_labelRecent.length){wrap.style.display='none';return;}
   wrap.style.display='block';
   box.innerHTML=_labelRecent.map(function(d,i){
-    return '<span onclick="loadRecentLabel('+i+')" style="cursor:pointer;background:var(--alt);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px">'+_labelTitle(d).replace(/</g,'&lt;')+'</span>';
+    return '<span onclick="loadRecentLabel('+i+')" style="cursor:pointer;background:var(--alt);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px">'+esc(_labelTitle(d))+'</span>';
   }).join('');
 }
 function loadRecentLabel(i){var d=_labelRecent[i];if(d)_fillLabelForm(d);}
-// Спека ячейки для 4 ценников на A4 (2×2)
-function _labelSpec4(){
-  return{half:true,pw:'210mm',ph:'297mm',w:92,h:128,pad:'5mm',logoH:'9mm',
-    nameBase:24,nameMin:12,nameComfy:16, infoBase:15,infoMin:9,infoComfy:26,
-    priceBase:30,priceMin:18,oldSize:'11pt', qrMm:'18mm',qrPx:110, discMm:'12mm',discFont:'9pt',gap:'2mm'};
-}
-// Спека для 2 крупных ценников на A4 (копия «половины A4»)
-function _labelSpec2(){
-  return{half:true,pw:'210mm',ph:'297mm',w:190,h:130,pad:'8mm',logoH:'14mm',
-    nameBase:34,nameMin:14,nameComfy:16, infoBase:22,infoMin:13,infoComfy:30,
-    priceBase:46,priceMin:26,oldSize:'16pt', qrMm:'26mm',qrPx:150, discMm:'16mm',discFont:'12pt',gap:'3mm'};
-}
-function _openPrintWindow(html){
-  var w=window.open('','_blank');
-  if(!w){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4000);return;}
-  w.document.write(html);w.document.close();
-  var imgs=Array.from(w.document.querySelectorAll('img'));
-  var waitLoad=imgs.length>0?Promise.all(imgs.map(function(img){return new Promise(function(r){if(img.complete)r();else{img.onload=r;img.onerror=r;}});})):Promise.resolve();
-  waitLoad.then(function(){setTimeout(function(){w.print();},300);});
-}
 function printLabelSheet(){
   var arr=_labelQ.slice();
   if(!arr.length){var d=_labelData();if(d.name||d.price)arr=[d];}
@@ -9438,12 +9634,7 @@ function printLabelSheet(){
     // 2 крупных, друг под другом, по 2 на лист
     layoutCss='.lbl{margin:0 auto 8mm;page-break-inside:avoid}.lbl:nth-of-type(2n){page-break-after:always}.lbl:last-child{page-break-after:auto}';
   }
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'
-    +pageRules
-    +'body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    +layoutCss+_labelCss(s)
-    +'</style></head><body>'+labelHtml+'</body></html>';
-  _openPrintWindow(html);
+  _openPrintWindow(_labelPage(pageRules,layoutCss,s,labelHtml));
 }
 
 // ── ПЕЧАТЬ ЖУРНАЛА ЗАКАЗОВ (в работе / все) ──────────────
