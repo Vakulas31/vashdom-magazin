@@ -301,6 +301,15 @@ button.pl:hover,a:hover > .pl{filter:brightness(.97)}
 .kit-mini-h{font-weight:700;color:#4A2C7A}
 .kit-mini span{color:var(--text2)}
 .kit-mini-ex{color:var(--text2)}
+.kit-mini-l{display:flex;align-items:flex-start;gap:6px;margin:1px 0}
+.kit-mini-add{flex-shrink:0;border:1px solid #c9b6e6;background:#fff;color:#4A2C7A;border-radius:5px;padding:0 6px;font-size:11px;line-height:17px;cursor:pointer}
+.kit-mini-add:hover{background:#4A2C7A;color:#fff}
+.kit-mini-ex label{white-space:nowrap;margin-right:8px;cursor:pointer}
+.ac-kit{display:none;margin-top:3px;font-size:11px;line-height:1.7}
+.ac-kit-h{color:#4A2C7A;font-weight:700;margin-right:4px}
+.ac-kit-v{display:inline-block;border:1px solid #c9b6e6;background:#FAF7FD;color:#333;border-radius:10px;padding:0 8px;margin:1px 4px 1px 0;cursor:pointer}
+.ac-kit-v:hover{background:#4A2C7A;color:#fff}.ac-kit-v:hover b{color:#fff}
+.ac-kit-v b{color:#BF360C}
 .kit-rule{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-bottom:1px solid var(--border);font-size:12.5px}
 .kit-rule small{display:block;color:var(--text2);font-size:11px;line-height:1.4}
 .kit-rule.off{opacity:.55}
@@ -345,7 +354,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.93</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.94</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -8128,7 +8137,7 @@ function _gsRenderRows(rows,q,box,note){
       +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')
       +'</div>'
       +_webBtn('_gsLastResults',i)
-      +'<button class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSearch('+i+')">➕ В расчёт</button>'
+      +'<button id="gs-add-'+i+'" class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSearch('+i+')">➕ В расчёт</button>'
       +'</div>';
   });
   box.innerHTML=(note?'<div style="font-size:12px;color:#E65100;background:#FFF3E0;border-radius:6px;padding:6px 10px;margin-bottom:6px">'+note+'</div>':'')
@@ -8751,12 +8760,14 @@ function searchPriceItems(id,q){
           +(_expired?'<span style="font-size:10px;font-weight:700;color:#9c3b2e;display:block">⌛ акция закончилась '+p.valid_until+' — цена может быть неактуальна</span>':'')
           +(p.article?'<span style="font-size:10px;color:#333;display:block">'+p.article+'</span>':'')
           +(_retN?'<span style="font-size:12px;font-weight:700;color:#BF360C;display:block">розн.: '+fmt(_retN)+' ₽</span>':'')
-          +(_optN?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(_optN)+' ₽</span>':'');
+          +(_optN?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(_optN)+' ₽</span>':'')
+          +'<span class="ac-kit"></span>'; // v7.94: кровать в сборе
         d.onmousedown=function(){
           if(it.expired&&!confirm('У этого товара акционная цена, срок которой истёк '+it.validUntil+'.\n\nВзять её в заказ всё равно?'))return;
           selectModel(id,it);
         };
         list.appendChild(d);
+        if(typeof kitDecorateAc==='function')kitDecorateAc(d.querySelector('.ac-kit'),p,it,id);
       });
       if(list.children.length>0)list.style.display='block';
     }).catch(function(){});
@@ -10289,6 +10300,8 @@ function kitOfferForItem(id,item){
     var cur=(document.getElementById('fi-model-'+id)||{}).value||'';
     if(cur!==item.name)return; // продавец уже выбрал другое
     _kitState[id]={kit:kit};
+    // v7.94: комплектацию уже выбрали в выпадающем списке
+    if(item.kitSel!=null&&kit.groups[0]&&(item.kitSel===-1?kit.groups[0].allowNone:kit.groups[0].variants[item.kitSel]))kit.groups[0].sel=item.kitSel;
     _kitApply(id);
   }).catch(function(){});
 }
@@ -10314,13 +10327,13 @@ function _kitCardHtml(id,kit,editable){
   kit.groups.forEach(function(g,gi){
     h+='<div class="kit-grp">'+esc(g.name)+':</div>';
     g.variants.forEach(function(v,vi){
-      var vopt=0,miss=[];v.parts.forEach(function(p){if(p.found)vopt+=p.opt*(p.qty||1);else miss.push(p.label);});
+      var vret=0,miss=[];v.parts.forEach(function(p){if(p.found)vret+=_kitPartRet(p);else miss.push(p.label);}); // v7.94: сумма показанных цен частей
       var on=g.sel===vi;
       h+='<label class="kit-opt'+(on?' on':'')+'">'
         +(editable?'<input type="radio" name="kitg-'+id+'-'+gi+'" '+(on?'checked':'')+' onchange="kitPickVariant('+id+','+gi+','+vi+')">':(on?'● ':'○ '))
         +'<span class="kit-l">'+esc(v.name)
         +'<small>'+v.parts.map(function(p){return esc(p.found?(p.label+(p.qty>1?' ×'+p.qty:'')+' — '+fmt(_kitPartRet(p))+' ₽'):('⚠ нет в прайсе: '+p.label));}).join(' · ')+'</small></span>'
-        +'<span class="kit-p">+'+fmt(Math.round(vopt*markupK()))+' ₽</span></label>';
+        +'<span class="kit-p">+'+fmt(vret)+' ₽</span></label>';
     });
     if(g.allowNone){
       var on0=g.sel===-1;
@@ -10364,8 +10377,11 @@ function kitOff(id){
 
 // ── в поиске по прайсам ──
 var _kitSearchSeq=0;
+// v7.94: найденные комплекты строк поиска — чтобы из них можно было добавить в расчёт
+var _kitSearchKits={};
 function kitDecorateRows(rows,prefix){
   var seq=++_kitSearchSeq;
+  _kitSearchKits={};
   kitRulesLoad().then(function(rules){
     (rows||[]).slice(0,40).forEach(function(p,i){
       var box=document.getElementById(prefix+i);if(!box)return;
@@ -10375,21 +10391,72 @@ function kitDecorateRows(rows,prefix){
         if(seq!==_kitSearchSeq)return;
         var b=document.getElementById(prefix+i);if(!b)return;
         if(!kit){b.innerHTML='';return;}
-        var lines=[];
-        if(kit.groups.length){
-          var g=kit.groups[0];
-          g.variants.forEach(function(v,vi){
-            var save=g.sel;g.sel=vi;var t=kitTotals(kit);g.sel=save;
-            var miss=v.parts.filter(function(x){return !x.found;}).length;
-            lines.push('<div><b>'+fmt(t.ret)+' ₽</b> — '+esc(v.name)+' <span>('+v.parts.map(function(x){return esc(x.found?x.label+' '+fmt(_kitPartRet(x)):'⚠ '+x.label+' нет в прайсе');}).join(' + ')+')</span>'+(miss?' ⚠':'')+'</div>');
-          });
-        }else{var t0=kitTotals(kit);lines.push('<div><b>'+fmt(t0.ret)+' ₽</b> — '+t0.lines.map(function(x){return esc(x.label);}).join(' + ')+'</div>');}
-        var ex=kit.extras.filter(function(x){return x.found;});
-        if(ex.length)lines.push('<div class="kit-mini-ex">по желанию: '+ex.map(function(x){return esc(x.label)+(x.on?'':'')+' +'+fmt(_kitPartRet(x))+' ₽';}).join(', ')+'</div>');
-        b.innerHTML='<div class="kit-mini"><div class="kit-mini-h">🧩 В сборе ('+esc(kit.src==='price'?'состав из прайса':kit.title)+'):</div>'+lines.join('')+'</div>';
+        var key=prefix+i;
+        _kitSearchKits[key]={kit:kit,row:p};
+        _kitMiniRender(key);
+        var ab=document.getElementById(prefix.replace(/kit-$/,'add-')+i);
+        if(ab){ab.textContent='➕ Только кровать';ab.title='Добавить в расчёт кровать без основания и допчастей. Кровать в сборе — кнопками ➕ в блоке «🧩 В сборе»';}
       }).catch(function(){var b=document.getElementById(prefix+i);if(b)b.innerHTML='';});
     });
   });
+}
+function _kitMiniRender(key){
+  var e=_kitSearchKits[key],b=document.getElementById(key);if(!e||!b)return;
+  var kit=e.kit,lines=[],ka=esc(key).replace(/'/g,'');
+  var addBtn=function(vi){return '<button class="kit-mini-add" title="Добавить в расчёт эту комплектацию" onclick="kitCalcAdd(\''+ka+'\','+vi+')">➕</button>';};
+  if(kit.groups.length){
+    var g=kit.groups[0];
+    g.variants.forEach(function(v,vi){
+      var save=g.sel;g.sel=vi;var t=kitTotals(kit);g.sel=save;
+      var miss=v.parts.filter(function(x){return !x.found;}).length;
+      lines.push('<div class="kit-mini-l">'+addBtn(vi)+'<div><b>'+fmt(t.ret)+' ₽</b> — '+esc(v.name)+' <span>('+v.parts.map(function(x){return esc(x.found?x.label+' '+fmt(_kitPartRet(x)):'⚠ '+x.label+' нет в прайсе');}).join(' + ')+')</span>'+(miss?' ⚠':'')+'</div></div>');
+    });
+  }else{var t0=kitTotals(kit);lines.push('<div class="kit-mini-l">'+addBtn(-1)+'<div><b>'+fmt(t0.ret)+' ₽</b> — '+t0.lines.map(function(x){return esc(x.label);}).join(' + ')+'</div></div>');}
+  var ex=[];kit.extras.forEach(function(x,ei){if(x.found)ex.push({x:x,ei:ei});});
+  if(ex.length)lines.push('<div class="kit-mini-ex">'+(ex.some(function(o){return !o.x.need;})?'по желанию: ':'')+ex.map(function(o){
+    return '<label><input type="checkbox" '+(o.x.on?'checked':'')+' onchange="kitMiniExtra(\''+ka+'\','+o.ei+',this.checked)"> '+esc(o.x.label)+' +'+fmt(_kitPartRet(o.x))+' ₽</label>';}).join(' '));
+  b.innerHTML='<div class="kit-mini"><div class="kit-mini-h">🧩 В сборе ('+esc(kit.src==='price'?'состав из прайса':kit.title)+'):</div>'+lines.join('')+'</div>';
+}
+function kitMiniExtra(key,ei,on){var e=_kitSearchKits[key];if(!e||!e.kit.extras[ei])return;e.kit.extras[ei].on=!!on;_kitMiniRender(key);}
+// v7.94: в выпадающем списке «Модель / Товар» нового заказа — цены кровати в сборе;
+// клик по комплектации выбирает кровать сразу с ней
+function kitDecorateAc(span,p,it,id){
+  if(!span||!(+p.price_opt>0))return;
+  kitRulesLoad().then(function(rules){
+    if(!_kitParseSpec(p.compatibility)&&!kitRuleFor(p,rules)&&!/кровать.*\d{3,4}\s*[хxХX×*]\s*\d{3,4}/i.test(p.product_name||''))return null;
+    return kitResolve(p);
+  }).then(function(kit){
+    if(!kit||!span.isConnected)return;
+    var h='<span class="ac-kit-h">🧩 в сборе:</span>';
+    var g=kit.groups[0];
+    if(g){
+      g.variants.forEach(function(v,vi){
+        var save=g.sel;g.sel=vi;var t=kitTotals(kit);g.sel=save;
+        var miss=v.parts.some(function(x){return !x.found;});
+        h+='<span class="ac-kit-v" data-vi="'+vi+'" title="Выбрать кровать сразу с этой комплектацией">'+esc(v.name)+' <b>'+fmt(t.ret)+' ₽</b>'+(miss?' ⚠':'')+'</span>';
+      });
+    }else{var t0=kitTotals(kit);h+='<span class="ac-kit-v" data-vi="-2"><b>'+fmt(t0.ret)+' ₽</b></span>';}
+    span.innerHTML=h;span.style.display='block';
+    [].slice.call(span.querySelectorAll('.ac-kit-v')).forEach(function(el){
+      el.onmousedown=function(ev){
+        ev.stopPropagation();ev.preventDefault();
+        if(it.expired&&!confirm('У этого товара акционная цена, срок которой истёк '+it.validUntil+'.\n\nВзять её в заказ всё равно?'))return;
+        var vi=+el.dataset.vi;var it2={};for(var k in it)it2[k]=it[k];
+        if(vi>=0)it2.kitSel=vi;
+        selectModel(id,it2);
+      };
+    });
+  }).catch(function(){});
+}
+// Кровать в сборе → в быстрый расчёт одной строкой (как в заказе): опт = сумма оптов
+function kitCalcAdd(key,vi){
+  var e=_kitSearchKits[key];if(!e||typeof calcAdd!=='function')return;
+  var kit=e.kit,p=e.row,g=kit.groups[0],save=g?g.sel:null;
+  if(g&&vi>=0)g.sel=vi;
+  var t=kitTotals(kit),name=kitName(kit);
+  if(g)g.sel=save;
+  calcAdd({name:name,supplier:p.supplier||'',article:p.article||'',opt:t.opt,retail:t.ret});
+  if(t.missing.length)toast('⚠ Не нашёл в прайсе: '+t.missing.map(function(x){return x.label;}).join(', ')+' — их цена в сумму не вошла','err',6000);
 }
 
 // ── правила: экран владельца («Прайсы» → «🧩 Комплекты») ──
