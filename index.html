@@ -279,6 +279,37 @@ button.pl:hover,a:hover > .pl{filter:brightness(.97)}
 .s-done{background:#eaf4ec;color:#256b3c}
 /* наличие товара: «Есть» и «Под заказ» — тоже справочное */
 .badge-yes,.badge-order{background:#eef1f5;color:#5b6270}
+
+/* v7.93: комплекты */
+.kit-card{border:1.5px solid #6A4C93;background:#FAF7FD;border-radius:8px;padding:8px 10px;margin:-2px 0 10px;font-size:12.5px}
+.kit-hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.kit-src{font-size:11px;color:var(--text2);flex:1;min-width:0}
+.kit-total{font-size:15px;font-weight:800;color:#4A2C7A;white-space:nowrap}
+.kit-row{display:flex;justify-content:space-between;gap:8px;padding:2px 0}
+.kit-base{font-weight:600;border-bottom:1px dashed #d8cbe8;padding-bottom:4px;margin-bottom:2px}
+.kit-grp{font-size:11px;font-weight:700;color:#6A4C93;text-transform:uppercase;letter-spacing:.3px;margin:6px 0 2px}
+.kit-opt{display:flex;align-items:flex-start;gap:6px;padding:4px 6px;border-radius:6px;cursor:pointer}
+.kit-opt.on{background:#EFE7F8}
+.kit-opt.warn{background:#FFF3E0}
+.kit-opt input{margin-top:2px;flex-shrink:0}
+.kit-l{flex:1;min-width:0}
+.kit-l small{display:block;color:var(--text2);font-size:11px;line-height:1.35}
+.kit-p{white-space:nowrap;font-weight:700}
+.kit-miss{margin-top:6px;color:#E65100;font-size:11.5px}
+.kit-ft{margin-top:6px;font-size:11px;color:var(--text2);line-height:1.4}
+.kit-mini{margin-top:3px;font-size:11.5px;background:#FAF7FD;border:1px solid #e3d8f1;border-radius:6px;padding:4px 8px;line-height:1.45}
+.kit-mini-h{font-weight:700;color:#4A2C7A}
+.kit-mini span{color:var(--text2)}
+.kit-mini-ex{color:var(--text2)}
+.kit-rule{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-bottom:1px solid var(--border);font-size:12.5px}
+.kit-rule small{display:block;color:var(--text2);font-size:11px;line-height:1.4}
+.kit-rule.off{opacity:.55}
+.kit-prow{display:grid;grid-template-columns:1.1fr 1.5fr 1fr 1.2fr 1.3fr 1fr 1fr 52px auto 1.1fr auto;gap:4px;align-items:center;margin-bottom:4px}
+.kit-prow .inp-gold{padding:4px 6px;font-size:12px}
+.kit-test-row{padding:5px 8px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12.5px}
+.kit-test-row small{color:var(--text2)}
+.kit-test-row:hover{background:var(--alt)}
+@media (max-width:700px){.kit-prow{grid-template-columns:1fr 1fr}}
 </style>
 <!-- defer: библиотека Excel не должна блокировать открытие приложения, если CDN недоступен
      (из-за этого приложение могло не открываться на новых устройствах/сетях) -->
@@ -314,7 +345,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.92</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.93</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -722,6 +753,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
     <div id="gs-results"><div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите минимум 2 символа — ищет сразу по всем поставщикам</div></div>
   </div>
+
+  <!-- v7.93: комплекты — что докладывается к кровати -->
+  <details class="card" id="kit-card" style="border:1.5px solid #6A4C93">
+    <summary class="card-title" style="cursor:pointer;margin:0">🧩 Комплекты: что докладывается к товару <span style="font-weight:400;color:var(--text2);font-size:12px">(основания, траверсы, ящики, механизмы)</span></summary>
+    <div style="font-size:12.5px;color:var(--text2);margin:8px 0 10px;line-height:1.5">Когда продавец выбирает такую кровать в новом заказе, программа сама собирает комплект и считает сумму. Ненужное снимается галочкой, в заказ всё уходит одной строкой. У Браво мягких кроватей состав берётся прямо из прайса. Для остальных работают правила ниже. Правила меняет владелец: <span id="kit-rules-src"></span>.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input type="text" id="kit-test-q" class="inp-gold" placeholder="Проверить: «карина-5 1400», «сакура 1,4», «даллас 1600»" oninput="clearTimeout(window._kitTT);window._kitTT=setTimeout(kitTestSearch,350)" style="flex:1;min-width:220px">
+      <button class="btn btn-outline" onclick="kitRuleEdit(-1)" style="padding:6px 12px">➕ Правило</button>
+      <button class="btn btn-outline" onclick="kitRulesReset()" style="padding:6px 12px" title="Вернуть правила, заведённые в программе">↺ По умолчанию</button>
+    </div>
+    <div id="kit-test-res" style="margin-bottom:10px"></div>
+    <div id="kit-rules"></div>
+  </details>
 
   <!-- Умный (параметрический) поиск -->
   <div class="card" style="border:1.5px solid var(--gold,#C9A227)">
@@ -2015,7 +2059,7 @@ function showPage(name){
   if(idx>=0)document.querySelectorAll('.nav-btn')[idx].classList.add('active');
   if(name==='stats')renderStats();
   if(name==='clients')renderClients();
-  if(name==='prices'){loadPriceSummary();if(window.renderImportHistory)renderImportHistory();renderCalc();_ssLoadFactories();if(window.loadFabricCats){loadFabricCats().then(function(){if(window._fabSpecInfo)_fabSpecInfo();});}}
+  if(name==='prices'){if(window.renderKitRules)renderKitRules();loadPriceSummary();if(window.renderImportHistory)renderImportHistory();renderCalc();_ssLoadFactories();if(window.loadFabricCats){loadFabricCats().then(function(){if(window._fabSpecInfo)_fabSpecInfo();});}}
   if(name==='cash')renderCash();
   if(name==='claims'&&window.renderClaims)renderClaims(true);
   if(name==='guide'&&window.renderGuide)renderGuide();
@@ -4545,12 +4589,12 @@ function onPriceFile(input){
       // v6.6: РАУС — если в файле есть лист «Корпус» и листы плёнок, предлагаем автосумму
       var rausWrap=document.getElementById('pl-raus-wrap'),rausCb=document.getElementById('pl-raus');
       if(rausWrap&&rausCb){
-        var hasCase=_plWB.SheetNames.some(function(n){return /корпус/i.test(String(n));});
+        var hasCase=_plWB.SheetNames.some(function(n){return /корпус(?!н)/i.test(String(n));});
         var nCodes=(hasCase&&_plWB.SheetNames.length>1)?_rausBuildMap():0;
         rausWrap.style.display=nCodes?'flex':'none';
         rausCb.checked=!!nCodes;
         var rn=document.getElementById('pl-raus-note');
-        if(rn)rn.textContent=nCodes?('Найдено корпусов: '+nCodes+' (лист «'+_plWB.SheetNames.filter(function(n){return /корпус/i.test(String(n));}).join('», «')+'»)'):'';
+        if(rn)rn.textContent=nCodes?('Найдено корпусов: '+nCodes+' (лист «'+_plWB.SheetNames.filter(function(n){return /корпус(?!н)/i.test(String(n));}).join('», «')+'»)'):'';
         if(!nCodes)_rausMap=null;
       }
       onPriceSheetChange();
@@ -5198,6 +5242,19 @@ function _collectRows(data,cfg){
   try{Object.defineProperty(rows,'_drop',{value:_drop,enumerable:false});}catch(e){rows._drop=_drop;}
   var currentGroupName='',groupIsHeader=false,currentSection='',_subSection='';
   var noteBuf='',groupStart=0; // примечание-совместимость текущей группы (этап C)
+  // v7.93: строки «примечание + размер + цена» под заголовком-комплектом
+  // (Браво: «Комплект "Центральная траверса"» → «Для кроватей: Карина-5 с ЦТ… | (1200х2000) | 2035»)
+  var _noteRun=false;
+  // v7.93: «Комплектующие с металлокаркасом / с подъёмным механизмом» под кроватью
+  // (Браво ММ) — запоминаем состав и цены и записываем их в саму кровать
+  var _kc=null;
+  var _kcFlush=function(){
+    if(_kc&&_kc.groups.length&&_kc.bedEnd!=null){
+      var spec=_plKitSpecStr(_kc.groups);
+      if(spec)for(var k=_kc.start;k<_kc.bedEnd;k++){var c0=rows[k].compatibility;rows[k].compatibility=(spec+(c0?' · '+c0:'')).slice(0,900);}
+    }
+    _kc=null;
+  };
   for(var i=cfg.start-1;i<data.length;i++){
     var row=data[i]||[];
     var nameVal=_plClean(row[cfg.colName]);
@@ -5231,11 +5288,21 @@ function _collectRows(data,cfg){
       }
     }
     if(cfg.cascade){
+      // v7.93: начало варианта комплектации под кроватью — сама строка не товар
+      if(nameVal&&_kc&&_plKitHdr(nameVal)){
+        if(_kc.bedEnd==null)_kc.bedEnd=rows.length;
+        _kc.cur={name:_plKitHdrName(nameVal),parts:[]};_kc.groups.push(_kc.cur);
+        // как и раньше, строка становится заголовком группы — названия частей не меняются
+        currentGroupName=nameVal;groupIsHeader=true;noteBuf='';groupStart=rows.length;
+        continue;
+      }
       if(nameVal&&!optNum){
         if(!_plIsNoteRow(nameVal)){
           // Заголовок группы (без цены) — новая группа, примечание сбрасываем
+          _kcFlush();
           currentGroupName=nameVal;groupIsHeader=true;
-          noteBuf='';groupStart=rows.length;
+          noteBuf='';groupStart=rows.length;_noteRun=false;
+          if(/кроват/i.test(nameVal))_kc={start:rows.length,bedEnd:null,groups:[],cur:null};
         }else{
           // Примечание-совместимость («* кровати СОНЯ…», «Для кроватей: …»):
           // копим и вешаем на товары текущей группы — и на УЖЕ добавленные
@@ -5248,7 +5315,16 @@ function _collectRows(data,cfg){
       // Размер строки: из характеристики (colArt) или из любой другой ячейки
       var _sz=_plExtractSize(artVal);
       if(!_sz){for(var _c=0;_c<row.length;_c++){if(_c===cfg.colName||_c===parseInt(cfg.colOpt))continue;var _s2=_plExtractSize(String(row[_c]||''));if(_s2){_sz=_s2;break;}}}
-      if(cfg.modular&&optNum&&_sz){
+      var _nr=false;
+      if(!cfg.modular&&nameVal&&optNum&&_sz&&groupIsHeader&&currentGroupName&&nameVal!==currentGroupName&&(_plIsNoteRow(nameVal)||_noteRun)){
+        // текст в колонке названия — это список кроватей, а не товар:
+        // товар = заголовок группы + размер, список — в совместимость
+        noteBuf=(noteBuf?noteBuf+' ':'')+nameVal;
+        for(var bj2=groupStart;bj2<rows.length;bj2++)rows[bj2].compatibility=noteBuf.slice(0,900);
+        nameVal=currentGroupName+' · '+_sz;rowCategory=currentGroupName;_noteRun=true;_nr=true;
+      }
+      if(_nr){}
+      else if(cfg.modular&&optNum&&_sz){
         // Модульный вариант: имя = «Группа · размер». Текст в колонке названия — примечание (в артикул), группу НЕ перезаписываем.
         var _note=nameVal;
         nameVal=(currentGroupName||_note||'Модуль')+' · '+_sz;
@@ -5308,7 +5384,9 @@ function _collectRows(data,cfg){
     }
     var _cmp=[noteBuf,rowCompat].filter(Boolean).join(' · ').slice(0,900)||null;
     rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:(_subSection&&String(artVal||'').indexOf(_subSection)<0?(artVal?artVal+' · ':'')+_subSection:artVal),category:rowCategory||currentSection,sheet_name:cfg.sheetName||'',compatibility:_cmp,dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
+    if(_kc&&_kc.cur)_kc.cur.parts.push({n:nameVal,p:optNum}); // v7.93
   }
+  _kcFlush();
   return rows;
 }
 // Автоопределение строки заголовков и колонок (для «Все листы сразу»)
@@ -6475,10 +6553,13 @@ function _rausCode(s){
   var m=String(s==null?'':s).toUpperCase().replace(/[–—]/g,'-').replace(/\s+/g,'').match(/[А-ЯЁA-Z]{1,4}-\d+[А-ЯЁA-Z]{0,3}(?:\/\d+)?/);
   return m?m[0]:null;
 }
+// v7.93: лист «Корпус» у РАУС — это корпуса кухонь. «Корпусная мебель» (Браво)
+// сюда не относится: раньше и её принимали за корпуса, и к опоре кровати
+// «ЮР 74В-15» прибавлялась цена чужого «корпуса» (5 859 → 11 513 ₽).
 function _rausBuildMap(){
   _rausMap=null;
   if(!_plWB)return 0;
-  var names=_plWB.SheetNames.filter(function(sn){return /корпус/i.test(String(sn));});
+  var names=_plWB.SheetNames.filter(function(sn){return /корпус(?!н)/i.test(String(sn));});
   if(!names.length)return 0;
   var map={},n=0;
   names.forEach(function(sn){
@@ -6511,7 +6592,7 @@ function _rausBuildMap(){
 function _rausApply(rows,sheetName){
   var on=document.getElementById('pl-raus');
   if(!on||!on.checked||!_rausMap)return 0;
-  if(/корпус/i.test(String(sheetName||'')))return 0; // сам лист корпусов не трогаем
+  if(/корпус(?!н)/i.test(String(sheetName||'')))return 0; // сам лист корпусов не трогаем
   var hit=0;
   rows.forEach(function(r){
     var code=_rausCode(r.article)||_rausCode(r.product_name);
@@ -7954,7 +8035,7 @@ function _gsRun(q,box){
     var p=_ilikePat(words[0]);
     params='or=(product_name.ilike.'+p+',article.ilike.'+p+',supplier.ilike.'+p+(_gsCompatCol?',compatibility.ilike.'+p:'')+')';
   }
-  var sel='supplier,product_name,price_opt,price_retail,article'+(_hasCategoryCol?',category':'')+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'')+(_gsKindCol?',price_kind,valid_until':'');
+  var sel='id,sheet_name,supplier,product_name,price_opt,price_retail,article'+(_hasCategoryCol?',category':'')+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility,kit_part':'')+(_gsKindCol?',price_kind,valid_until':'');
   // берём пул побольше и ранжируем по релевантности — иначе алфавит прячет короткие
   // точные названия под десятками длинных (напр. «Тахта София» тонула под «Гостиная София …»)
   sbGet('price_items','select='+sel+'&'+params+'&limit=200&order=product_name.asc')
@@ -8038,7 +8119,8 @@ function _gsRenderRows(rows,q,box,note){
       +'<div style="font-size:13px;font-weight:600">'+p.product_name
       +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+_kindBadge(p)+tip.btn+'</div>'
       +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
-      +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+String(p.compatibility).slice(0,160)+'</div>':'')
+      +(kitCompatText(p.compatibility)?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+esc(kitCompatText(p.compatibility).slice(0,160))+'</div>':'')
+      +'<div id="gs-kit-'+i+'"></div>' // v7.93: кровать в сборе
       +tip.box
       +'</div>'
       +'<div style="text-align:right;flex-shrink:0">'
@@ -8052,6 +8134,7 @@ function _gsRenderRows(rows,q,box,note){
   box.innerHTML=(note?'<div style="font-size:12px;color:#E65100;background:#FFF3E0;border-radius:6px;padding:6px 10px;margin-bottom:6px">'+note+'</div>':'')
     +html+'</div>'+(rows.length>=50?'<div style="font-size:11px;color:var(--text2);margin-top:4px">Показаны первые 50 результатов — уточните запрос</div>':'');
   _gsCatalog(q,box); // v7.1: дополняем результатами из каталогов фабрик (сайты)
+  if(typeof kitDecorateRows==='function')kitDecorateRows(rows,'gs-kit-'); // v7.93
 }
 // Терпимый поиск: параллельно ищем по всем наборам «без одного слова» (AND), объединяем,
 // ранжируем по числу совпавших слов. Так находится товар, где лишнего слова из запроса нет.
@@ -8426,7 +8509,7 @@ function _ssList(rows,arr,from){
       +(p.kit_part?' <span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;white-space:nowrap">⚠ часть комплекта</span>':'')+_kindBadge(p)+tip.btn+'</div>'
       +(sub?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
       +(p.article?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(String(p.article).slice(0,140))+'</div>':'')
-      +(p.compatibility?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+esc(String(p.compatibility).slice(0,160))+'</div>':'')+tip.box+'</div>'
+      +(kitCompatText(p.compatibility)?'<div style="font-size:11px;color:#1B5E20;background:#F4FBF4;border-radius:4px;padding:2px 6px;margin-top:2px">↔ '+esc(kitCompatText(p.compatibility).slice(0,160))+'</div>':'')+tip.box+'</div>'
       +'<div style="text-align:right;flex-shrink:0">'+(opt?'<div style="font-size:11px;color:var(--text2)">опт '+fmt(opt)+' ₽</div>':'')
       +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')+'</div>'
       +_webBtn(arr,i)
@@ -8627,11 +8710,13 @@ function searchPriceItems(id,q){
   _priceSearchTimer=setTimeout(function(){
     // v7.29: тянем ещё price_kind и valid_until — раньше их тут не запрашивали,
     // и акционная цена с истёкшим сроком подставлялась в заказ вообще без пометки
-    sbGet('price_items','select=product_name,supplier,price_opt,price_retail,article,price_kind,valid_until'
+    sbGet('price_items','select=id,product_name,supplier,price_opt,price_retail,article,price_kind,valid_until,category,sheet_name'+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility':'')
       +(_gsNormCol?'&or=(search_name.ilike.'+_normPat(q)+')':'&or=(product_name.ilike.'+_ilikePat(q)+',article.ilike.'+_ilikePat(q)+')')
       +'&limit=40&order=product_name.asc')
     .catch(function(e){
       if(_gsNormCol&&/search_name/i.test((e&&e.message)||'')){_gsNormCol=false;searchPriceItems(id,q);}
+      else if(_gsCompatCol&&/compatibility/i.test((e&&e.message)||'')){_gsCompatCol=false;searchPriceItems(id,q);}
+      else if(_gsFactoryCol&&/factory/i.test((e&&e.message)||'')){_gsFactoryCol=false;searchPriceItems(id,q);}
       return null;
     })
     .then(function(rows){
@@ -8653,7 +8738,9 @@ function searchPriceItems(id,q){
       rows.forEach(function(p){
         var it={type:'fixed',name:p.product_name,sup:p.supplier||'',
           price_opt:p.price_opt||0,price_retail:p.price_retail||0,
-          dims:'',article:p.article||''};
+          dims:'',article:p.article||'',
+          // v7.93: для комплекта — раздел, лист, фабрика и состав из прайса
+          pid:p.id,category:p.category||'',sheet_name:p.sheet_name||'',factory:p.factory||'',compatibility:p.compatibility||''};
         var d=document.createElement('div');
         d.className='ac-item';
         var _optN=p.price_opt||0;
@@ -9810,6 +9897,621 @@ async function catalogAttrsRun(){
   }catch(e){toast('❌ '+String((e&&e.message)||e).slice(0,200),'err',8000);}
   finally{if(btn){btn.disabled=false;btn.textContent=old;}}
 }
+// ═══ v7.93: КОМПЛЕКТЫ — составной товар сразу посчитан ═════════════════
+// Кровать у многих фабрик продаётся по частям: каркас + основание (ламели,
+// траверса, металлокаркас) + ножки + ящики + подъёмный механизм. Продавцы
+// забывали части и ошибались в сумме. Теперь при выборе такой кровати
+// (в новом заказе и в поиске по прайсам) программа сама собирает комплект:
+//   — вариант основания выбирается кнопкой (по умолчанию — первый),
+//   — дополнительные части (ящики) включаются галочкой,
+//   — всё уходит в заказ ОДНОЙ строкой: «Кровать … + траверса 1400×2000»,
+//     опт = сумма оптов частей, розница = та же формула, что везде (v7.42).
+// Откуда берётся состав:
+//   1) «из прайса» — Браво ММ прямо под кроватью перечисляет «Комплектующие с
+//      металлокаркасом / с подъёмным механизмом». При загрузке прайса состав и
+//      цены записываются в саму кровать (поле compatibility, «🧩 … ¶»).
+//   2) «по правилу» — для остальных: правило говорит, какие части искать в
+//      прайсе того же поставщика и по какой ширине. Правила заведены заранее
+//      (Браво массив, МебельГрад, БТС), владелец правит их в «Прайсах».
+
+function _kN(s){return _eNorm(String(s==null?'':s)).replace(/[«»“”„]/g,'"').replace(/\s+/g,' ').trim();}
+
+// ── 1) состав из прайса (Браво ММ) ──
+function _plKitHdr(s){return /^(комплектующие|компл\.?)(\s+с\s|\s+с$|\s*$|\s*\()/i.test(String(s||'').trim());}
+function _plKitHdrName(s){
+  var t=String(s||'').trim().replace(/^(комплектующие|компл\.?)\s*/i,'').replace(/\s+/g,' ').trim();
+  return t?t.charAt(0).toUpperCase()+t.slice(1):'Комплектующие';
+}
+function _plKitSpecStr(groups){
+  var g=(groups||[]).filter(function(x){return x.parts&&x.parts.length;});
+  if(!g.length)return '';
+  var mk=function(len){
+    return '🧩 '+g.map(function(x){
+      return String(x.name).replace(/[⊕‖¶:=]/g,' ').slice(0,60)+': '+x.parts.map(function(p){
+        return String(p.n).replace(/[⊕‖¶=·]/g,' ').replace(/\s+/g,' ').trim().slice(0,len)+' = '+Math.round(p.p*100)/100;
+      }).join(' ⊕ ');
+    }).join(' ‖ ')+' ¶';
+  };
+  var s=mk(60);if(s.length>760)s=mk(34);if(s.length>860)s=mk(18);
+  return s.slice(0,880);
+}
+function _kitParseSpec(compat){
+  var m=String(compat||'').match(/🧩\s*([\s\S]*?)\s*¶/);
+  if(!m)return null;
+  var groups=[];
+  m[1].split(' ‖ ').forEach(function(gs){
+    var i=gs.indexOf(': ');if(i<0)return;
+    var name=gs.slice(0,i).trim(),parts=[];
+    gs.slice(i+2).split(' ⊕ ').forEach(function(ps){
+      var j=ps.lastIndexOf(' = ');if(j<0)return;
+      var p=parseFloat(ps.slice(j+3));if(!(p>0))return;
+      parts.push({n:ps.slice(0,j).trim(),p:p});
+    });
+    if(parts.length)groups.push({name:name,parts:parts});
+  });
+  return groups.length?groups:null;
+}
+// текст совместимости без служебного состава — для показа людям
+function kitCompatText(c){return String(c||'').replace(/🧩[\s\S]*?¶\s*(·\s*)?/,'').trim();}
+
+// ── 2) правила ──
+// when: sup — часть названия поставщика/фабрики (несколько через |), sheet — часть
+//   названия листа, all — все слова есть, any — хоть одно, none — ни одного.
+// parts: label — как назвать в заказе; find — слова для поиска в прайсе того же
+//   поставщика («{модель}» — модель кровати); none — исключить; size — 'need'
+//   (только той же ширины) | 'prefer' (той же, а нет — без размера); compat — если у
+//   части есть список кроватей, модель должна в нём быть; models — часть только для
+//   этих моделей; qty — сколько штук; group/variant — выбор одного варианта;
+//   opt — 'need' (обязательно) | 'on' (включено) | 'off' (по желанию).
+var KIT_RULES_V=1;
+var KIT_DEFAULTS=[
+ {id:'bravo-ct',on:true,name:'Браво · кровати из массива с центральной траверсой (ЦТ)',
+  when:{sup:'браво',sheet:'массив',all:['кровать','(цт)'],none:['ящиками','комплектующ','опора','матрас','защит','карниз','ножек','траверса']},
+  parts:[
+   {label:'центральная траверса',find:['центральная траверса'],none:['н-330'],size:'need',group:'Основание',variant:'Центральная траверса (ламели)'},
+   {label:'опора с гибким основанием',find:['опора с гибким основанием'],none:['74в','гпм','74 в'],size:'need',group:'Основание',variant:'Металлокаркас'},
+   {label:'комплект ножек',find:['комплект ножек'],compat:true,group:'Основание',variant:'Металлокаркас'},
+   {label:'ящики выкатные (2 шт.)',find:['ящик выкатной','для кровати'],opt:'off',models:['сканди','грация разборная','карина-7 разборная','лаура разборная','виола','глория','джуниор']}
+  ]},
+ {id:'bravo-teen-sonya',on:true,name:'Браво · Соня, Алёнка (ящики в комплекте)',
+  when:{sup:'браво',sheet:'массив',all:['кровать'],any:['соня','аленка'],none:['комплектующ','ящик','матрац','основание']},
+  parts:[
+   {label:'ящик выкатной',find:['ящик выкатной к кроватям'],qty:2,opt:'need'},
+   {label:'основание под матрац',find:['основание под матрац'],qty:'ярус',group:'Под матрас',variant:'Двусторонний матрас — основание'},
+   {label:'матрац односторонний',find:['матрац односторонней мягкости'],qty:'ярус',group:'Под матрас',variant:'Матрац односторонний'}
+  ]},
+ {id:'bravo-teen',on:true,name:'Браво · Глория, Джуниор, Миа, Скай',
+  when:{sup:'браво',sheet:'массив',all:['кровать'],any:['глория','джуниор','миа кровать','скай кровать'],none:['комплектующ','защит','ящик','матрас']},
+  parts:[
+   {label:'комплектующие (ламели)',find:['комплектующие на кровать с ламелями'],size:'need',qty:'ярус',group:'Под матрас',variant:'Двусторонний матрас — ламели'},
+   {label:'матрас односторонний',find:['матрасы односторонние'],size:'need',qty:'ярус',group:'Под матрас',variant:'Матрас односторонний'}
+  ]},
+ {id:'bravo-massiv',on:true,name:'Браво · кровати из массива (основание докупается)',
+  when:{sup:'браво',sheet:'массив',all:['кровать'],none:['(цт)','ящиками','комплектующ','опора','матрас','защит','карниз','ножек','траверса','соня','аленка','глория','джуниор','миа кровать','скай кровать','металлическ','ярус']},
+  parts:[
+   {label:'комплектующие (ламели)',find:['комплектующие на кровать с ламелями'],size:'need',group:'Основание',variant:'Ламельное основание'},
+   {label:'опора с гибким основанием',find:['опора с гибким основанием'],none:['74в','гпм','74 в'],size:'need',group:'Основание',variant:'Металлокаркас'},
+   {label:'комплект ножек',find:['комплект ножек'],compat:true,group:'Основание',variant:'Металлокаркас'},
+   {label:'матрас односторонний',find:['матрасы односторонние'],size:'need',group:'Основание',variant:'Матрас односторонний'},
+   {label:'ящики выкатные (2 шт.)',find:['ящик выкатной','для кровати'],opt:'off',models:['сканди','грация разборная','карина-7 разборная','лаура разборная','виола']}
+  ]},
+ {id:'mgrad-soft',on:true,name:'МебельГрад · мягкие кровати «(каркас)»',
+  when:{sup:'мебельград',sheet:'мягк',all:['кровать','каркас']},
+  parts:[
+   {label:'ортопедическое основание',find:['ортопедическое основание разборное'],size:'need',compat:true,group:'Основание',variant:'Ортопедическое основание'},
+   {label:'опоры',find:['опора мебельная к разборному'],size:'prefer',group:'Основание',variant:'Ортопедическое основание'},
+   {label:'ортопедическое основание',find:['ортопедическое основание разборное'],size:'need',compat:true,group:'Основание',variant:'С подъёмным механизмом'},
+   {label:'подъёмный механизм',find:['механизм подъемного'],none:['внутренн'],group:'Основание',variant:'С подъёмным механизмом'},
+   // у Сиерры свой щит; Женеве, Октавии, Севилье, Сиесте подходят общие щиты (Чикаго/Гранда) — сказал владелец 10.10.2026
+   {label:'щиты бельевого короба',find:['щит','бельевого короба','{модель}'],alt:['щиты бельевого короба'],size:'need',group:'Основание',variant:'С подъёмным механизмом'}
+  ]},
+ {id:'mgrad-karkas',on:true,name:'МебельГрад · кровати «(каркас)»',
+  when:{sup:'мебельград',all:['кровать','каркас']},
+  parts:[
+   {label:'ортопедическое основание',find:['ортопедическое основание разборное'],size:'need',compat:true,group:'Основание',variant:'Ортопедическое основание'},
+   {label:'опоры',find:['опора мебельная к разборному'],size:'prefer',group:'Основание',variant:'Ортопедическое основание'},
+   {label:'ортопедическое основание',find:['ортопедическое основание разборное'],size:'need',compat:true,group:'Основание',variant:'С подъёмным механизмом'},
+   {label:'подъёмный механизм',find:['механизм подъемного'],none:['внутренн'],group:'Основание',variant:'С подъёмным механизмом'},
+   {label:'бельевой ящик',find:['бельевой ящик под подъемный механизм'],size:'need',group:'Основание',variant:'С подъёмным механизмом'}
+  ]},
+ {id:'bts-sakura',on:true,name:'БТС-Мебелони · «Сакура» — проложки ДСП',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать','сакура']},
+  parts:[{label:'проложки ДСП',find:['проложки дсп'],size:'need',opt:'need'}]},
+ {id:'bts-nastil',on:true,name:'БТС-Мебелони · кровати без настила',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать'],any:['не входит настил','без настила','без орт']},
+  parts:[
+   {label:'проложки ДСП',find:['проложки дсп'],size:'need',group:'Настил',variant:'Проложки ДСП'},
+   {label:'настил ЛДСП',find:['настил лдсп'],size:'need',group:'Настил',variant:'Настил ЛДСП'},
+   {label:'реечный настил',find:['настил реечный'],size:'need',compat:true,group:'Настил',variant:'Реечный настил'},
+   {label:'ортопедическое основание с подъёмным механизмом',find:['ортопедическое основание с подъемным'],size:'need',compat:true,group:'Настил',variant:'Орт. основание с подъёмным механизмом'}
+  ]}
+];
+var _kitRules=null,_kitRulesSrc='',_kitRulesP=null;
+function _kitCopy(x){return JSON.parse(JSON.stringify(x));}
+function kitRulesLoad(force){
+  if(_kitRulesP&&!force)return _kitRulesP.then(function(){return _kitRules;});
+  var fromLocal=function(){
+    try{var v=JSON.parse(localStorage.getItem('vd_kit_rules')||'null');if(v&&Array.isArray(v.rules)){_kitRules=v.rules;_kitRulesSrc='local';return;}}catch(e){}
+    _kitRules=_kitCopy(KIT_DEFAULTS);_kitRulesSrc='default';
+  };
+  _kitRulesP=(typeof sbGet==='function'?sbGet('app_settings','select=key,value&key=eq.kit_rules'):Promise.reject())
+    .then(function(rows){
+      var v=rows&&rows[0]&&rows[0].value;var o=null;try{o=v?JSON.parse(v):null;}catch(e){}
+      if(o&&Array.isArray(o.rules)){_kitRules=o.rules;_kitRulesSrc='base';}else fromLocal();
+    }).catch(function(){fromLocal();});
+  // всегда отдаём ТЕКУЩИЕ правила (после правки владельцем — уже новые)
+  return _kitRulesP.then(function(){return _kitRules;});
+}
+function kitRulesSave(rules){
+  var o={v:KIT_RULES_V,rules:rules,at:new Date().toISOString()};
+  _kitRules=rules;_kitCache={};
+  try{localStorage.setItem('vd_kit_rules',JSON.stringify(o));}catch(e){}
+  if(typeof saveSetting!=='function'){_kitRulesSrc='local';return Promise.resolve('local');}
+  return saveSetting('kit_rules',JSON.stringify(o)).then(function(){_kitRulesSrc='base';return 'base';})
+    .catch(function(){_kitRulesSrc='local';return 'local';});
+}
+
+// ── товар: текст, ширина, модель ──
+function _kitText(it){return _kN([it.product_name||it.name,it.article,it.category].filter(Boolean).join(' '));}
+var _KIT_STD=[600,700,800,900,1000,1200,1400,1500,1600,1800,2000];
+function _kitSnap(w){
+  if(!(w>0))return 0;
+  for(var i=_KIT_STD.length-1;i>=0;i--){var s=_KIT_STD[i];if(w>=s-30&&w<=s+150)return s;}
+  return Math.round(w);
+}
+function _kitDims(it){
+  // сначала название, потом характеристика; габариты «Ш×В×Г 1672×1003×2060» — в самом конце
+  // (это наружный размер кровати, а не спальное место)
+  var name=String(it.product_name||it.name||''),art=String(it.article||'');
+  var one=function(t){
+    t=t.replace(/ш\s*[×x]\s*в\s*[×x]\s*г[^·]*/ig,' ').replace(/\d{3,4}\s*[хxХX×*]\s*\d{3,4}\s*[хxХX×*]\s*\d{2,4}/g,' ');
+    var m=t.match(/(\d{3,4})\s*[хxХX×*]\s*(\d{3,4})/);
+    if(m){var a=+m[1],b=+m[2];if(a<300)a*=10;if(b<300)b*=10;
+      var w=Math.min(a,b),l=Math.max(a,b);
+      if(l>=1590&&l<=2300&&w>=500&&w<=2200)return{w:_kitSnap(w),l:l};}
+    var m2=t.match(/(?:^|[^\d])(\d)[,.](\d)\s*м(?![а-яё])/i);if(m2)return{w:+m2[1]*1000+(+m2[2])*100,l:2000};
+    var m3=t.match(/кровать\s*"?[^\d"]{0,24}?(\d{3,4})(?:\/\d)?(?!\s*[хxХX×*]\s*\d)/i)||t.match(/(\d{3,4})(?:\/\d)?\s*(?:\(каркас|кровать)/i);
+    if(m3){var v=+m3[1];if(v>=600&&v<=2200)return{w:_kitSnap(v),l:2000};}
+    return null;
+  };
+  var r=one(name)||one(art);if(r)return r;
+  if(it.dim_w>=600&&it.dim_w<=2400)return{w:_kitSnap(it.dim_w),l:2000};
+  var m4=(name+' '+art).match(/ш\s*[×x]\s*в\s*[×x]\s*г\s*(\d{3,4})/i);if(m4)return{w:_kitSnap(+m4[1]),l:2000};
+  return{w:0,l:0};
+}
+function _kitModel(it){
+  var n=String(it.product_name||it.name||'');
+  var q=n.match(/["«“]([^"»”]{2,30})["»”]/);if(q)return _kN(q[1]);
+  var m=n.match(/^\s*([^\s·]+(?:\s*-\s*\d+)?)\s+(?:\(|кровать|спальня|кр\.)/i);if(m)return _kN(m[1]);
+  return _kN(n.split(/\s+/)[0]||'');
+}
+function kitRuleFor(it,rules){
+  rules=rules||_kitRules||[];
+  var txt=_kitText(it),sup=_kN([it.supplier,it.factory].filter(Boolean).join(' ')),sh=_kN(it.sheet_name||'');
+  var has=function(w){return txt.indexOf(_kN(w))>=0;};
+  for(var i=0;i<rules.length;i++){
+    var r=rules[i];if(!r||r.on===false||!r.parts||!r.parts.length)continue;
+    var w=r.when||{};
+    if(w.sup&&!String(w.sup).split('|').some(function(s){s=_kN(s);return s&&sup.indexOf(s)>=0;}))continue;
+    if(w.sheet&&sh&&sh.indexOf(_kN(w.sheet))<0)continue;
+    if((w.all||[]).some(function(x){return !has(x);}))continue;
+    if((w.any||[]).length&&!(w.any||[]).some(has))continue;
+    if((w.none||[]).some(has))continue;
+    return r;
+  }
+  return null;
+}
+
+// ── поиск частей в прайсе ──
+var _kitCache={};
+function _kitFetch(sup,words){
+  var ws=words.map(function(w){return _kN(w);}).filter(Boolean);
+  var key=_kN(sup)+'|'+ws.join('|');
+  if(_kitCache[key])return _kitCache[key];
+  var conds=ws.map(function(w){return _gsNormCol?'search_name.ilike.'+_normPat(w):'product_name.ilike.'+_ilikePat(w);});
+  var sel='id,supplier,product_name,article,price_opt,category,sheet_name'+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility':'');
+  var p=sbGet('price_items','select='+sel+'&supplier=eq.'+encodeURIComponent(sup)+(conds.length?'&and=('+conds.join(',')+')':'')+'&limit=300')
+    .catch(function(){return [];}).then(function(r){return r||[];});
+  _kitCache[key]=p;
+  return p;
+}
+// числа-размеры в тексте части: 1400, 0800, «1,4», «1400-1600»
+function _kitSizes(t){
+  t=String(t||'');var out=[],m;
+  var rx=/(\d{3,4})\s*-\s*(\d{3,4})/g;
+  while((m=rx.exec(t))){var a=+m[1],b=+m[2];if(a>=500&&b>a&&b<=2300)out.push({lo:a,hi:b});}
+  var rx2=/(?:^|[^\d,.])(\d{3,4})(?![\d,.]\d)/g;
+  while((m=rx2.exec(t))){var v=+m[1];if(v>=500&&v<=2300)out.push({v:v});}
+  var rx3=/(?:^|[^\d])(\d)[,.](\d)(?:\s*м)?(?![\d])/g;
+  while((m=rx3.exec(t))){var v3=+m[1]*1000+(+m[2])*100;if(v3>=600&&v3<=2200)out.push({v:v3});}
+  var rx4=/(\d{3,4})(?:\s*,\s*(\d{3,4}))+/g;
+  while((m=rx4.exec(t))){m[0].split(',').forEach(function(x){var v4=+x.trim();if(v4>=500&&v4<=2300)out.push({v:v4});});}
+  return out;
+}
+function _kitSizeScore(t,W,L){
+  var s=_kitSizes(t);if(!s.length)return null;
+  var best=null;
+  s.forEach(function(x){
+    var d;
+    if(x.lo!=null)d=(W>=x.lo-25&&W<=x.hi+25)?5:999;
+    else{if(x.v>=1700&&W<1700&&L&&Math.abs(x.v-L)<=30)return;d=Math.abs(x.v-W);}
+    if(d<=25&&(best==null||d<best))best=d;
+  });
+  if(best==null)return -1; // размеры есть, но не той ширины
+  if(L){var lens=s.filter(function(x){return x.v>=1700;}).map(function(x){return x.v;});if(lens.length&&lens.indexOf(L)<0&&!lens.some(function(v){return Math.abs(v-L)<=20;}))best+=40;}
+  return best;
+}
+// размер части — из названия; если там нет, из первого куска характеристики
+// («1,2 · Для кроватей 1,2м: … 1,4м …» — список дальше размеров не задаёт)
+function _kitSizeSrc(c){
+  var n=String(c.product_name||'');
+  if(_kitSizes(n).length)return n;
+  return String(c.article||'').split(' · ')[0];
+}
+function _kitModelIn(t,model){
+  if(!model)return false;
+  var rx=new RegExp('(^|[^а-яёa-z0-9-])'+model.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![0-9])','i');
+  return rx.test(t);
+}
+function _kitHasList(t){return /для\s+кроват|\(([^()]*,){1,}[^()]*\)|только\s+для/i.test(t);}
+function _kitPick(cands,part,ctx){
+  var none=(part.none||[]).map(_kN);
+  var best=null,bs=1e9;
+  cands.forEach(function(c){
+    var nm=_kN(c.product_name),txt=_kN([c.product_name,c.article,kitCompatText(c.compatibility)].join(' '));
+    if(none.some(function(w){return nm.indexOf(w)>=0;}))return;
+    if(!(c.price_opt>0))return;
+    if(c.id!=null&&ctx.selfId!=null&&c.id===ctx.selfId)return;
+    var score=0;
+    if(part.size){
+      var sc=_kitSizeScore(_kitSizeSrc(c),ctx.W,ctx.L);
+      if(sc===-1)return;
+      if(sc==null){if(part.size==='need')return;score+=60;}else score+=sc;
+    }
+    if(part.compat&&_kitHasList(txt)){if(!_kitModelIn(txt,ctx.model))return;}
+    else if(part.compat&&ctx.model&&!_kitModelIn(txt,ctx.model)&&/\(/.test(nm))score+=30;
+    // цвет как у кровати — для ящиков и защит
+    var cw=_kN(c.article||'').replace(/цвет|лдсп|лак/g,' ').split(/[\s\/,]+/).filter(function(w){return w.length>3;});
+    if(cw.length&&!cw.some(function(w){return ctx.txt.indexOf(w)>=0;}))score+=8;
+    if(ctx.sheet&&c.sheet_name&&_kN(c.sheet_name)!==ctx.sheet)score+=2; // тот же лист прайса — точнее (у Браво опора на двух листах по разной цене)
+    score+=c.price_opt/1e6; // при прочих равных — дешевле
+    if(score<bs){bs=score;best=c;}
+  });
+  return best;
+}
+function _kitQty(part,ctx){
+  if(part.qty==='ярус')return /2\s*-?\s*х?\s*ярус|двухъярус|2яр/i.test(ctx.txt)?2:1;
+  var q=parseInt(part.qty)||1;return q<1?1:q;
+}
+function _kitFill(tpl,model){return String(tpl).replace(/\{модель\}/gi,model||'');}
+
+// ── сборка комплекта для товара ──
+function kitResolve(it){
+  return kitRulesLoad().then(function(rules){
+    var spec=_kitParseSpec(it.compatibility);
+    var base={name:it.product_name||it.name||'',opt:+it.price_opt||0};
+    if(spec){
+      return{src:'price',base:base,title:'по прайсу поставщика',
+        groups:[{name:'Комплектация',allowNone:true,sel:0,variants:spec.map(function(g){return{name:g.name,parts:g.parts.map(function(p){return{label:p.n,name:p.n,opt:p.p,qty:1,found:true};})};})}],
+        extras:[]};
+    }
+    var rule=kitRuleFor(it,rules);if(!rule)return _kitBorrow(it,base);
+    var d=_kitDims(it),model=_kitModel(it),txt=_kitText(it);
+    var ctx={W:d.w,L:d.l,model:model,txt:txt,selfId:it.id,sheet:_kN(it.sheet_name||'')};
+    var sup=it.supplier||it.sup||'';
+    var jobs=rule.parts.map(function(pt){
+      if(pt.models&&pt.models.length&&!pt.models.some(function(m){return _kitModelIn(txt,_kN(m))||txt.indexOf(_kN(m))>=0;}))return Promise.resolve(null);
+      var words=(pt.find||[]).map(function(w){return _kitFill(w,model);}).filter(Boolean);
+      if(!words.length||!sup)return Promise.resolve({pt:pt,c:null});
+      return _kitFetch(sup,words).then(function(cands){
+        var c=_kitPick(cands,pt,ctx);
+        // не нашлось своей части — запасной вариант поиска (общие щиты и т.п.)
+        if(c||!pt.alt||!pt.alt.length)return{pt:pt,c:c};
+        var w2=pt.alt.map(function(w){return _kitFill(w,model);}).filter(Boolean);
+        return _kitFetch(sup,w2).then(function(c2){return{pt:pt,c:_kitPick(c2,pt,ctx)};});
+      });
+    });
+    return Promise.all(jobs).then(function(res){
+      var groups={},gorder=[],extras=[];
+      res.forEach(function(x){
+        if(!x)return;
+        var pt=x.pt,c=x.c;
+        var P={label:pt.label,name:c?c.product_name:'',opt:c?+c.price_opt:0,qty:_kitQty(pt,ctx),found:!!c,need:pt.opt==='need',
+          on:pt.opt!=='off',sizeW:pt.size?ctx.W:0};
+        if(pt.group){
+          if(!groups[pt.group]){groups[pt.group]={name:pt.group,allowNone:true,sel:0,variants:[],_v:{}};gorder.push(pt.group);}
+          var g=groups[pt.group],vn=pt.variant||pt.label;
+          if(!g._v[vn]){g._v[vn]={name:vn,parts:[]};g.variants.push(g._v[vn]);}
+          g._v[vn].parts.push(P);
+        }else extras.push(P);
+      });
+      var gl=gorder.map(function(k){var g=groups[k];delete g._v;
+        // по умолчанию — первый вариант, у которого всё нашлось в прайсе
+        var ok=-1;g.variants.forEach(function(v,i){if(ok<0&&v.parts.every(function(p){return p.found;}))ok=i;});
+        g.sel=ok>=0?ok:0;return g;});
+      if(!gl.length&&!extras.length)return null;
+      return{src:'rule',rule:rule,base:base,title:rule.name,W:ctx.W,model:model,groups:gl,extras:extras};
+    });
+  });
+}
+// Та же кровать на другом листе (у Браво «ММ кровати в резервных тканях» —
+// без комплектующих): берём состав у такой же модели того же размера с листа,
+// где комплектующие перечислены.
+function _kitBorrow(it,base){
+  var name=String(it.product_name||it.name||''),sup=it.supplier||it.sup||'';
+  if(!sup||!/кровать/i.test(name))return Promise.resolve(null);
+  var model=_kitModel(it),sz=(name.match(/\d{3,4}\s*[хxХX×*]\s*\d{3,4}/)||[])[0];
+  if(!model||!sz||!_gsCompatCol)return Promise.resolve(null);
+  return _kitFetch(sup,[model,sz]).then(function(c){
+    var src=(c||[]).filter(function(r){return r.id!==it.id&&_kitParseSpec(r.compatibility)&&_kitModelIn(_kN(r.product_name),model);})[0];
+    if(!src)return null;
+    var spec=_kitParseSpec(src.compatibility);
+    return{src:'price',base:base,title:'состав как у «'+String(src.product_name).split(' · ')[0]+'» ('+(src.sheet_name||'другой лист')+')',
+      groups:[{name:'Комплектация',allowNone:true,sel:0,variants:spec.map(function(g){return{name:g.name,parts:g.parts.map(function(p){return{label:p.n,name:p.n,opt:p.p,qty:1,found:true};})};})}],
+      extras:[]};
+  });
+}
+function _kitPartRet(p){return Math.round((p.opt||0)*(p.qty||1)*markupK());}
+function kitTotals(kit){
+  var opt=kit.base.opt||0,lines=[],missing=[];
+  kit.groups.forEach(function(g){
+    var v=g.sel>=0?g.variants[g.sel]:null;if(!v)return;
+    v.parts.forEach(function(p){if(p.found){opt+=p.opt*(p.qty||1);lines.push(p);}else missing.push(p);});
+  });
+  kit.extras.forEach(function(p){if(!p.on)return;if(p.found){opt+=p.opt*(p.qty||1);lines.push(p);}else missing.push(p);});
+  opt=Math.round(opt*100)/100;
+  return{opt:opt,ret:retailFromOpt(opt),lines:lines,missing:missing};
+}
+function _kitW(p){return p.sizeW?(' '+p.sizeW+(p.sizeW>=600?'':'')):'';}
+function kitName(kit){
+  var add=[];
+  kit.groups.forEach(function(g){
+    var v=g.sel>=0?g.variants[g.sel]:null;if(!v)return;
+    if(kit.src==='price'){add.push('комплектация «'+v.name.toLowerCase()+'»');return;}
+    v.parts.forEach(function(p){if(p.found)add.push(p.label+(p.qty>1?' ×'+p.qty:''));});
+  });
+  kit.extras.forEach(function(p){if(p.on&&p.found)add.push(p.label+(p.qty>1?' ×'+p.qty:''));});
+  var base=String(kit.base.name||'').replace(/\s+—\s+в комплекте:.*$/,'');
+  return add.length?base+' — в комплекте: '+add.join(', '):base;
+}
+
+// ── в форме заказа ──
+var _kitState={};
+function kitOfferForItem(id,item){
+  kitDropCard(id);
+  if(!item||item.type==='fabric')return;
+  var it={product_name:item.name,supplier:item.sup,price_opt:item.price_opt,article:item.article,category:item.category,
+    sheet_name:item.sheet_name,factory:item.factory,compatibility:item.compatibility,id:item.pid};
+  if(!(+it.price_opt>0))return;
+  var stamp=Date.now();_kitState[id]={pending:stamp};
+  kitResolve(it).then(function(kit){
+    if(!kit||!_kitState[id]||_kitState[id].pending!==stamp)return;
+    var cur=(document.getElementById('fi-model-'+id)||{}).value||'';
+    if(cur!==item.name)return; // продавец уже выбрал другое
+    _kitState[id]={kit:kit};
+    _kitApply(id);
+  }).catch(function(){});
+}
+function kitDropCard(id){
+  var el=document.getElementById('kit-'+id);if(el)el.remove();
+  delete _kitState[id];
+}
+function _kitEnsureCard(id){
+  var el=document.getElementById('kit-'+id);
+  if(el)return el;
+  var inp=document.getElementById('fi-model-'+id);if(!inp)return null;
+  var fg=inp.closest('.fg');if(!fg)return null;
+  el=document.createElement('div');el.id='kit-'+id;el.className='kit-card';
+  fg.parentNode.insertBefore(el,fg.nextSibling);
+  return el;
+}
+function _kitRetFmt(n){return fmt(n)+' ₽';}
+function _kitCardHtml(id,kit,editable){
+  var t=kitTotals(kit);
+  var h='<div class="kit-hd">🧩 <b>Комплект</b> <span class="kit-src">'+esc(kit.src==='price'?'состав из прайса поставщика':'правило: '+kit.title)+'</span>'
+    +'<span class="kit-total">'+_kitRetFmt(t.ret)+'</span></div>';
+  h+='<div class="kit-row kit-base"><span>'+esc(kit.base.name)+'</span><span>'+_kitRetFmt(Math.round(kit.base.opt*markupK()))+'</span></div>';
+  kit.groups.forEach(function(g,gi){
+    h+='<div class="kit-grp">'+esc(g.name)+':</div>';
+    g.variants.forEach(function(v,vi){
+      var vopt=0,miss=[];v.parts.forEach(function(p){if(p.found)vopt+=p.opt*(p.qty||1);else miss.push(p.label);});
+      var on=g.sel===vi;
+      h+='<label class="kit-opt'+(on?' on':'')+'">'
+        +(editable?'<input type="radio" name="kitg-'+id+'-'+gi+'" '+(on?'checked':'')+' onchange="kitPickVariant('+id+','+gi+','+vi+')">':(on?'● ':'○ '))
+        +'<span class="kit-l">'+esc(v.name)
+        +'<small>'+v.parts.map(function(p){return esc(p.found?(p.label+(p.qty>1?' ×'+p.qty:'')+' — '+fmt(_kitPartRet(p))+' ₽'):('⚠ нет в прайсе: '+p.label));}).join(' · ')+'</small></span>'
+        +'<span class="kit-p">+'+fmt(Math.round(vopt*markupK()))+' ₽</span></label>';
+    });
+    if(g.allowNone){
+      var on0=g.sel===-1;
+      h+='<label class="kit-opt'+(on0?' on':'')+'">'+(editable?'<input type="radio" name="kitg-'+id+'-'+gi+'" '+(on0?'checked':'')+' onchange="kitPickVariant('+id+','+gi+',-1)">':(on0?'● ':'○ '))
+        +'<span class="kit-l">Не нужно<small>'+esc(g.name)+' клиенту не нужно или уже есть</small></span><span class="kit-p">0 ₽</span></label>';
+    }
+  });
+  kit.extras.forEach(function(p,ei){
+    h+='<label class="kit-opt'+(p.on?' on':'')+(p.need&&!p.on?' warn':'')+'">'
+      +(editable?'<input type="checkbox" '+(p.on?'checked':'')+(p.found?'':' disabled')+' onchange="kitToggleExtra('+id+','+ei+',this.checked)">':(p.on?'☑ ':'☐ '))
+      +'<span class="kit-l">'+esc(p.label)+(p.qty>1?' ×'+p.qty:'')
+      +'<small>'+esc(p.found?p.name:'⚠ нет в прайсе — добавьте отдельным товаром')+(p.need&&!p.on?' · ⚠ обычно обязательно':'')+(p.need&&p.on?' · обязательно':'')+'</small></span>'
+      +'<span class="kit-p">'+(p.found?'+'+fmt(_kitPartRet(p))+' ₽':'—')+'</span></label>';
+  });
+  if(t.missing.length)h+='<div class="kit-miss">⚠ Не нашёл в прайсе: '+t.missing.map(function(p){return esc(p.label);}).join(', ')+' — их цена в сумму не вошла.</div>';
+  h+='<div class="kit-ft">Итого опт '+fmt(t.opt)+' ₽ → розница '+_kitRetFmt(t.ret)+' (округлено вверх до 100 ₽, как везде). В заказ — одной строкой.'
+    +(editable?' <a href="#" onclick="kitOff('+id+');return false">✕ без комплекта</a>':'')+'</div>';
+  return h;
+}
+function _kitApply(id){
+  var st=_kitState[id];if(!st||!st.kit)return;
+  var kit=st.kit,el=_kitEnsureCard(id);if(!el)return;
+  var ib=document.getElementById('ib-'+id),inp=document.getElementById('fi-model-'+id);
+  var t=kitTotals(kit);
+  el.innerHTML=_kitCardHtml(id,kit,true);
+  if(inp)inp.value=kitName(kit);
+  if(ib){ib.dataset.opt=t.opt;ib.dataset.ret=t.ret;ib.dataset.kit='1';delete ib.dataset.manual;}
+  if(typeof calcItemPrice==='function')calcItemPrice(id);
+}
+function kitPickVariant(id,gi,vi){var st=_kitState[id];if(!st||!st.kit)return;st.kit.groups[gi].sel=vi;_kitApply(id);}
+function kitToggleExtra(id,ei,on){var st=_kitState[id];if(!st||!st.kit)return;st.kit.extras[ei].on=!!on;_kitApply(id);}
+function kitOff(id){
+  var st=_kitState[id];if(!st||!st.kit)return;
+  var ib=document.getElementById('ib-'+id),inp=document.getElementById('fi-model-'+id);
+  if(inp)inp.value=st.kit.base.name;
+  if(ib){ib.dataset.opt=st.kit.base.opt;delete ib.dataset.kit;}
+  kitDropCard(id);
+  if(typeof calcItemPrice==='function')calcItemPrice(id);
+  toast('Комплект убран — в заказе только «'+st.kit.base.name+'»');
+}
+
+// ── в поиске по прайсам ──
+var _kitSearchSeq=0;
+function kitDecorateRows(rows,prefix){
+  var seq=++_kitSearchSeq;
+  kitRulesLoad().then(function(rules){
+    (rows||[]).slice(0,40).forEach(function(p,i){
+      var box=document.getElementById(prefix+i);if(!box)return;
+      if(!_kitParseSpec(p.compatibility)&&!kitRuleFor(p,rules)&&!/кровать.*\d{3,4}\s*[хxХX×*]\s*\d{3,4}/i.test(p.product_name||''))return;
+      box.innerHTML='<div class="kit-mini">🧩 считаю комплект…</div>';
+      kitResolve(p).then(function(kit){
+        if(seq!==_kitSearchSeq)return;
+        var b=document.getElementById(prefix+i);if(!b)return;
+        if(!kit){b.innerHTML='';return;}
+        var lines=[];
+        if(kit.groups.length){
+          var g=kit.groups[0];
+          g.variants.forEach(function(v,vi){
+            var save=g.sel;g.sel=vi;var t=kitTotals(kit);g.sel=save;
+            var miss=v.parts.filter(function(x){return !x.found;}).length;
+            lines.push('<div><b>'+fmt(t.ret)+' ₽</b> — '+esc(v.name)+' <span>('+v.parts.map(function(x){return esc(x.found?x.label+' '+fmt(_kitPartRet(x)):'⚠ '+x.label+' нет в прайсе');}).join(' + ')+')</span>'+(miss?' ⚠':'')+'</div>');
+          });
+        }else{var t0=kitTotals(kit);lines.push('<div><b>'+fmt(t0.ret)+' ₽</b> — '+t0.lines.map(function(x){return esc(x.label);}).join(' + ')+'</div>');}
+        var ex=kit.extras.filter(function(x){return x.found;});
+        if(ex.length)lines.push('<div class="kit-mini-ex">по желанию: '+ex.map(function(x){return esc(x.label)+(x.on?'':'')+' +'+fmt(_kitPartRet(x))+' ₽';}).join(', ')+'</div>');
+        b.innerHTML='<div class="kit-mini"><div class="kit-mini-h">🧩 В сборе ('+esc(kit.src==='price'?'состав из прайса':kit.title)+'):</div>'+lines.join('')+'</div>';
+      }).catch(function(){var b=document.getElementById(prefix+i);if(b)b.innerHTML='';});
+    });
+  });
+}
+
+// ── правила: экран владельца («Прайсы» → «🧩 Комплекты») ──
+function renderKitRules(){
+  var box=document.getElementById('kit-rules');if(!box)return;
+  kitRulesLoad().then(function(rules){
+    var src=document.getElementById('kit-rules-src');
+    if(src)src.textContent=_kitRulesSrc==='base'?'правила общие для всех устройств':(_kitRulesSrc==='local'?'правила сохранены только в этом браузере (нет доступа к общим настройкам)':'правила по умолчанию');
+    box.innerHTML=rules.map(function(r,i){
+      var w=r.when||{};
+      var cond=[w.sup?'поставщик: '+w.sup:'',w.sheet?'лист: '+w.sheet:'',(w.all||[]).length?'есть: '+w.all.join(' + '):'',(w.any||[]).length?'одно из: '+w.any.join(' / '):'',(w.none||[]).length?'кроме: '+w.none.join(', '):''].filter(Boolean).join(' · ');
+      var parts=(r.parts||[]).map(function(p){return (p.group?(p.variant||p.group)+': ':'')+p.label+(p.opt==='off'?' (по желанию)':'');});
+      return '<div class="kit-rule'+(r.on===false?' off':'')+'">'
+        +'<label style="display:flex;gap:8px;align-items:flex-start;flex:1;min-width:0;cursor:pointer"><input type="checkbox" '+(r.on===false?'':'checked')+' onchange="kitRuleToggle('+i+',this.checked)" style="margin-top:3px">'
+        +'<span style="min-width:0"><b>'+esc(r.name||'Без названия')+'</b><small>'+esc(cond)+'</small><small>части: '+esc(parts.join('; '))+'</small></span></label>'
+        +'<span style="display:flex;gap:4px;flex-shrink:0"><button class="btn btn-outline" style="padding:3px 9px;font-size:12px" onclick="kitRuleEdit('+i+')">✏️</button>'
+        +'<button class="btn btn-outline" style="padding:3px 9px;font-size:12px" onclick="kitRuleDel('+i+')">🗑</button></span></div>';
+    }).join('')||'<div style="font-size:12.5px;color:var(--text2);padding:8px">Правил нет.</div>';
+  });
+}
+function kitRuleToggle(i,on){if(!ownerOnly('Правила комплектов')){renderKitRules();return;}var r=_kitCopy(_kitRules);r[i].on=!!on;kitRulesSave(r).then(_kitSavedToast);renderKitRules();}
+function kitRuleDel(i){
+  if(!ownerOnly('Правила комплектов'))return;
+  var r=_kitCopy(_kitRules);if(!r[i])return;
+  if(!confirm('Удалить правило «'+r[i].name+'»?'))return;
+  r.splice(i,1);kitRulesSave(r).then(_kitSavedToast);renderKitRules();
+}
+function kitRulesReset(){
+  if(!ownerOnly('Правила комплектов'))return;
+  if(!confirm('Вернуть правила комплектов, заведённые в программе? Ваши правки правил пропадут.'))return;
+  kitRulesSave(_kitCopy(KIT_DEFAULTS)).then(_kitSavedToast);renderKitRules();
+}
+function _kitSavedToast(where){toast(where==='base'?'🧩 Правила сохранены — они общие для всех устройств':'🧩 Правила сохранены в этом браузере (общие настройки недоступны)',where==='base'?null:'err',4500);}
+var _kitEditIdx=-1;
+function _kitList(s){return String(s||'').split(/[,;\n]/).map(function(x){return x.trim();}).filter(Boolean);}
+function _kitPartRowHtml(p){
+  p=p||{};
+  var v=function(x){return esc(x==null?'':x);};
+  return '<div class="kit-prow">'
+    +'<input class="inp-gold" data-k="label" placeholder="что (в заказе)" value="'+v(p.label)+'">'
+    +'<input class="inp-gold" data-k="find" placeholder="искать в прайсе: слова через запятую" value="'+v((p.find||[]).join(', '))+'">'
+    +'<input class="inp-gold" data-k="none" placeholder="кроме слов" value="'+v((p.none||[]).join(', '))+'">'
+    +'<input class="inp-gold" data-k="alt" placeholder="не нашлось — искать так" value="'+v((p.alt||[]).join(', '))+'">'
+    +'<input class="inp-gold" data-k="gv" placeholder="Основание: Металлокаркас" value="'+v(p.group?(p.group+': '+(p.variant||'')):'')+'">'
+    +'<select class="inp-gold" data-k="size"><option value="">размер не важен</option><option value="need"'+(p.size==='need'?' selected':'')+'>той же ширины</option><option value="prefer"'+(p.size==='prefer'?' selected':'')+'>ширины, если есть</option></select>'
+    +'<select class="inp-gold" data-k="opt"><option value="on">включено</option><option value="need"'+(p.opt==='need'?' selected':'')+'>обязательно</option><option value="off"'+(p.opt==='off'?' selected':'')+'>по желанию</option></select>'
+    +'<input class="inp-gold" data-k="qty" placeholder="шт" value="'+v(p.qty||'')+'" style="width:52px">'
+    +'<label style="font-size:11px;white-space:nowrap"><input type="checkbox" data-k="compat"'+(p.compat?' checked':'')+'> по списку кроватей</label>'
+    +'<input class="inp-gold" data-k="models" placeholder="только для моделей" value="'+v((p.models||[]).join(', '))+'">'
+    +'<button class="btn btn-outline" style="padding:2px 8px" onclick="this.parentNode.remove()">✕</button></div>';
+}
+function kitRuleEdit(i){
+  if(!ownerOnly('Правила комплектов'))return;
+  _kitEditIdx=i;
+  var r=i>=0?_kitRules[i]:{on:true,name:'',when:{all:['кровать']},parts:[{}]};
+  var m=document.getElementById('modal-kitrule');
+  if(!m){m=document.createElement('div');m.className='modal-bg';m.id='modal-kitrule';document.body.appendChild(m);}
+  var w=r.when||{};
+  var f=function(id,lab,val,ph){return '<div class="fg" style="margin-bottom:8px"><label>'+lab+'</label><input id="'+id+'" class="inp-gold" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'"></div>';};
+  m.innerHTML='<div class="modal" style="max-width:860px">'
+    +'<div class="modal-title">🧩 '+(i>=0?'Правило комплекта':'Новое правило комплекта')+'</div>'
+    +f('kr-name','Название',r.name,'МебельГрад · кровати (каркас)')
+    +'<div class="form-row">'+f('kr-sup','Поставщик (часть названия, несколько — через |)',w.sup,'браво')+f('kr-sheet','Лист прайса (необязательно)',w.sheet,'массив')+'</div>'
+    +'<div class="form-row">'+f('kr-all','В товаре есть ВСЕ слова',(w.all||[]).join(', '),'кровать, каркас')+f('kr-any','…и хотя бы ОДНО из',(w.any||[]).join(', '),'(цт)')+'</div>'
+    +f('kr-none','Не применять, если есть слова',(w.none||[]).join(', '),'ящиками')
+    +'<div style="font-size:12px;font-weight:700;margin:10px 0 4px">Части комплекта</div>'
+    +'<div style="font-size:11.5px;color:var(--text2);margin-bottom:6px;line-height:1.45">Части ищутся в прайсе <b>того же поставщика</b>. «{модель}» в словах — название кровати (Белиста, Сакура). Части с одинаковым «Группа: вариант» — это один вариант, из вариантов группы продавец выбирает один.</div>'
+    +'<div id="kr-parts">'+(r.parts||[]).map(_kitPartRowHtml).join('')+'</div>'
+    +'<button class="btn btn-outline" style="padding:4px 12px;font-size:12px;margin-top:6px" onclick="document.getElementById(\'kr-parts\').insertAdjacentHTML(\'beforeend\',_kitPartRowHtml({}))">➕ Часть</button>'
+    +'<div style="display:flex;gap:10px;margin-top:16px"><button class="btn btn-primary" style="flex:1;justify-content:center" onclick="kitRuleSaveForm()">Сохранить</button>'
+    +'<button class="btn btn-outline" onclick="closeModal(\'modal-kitrule\')">Отмена</button></div></div>';
+  m.classList.add('open');
+}
+function kitRuleSaveForm(){
+  var g=function(id){return((document.getElementById(id)||{}).value||'').trim();};
+  var r={id:(_kitEditIdx>=0&&_kitRules[_kitEditIdx].id)||('my-'+Date.now()),on:_kitEditIdx>=0?_kitRules[_kitEditIdx].on!==false:true,name:g('kr-name'),
+    when:{sup:g('kr-sup'),sheet:g('kr-sheet'),all:_kitList(g('kr-all')),any:_kitList(g('kr-any')),none:_kitList(g('kr-none'))},parts:[]};
+  [].slice.call(document.querySelectorAll('#kr-parts .kit-prow')).forEach(function(row){
+    var q=function(k){var e=row.querySelector('[data-k="'+k+'"]');return e?(e.type==='checkbox'?e.checked:String(e.value||'').trim()):'';};
+    var p={label:q('label'),find:_kitList(q('find'))};
+    if(!p.label||!p.find.length)return;
+    var none=_kitList(q('none'));if(none.length)p.none=none;
+    var alt=_kitList(q('alt'));if(alt.length)p.alt=alt;
+    var gv=q('gv');if(gv){var k=gv.indexOf(':');p.group=(k>=0?gv.slice(0,k):gv).trim();p.variant=(k>=0?gv.slice(k+1):p.label).trim()||p.label;}
+    if(q('size'))p.size=q('size');
+    if(q('opt')&&q('opt')!=='on')p.opt=q('opt');
+    var qt=q('qty');if(qt)p.qty=/ярус/i.test(qt)?'ярус':(parseInt(qt)||1);
+    if(q('compat'))p.compat=true;
+    var md=_kitList(q('models'));if(md.length)p.models=md;
+    r.parts.push(p);
+  });
+  if(!r.name){toast('⚠️ Назовите правило','err');return;}
+  if(!r.parts.length){toast('⚠️ Добавьте хотя бы одну часть: что и какие слова искать в прайсе','err');return;}
+  if(!r.when.sup&&!r.when.all.length){toast('⚠️ Укажите поставщика или слова, по которым узнать товар','err');return;}
+  var rules=_kitCopy(_kitRules||[]);
+  if(_kitEditIdx>=0)rules[_kitEditIdx]=r;else rules.unshift(r);
+  kitRulesSave(rules).then(_kitSavedToast);
+  closeModal('modal-kitrule');renderKitRules();
+}
+// проверка правил на товаре из прайса
+var _kitTestRows=[];
+function kitTestSearch(){
+  var q=((document.getElementById('kit-test-q')||{}).value||'').trim();
+  var box=document.getElementById('kit-test-res');if(!box)return;
+  if(q.length<2){box.innerHTML='';return;}
+  var words=q.split(/\s+/).filter(Boolean).slice(0,5);
+  var conds=words.map(function(w){return _gsNormCol?'search_name.ilike.'+_normPat(w):'product_name.ilike.'+_ilikePat(w);});
+  sbGet('price_items','select=id,supplier,product_name,article,price_opt,category,sheet_name'+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility':'')+'&and=('+conds.join(',')+')&limit=15&order=product_name.asc')
+  .then(function(rows){
+    _kitTestRows=rows||[];
+    box.innerHTML=_kitTestRows.length?_kitTestRows.map(function(p,i){
+      return '<div class="kit-test-row" onclick="kitTestPick('+i+')"><b>'+esc(p.product_name)+'</b> <small>'+esc([p.supplier,p.article].filter(Boolean).join(' · ').slice(0,90))+'</small></div>';
+    }).join(''):'<div style="font-size:12px;color:var(--text2);padding:6px">Ничего не нашлось</div>';
+  }).catch(function(e){box.innerHTML='<div style="color:#c62828;font-size:12px">'+esc(e.message||e)+'</div>';});
+}
+function kitTestPick(i){
+  var p=_kitTestRows[i];var box=document.getElementById('kit-test-res');if(!p||!box)return;
+  box.innerHTML='<div style="font-size:12px;color:var(--text2)">Собираю…</div>';
+  kitResolve(p).then(function(kit){
+    box.innerHTML=kit?('<div class="kit-card">'+_kitCardHtml(0,kit,false)+'</div>'):'<div style="font-size:12.5px;padding:6px 2px">Для «'+esc(p.product_name)+'» правила нет — продаётся как есть.</div>';
+  });
+}
 function qrDataUrl(text,size){
   // QR генерируется ЛОКАЛЬНО встроенной библиотекой (data:URL) — печатается всегда,
   // даже без интернета. Раньше был внешний сервис api.qrserver.com — он не грузился,
@@ -10218,10 +10920,10 @@ function _plParsePriceRow(p){
   if(p.factory)kind.push(String(p.factory).trim());
   out.kind=kind.join(' · ');
   // 5) текст для поиска характеристик: название + артикул + примечание
-  var extra=[raw,String(p.article||''),String(p.compatibility||'')].join(' \n ');
+  var extra=[raw,String(p.article||''),kitCompatText(p.compatibility)].join(' \n ');
   var low=_eNorm(extra);
   // размеры: из колонок прайса; если там пусто — из текста
-  out.dims=_plDimsStr(p.dim_w,p.dim_d,p.dim_h)||_plDimsFromText(String(p.article||'')+' '+String(p.compatibility||''))||_plDimsFromText(raw);
+  out.dims=_plDimsStr(p.dim_w,p.dim_d,p.dim_h)||_plDimsFromText(String(p.article||'')+' '+kitCompatText(p.compatibility))||_plDimsFromText(raw);
   // матрас «200*080» — размер в названии
   if(!out.dims&&/матрас/i.test(pt+' '+head)){var mm=head.match(/(\d{2,3})\s*[*xх×]\s*(\d{2,3})/);if(mm)out.dims=(+mm[2])+'×'+(+mm[1])+' см';}
   // спальное место
@@ -11884,6 +12586,8 @@ function selectModel(id,item){
   }
   document.getElementById('ib-'+id).classList.add('matched');
   recalcTotals();
+  // v7.93: составной товар (кровать + основание/ящики) — сразу посчитанный комплект
+  if(typeof kitOfferForItem==='function')kitOfferForItem(id,item);
 }
 
 function calcItemPrice(id){
