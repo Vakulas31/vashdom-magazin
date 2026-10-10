@@ -201,6 +201,7 @@ body.role-seller .owner-only{display:none!important}
 .order-card.done{border-color:#c6d9cb}
 /* ── МОБИЛЬНАЯ ВЕРСИЯ ─────────────────────────────────── */
 @media (max-width:700px){
+  #mt-body>div{grid-template-columns:1fr!important} /* v7.92: ценники матрасов — список над предпросмотром */
   /* v7.58: на 375 px кнопка «Выход» начиналась на 379-й точке — нажать её было
      нельзя, и вся страница из-за неё ездила вбок на 44 px. Шапка теперь
      прокручивается сама, а не растягивает страницу. */
@@ -313,7 +314,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.91</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.92</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -456,7 +457,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <option>🚚 Доставка + занос</option><option>🚛 Только доставка</option><option>🏃 Самовывоз</option>
         </select></div>
       <div class="fg"><label>Оплата доставки</label>
-        <select id="f-delivery-paid" class="inp-gold">
+        <select id="f-delivery-paid" class="inp-gold" onchange="recalcTotals()">
           <option value="no">⏳ Не оплачена (по факту)</option>
           <option value="yes">✅ Оплачена</option>
         </select></div>
@@ -640,6 +641,44 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
 
+  <!-- v7.92: ценники на матрасы прямо из прайса (Аскона, БелАрника) -->
+  <div class="card" id="mt-card" style="margin-bottom:16px;border:1.5px solid #1F4E79">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div class="card-title" style="margin:0">🛏 Ценники на матрасы — по прайсу</div>
+      <div id="mt-tabs" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    </div>
+    <p style="font-size:12.5px;color:var(--text2);margin:6px 0 10px;line-height:1.5">Поменялись цены — выберите новый прайс (Аскона, БелАрника), отметьте нужные линейки и печатайте. Модель, высота, нагрузка, жёсткость, гарантия, состав и цена по каждому размеру берутся из прайса сами.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary" onclick="document.getElementById('mt-file').click()" style="padding:8px 14px">📂 Выбрать файл прайса</button>
+      <input type="file" id="mt-file" accept=".xlsx,.xls" style="display:none" onchange="mtOnFile(this)">
+      <button class="btn btn-outline" id="mt-from-prices" style="display:none;padding:8px 12px" onclick="mtFromPricesWB()">📦 Взять файл, открытый в «Прайсах»</button>
+    </div>
+    <div id="mt-info"></div>
+    <div id="mt-body" style="display:none;margin-top:12px">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px">
+        <div>
+          <div class="form-row" style="margin-bottom:8px">
+            <div class="fg"><label>Марка на ценнике</label><input type="text" id="mt-brand" class="inp-gold" placeholder="Askona" oninput="mtBrandInput()"></div>
+            <div class="fg"><label>Размер ценника</label>
+              <select id="mt-format" class="inp-gold" onchange="renderMattressLabels()">
+                <option value="std">19×8,5 см — 3 на листе A4 (как образец)</option>
+                <option value="big">19×13 см — 2 на листе A4</option>
+              </select></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+            <span style="font-size:12px;color:var(--text2)">Отмечено: <b id="mt-count"></b></span>
+            <button class="btn btn-outline" style="padding:3px 10px;font-size:12px" onclick="mtSelectAll(true)">Отметить все</button>
+            <button class="btn btn-outline" style="padding:3px 10px;font-size:12px" onclick="mtSelectAll(false)">Снять все</button>
+            <label style="font-size:12px;color:var(--text2);margin-left:auto">Экземпляров <input type="number" id="mt-copies" value="1" min="1" max="20" style="width:52px;padding:3px 6px" oninput="renderMattressLabels()"></label>
+          </div>
+          <div id="mt-list" style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>
+          <button class="btn btn-primary" id="mt-print-btn" onclick="mtPrintSelected()" style="width:100%;justify-content:center;margin-top:10px;padding:10px">🖨 Печать отмеченных</button>
+        </div>
+        <div id="mt-preview" style="min-width:0"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- v7.89: сохранённые ценники — найти, поменять цену, напечатать -->
   <div class="card" id="pl-saved-card" style="margin-bottom:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
@@ -762,6 +801,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div style="background:var(--alt);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:12px">
           📄 <strong id="pl-fname"></strong>
         </div>
+        <!-- v7.92: прайс матрасов — сразу предлагаем ценники по новым ценам -->
+        <div id="pl-mt-note" style="display:none;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:10px;line-height:1.5"></div>
 
         <div class="form-row" style="margin-bottom:10px">
           <div class="fg"><label>Лист в файле</label>
@@ -1106,14 +1147,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <div class="modal-bg" id="modal-manager">
   <div class="modal" style="max-width:470px">
     <div class="modal-title">👋 Кто сегодня работает?</div>
-    <p style="font-size:12.5px;color:var(--text2);margin-bottom:12px">Имя будет само подставляться во все сегодняшние заказы. Сменить в течение дня — кнопка 👤 в шапке.</p>
+    <p style="font-size:12.5px;color:var(--text2);margin-bottom:12px">Нажмите на своё имя — оно будет само подставляться во все сегодняшние заказы. Сменить в течение дня — кнопка 👤 в шапке.</p>
     <div id="mm-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
-    <div class="fg" style="margin-bottom:14px">
-      <label>Или впишите имя — новый сотрудник запомнится в списке</label>
-      <input type="text" id="mm-name" class="inp-gold" placeholder="Имя менеджера" onkeydown="if(event.key==='Enter')mgrSaveFromInput()">
+    <!-- v7.92: новый сотрудник добавляется в список, а сегодняшний менеджер не меняется -->
+    <div class="fg" style="margin-bottom:6px">
+      <label>Новый сотрудник</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="mm-name" class="inp-gold" placeholder="Имя менеджера" onkeydown="if(event.key==='Enter'){event.preventDefault();mgrAddFromInput();}">
+        <button class="btn btn-outline" onclick="mgrAddFromInput()" style="white-space:nowrap">➕ Добавить в список</button>
+      </div>
     </div>
+    <div id="mm-hint" style="font-size:11.5px;color:var(--text2);margin-bottom:14px;line-height:1.45"></div>
     <div style="display:flex;gap:10px">
-      <button class="btn btn-primary" onclick="mgrSaveFromInput()" style="flex:1;justify-content:center">Сохранить</button>
+      <button class="btn btn-primary" id="mm-done" onclick="mgrSaveFromInput()" style="flex:1;justify-content:center">Готово</button>
       <button class="btn btn-outline" onclick="closeModal('modal-manager')">Позже</button>
     </div>
     <div style="font-size:11px;color:var(--text2);margin-top:10px">Крестик у имени убирает его из списка (если сотрудник уволился) — на старых заказах имя останется.</div>
@@ -1973,7 +2019,7 @@ function showPage(name){
   if(name==='cash')renderCash();
   if(name==='claims'&&window.renderClaims)renderClaims(true);
   if(name==='guide'&&window.renderGuide)renderGuide();
-  if(name==='pricelabels'){renderPriceLabel();renderLabelQueue();renderRecentLabels();renderSavedLabels();}
+  if(name==='pricelabels'){renderPriceLabel();renderLabelQueue();renderRecentLabels();renderSavedLabels();if(window.renderMattressLabels)renderMattressLabels();}
 }
 
 // ── PIN-СЕССИЯ (5 минут, затем нужно вводить заново) ────
@@ -4509,6 +4555,7 @@ function onPriceFile(input){
       }
       onPriceSheetChange();
       document.getElementById('pl-mapper').style.display='block';
+      try{if(window.mtOnPriceWB)mtOnPriceWB(_plWB,file.name);}catch(_e){} // v7.92: прайс матрасов → ценники
       _plScopeNote();
     }catch(err){toast('❌ Не удалось прочитать файл: '+err.message,'err');}
   };
@@ -4752,7 +4799,22 @@ function onPriceSheetChange(){
   var detValid=det?_plValidCount(_collectRows(_plData,{start:det.headerRow+2,colName:det.colName,colOpt:det.colOpt,colRet:det.colRet,colArt:det.colArt,cascade:det.cascade,supplier:'x',sheetName:sn})):0;
   // v7.21: прайс модульных систем (Союз, Брянск «Корпусная») колонками не описать —
   // если такой разбор даёт больше товаров, включаем его и говорим об этом.
-  _plModSys=null;_plSeries=null;_plTri=null;
+  _plModSys=null;_plSeries=null;_plTri=null;_plMatPav=null;
+  // v7.92: матрасы «блоками» (БелАрника, ИП Павлов): артикулы в строку, под ними
+  // характеристики, внизу «80*190/195/200 → цены». Признак однозначный — первым.
+  var _mp=_autoDetectMatPav(_plData);
+  if(_mp){
+    var _mpRows=_collectMatPav(_plData,{supplier:'x',sheetName:sn});
+    var _mpN=_plValidCount(_mpRows);
+    if(_mpN>0){
+      _plMatPav=_mp;
+      _buildPriceColSelects();
+      if(se){se.style.cssText='display:block;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px';
+        se.innerHTML='🛏 Прайс матрасов «блоками» (БелАрника): '+_mp.models+' моделей, '+_mpN+' позиций (модель × размер). Название будет вида «'+esc((_mpRows[0]&&_mpRows[0].product_name)||'')+'», высота, нагрузка и состав — в характеристики товара. Колонки выбирать не нужно — жмите «Импортировать этот лист» или «📚 Все листы сразу».';}
+      _renderPricePreview();
+      return;
+    }
+  }
   // v7.79: «товар в три строки» (Росток) — узнаём первым: признак однозначный
   var _tr=_autoDetectTri(_plData);
   if(_tr){
@@ -6762,6 +6824,7 @@ function _markImportedSheets(){
 var _plModSys=null; // разметка листа «модульные системы» (v7.21)
 var _plSeries=null; // v7.72: разметка листа «серии с цветами» (HANDIS)
 var _plTri=null;    // v7.79: разметка листа «товар в три строки» (Росток)
+var _plMatPav=null; // v7.92: матрасы «блоками» (БелАрника)
 // v7.62: описательные колонки (размеры/цвет/материал), найденные автоопределением
 // для ТЕКУЩЕГО листа. Раньше они доезжали только до «Все листы сразу», а при
 // загрузке одного листа кнопкой молча терялись.
@@ -6781,7 +6844,10 @@ async function importPriceList(){
   var sheetName=document.getElementById('pl-sheet').value;
   var rows=[],isMatrix=false;
   var isMulti=document.getElementById('pl-matrix-on')&&document.getElementById('pl-matrix-on').checked;
-  if(_plTri&&!isMulti){
+  if(_plMatPav&&!isMulti){
+    rows=_collectMatPav(_plData,{supplier:supplier,sheetName:sheetName});
+    isMatrix=rows.length>0; // колонками не описать — шаблон помечаем как особый
+  }else if(_plTri&&!isMulti){
     rows=_collectTri(_plData,Object.assign({supplier:supplier,sheetName:sheetName},_plTri));
     isMatrix=rows.length>0; // колонками не описать — шаблон помечаем как особый
   }else if(_plSeries&&!isMulti){
@@ -6826,7 +6892,7 @@ async function importPriceList(){
   // цена стоит лишь в «Стекле» (керамика, фотопечать), терялись совсем — их
   // строка выглядела как «без цены». Галочку «Цены в нескольких колонках» надо
   // было вспомнить самому. Теперь спрашиваем прямо, с цифрами.
-  if(!isMulti&&!_plModSys&&!_plSeries&&!_plTri){
+  if(!isMulti&&!_plModSys&&!_plSeries&&!_plTri&&!_plMatPav){
     var _mu=_autoDetectMulti(_plData);
     if(_mu&&_mu.varCols&&_mu.varCols.length>=2){
       var _mrows=_collectMulti(_plData,{supplier:supplier,sheetName:sheetName,
@@ -6911,6 +6977,11 @@ async function importAllSheets(){
     var cands=[];
     var tpl=_tplGet(store,sn);
     var det=_autoDetectSheet(data);
+    // v7.92: матрасы «блоками» (БелАрника) — самым первым: при равном числе строк
+    // побеждает тот, кто понимает устройство листа (артикул, высота, состав)
+    var mpA=_autoDetectMatPav(data);
+    if(mpA)cands.push({rows:_collectMatPav(data,{supplier:supplier,sheetName:sn}),
+      src:'матрасы блоками ('+mpA.models+' моделей)',cfg:null,kind:'matrix'});
     // Сохранённый шаблон «матрица общего вида» (этап B) — используем его разметку колонок
     if(tpl&&tpl.matrix_multi&&tpl.var_cols&&tpl.var_cols.length&&tpl.col_name!==''&&tpl.col_name!=null){
       var cfgM={start:parseInt(tpl.start_row)||2,colName:parseInt(tpl.col_name),colArt:tpl.col_art,varCols:tpl.var_cols,supplier:supplier,sheetName:sn};
@@ -7418,6 +7489,388 @@ function _fabSpecInfo(n){
   if(n==null)n=_fabCatsCount;
   el.textContent=n>0?('✓ В базе загружено тканей: '+n+' (синхронизируется на всех устройствах)')
     :('Своя спецификация ещё не загружена — используется встроенная ('+Object.keys(FABRIC_CATS).length+' тканей). Загрузите файл, чтобы обновить.');
+}
+// ═══ v7.92: МАТРАСЫ — разбор прайсов Асконы (SONTERY) и БелАрники (ИП Павлов) ═══
+// Один разбор служит двум целям:
+//   1) ценники на матрасы (24b_mattress_labels.js) — модель, характеристики, цены по ширинам;
+//   2) загрузка прайса БелАрники в «Прайсы» — у Павлова прайс устроен «блоками»
+//      (артикулы в строку, под ними характеристики, внизу таблица «размер → цена»),
+//      и обычный разбор колонками давал товары с названием «80*190/195/200».
+// Модель матраса: {key, brand, line, title, sub, art, specs:[[подпись,значение]],
+//   layers:[строки состава], lengths:'186, 190, 195, 200', sizes:[{w,lab,lens,opt}]}
+
+function _mtTxt(v){return String(v==null?'':v).replace(/ /g,' ').replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').trim();}
+function _mtOne(v){return _mtTxt(v).replace(/\s+/g,' ');}
+function _mtCap(s){s=String(s||'').trim();return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
+function _mtLow1(s){s=String(s||'');if(/^[A-ZА-ЯЁ]{2}/.test(s))return s;return s.charAt(0).toLowerCase()+s.slice(1);}
+// «ДЕЛЮКС» → «Делюкс»
+function _mtTitleCase(s){s=_mtOne(s);if(s&&s===s.toUpperCase()&&/[А-ЯЁA-Z]{3}/.test(s))s=s.charAt(0)+s.slice(1).toLowerCase();return s;}
+var _MT_H_RX=/^(?:h\s*[≈~=]?\s*)?(\d{1,2}(?:[.,]\d)?(?:\s*-\s*\d{1,2})?)\s*см\.?$/i;
+
+// Ячейка размера: «80*190/195/200», «800*1900(1950,2000)», «1800*2000», «1800*1900/ 1950/2000»
+function _mtSizeCell(v){
+  var s=_mtOne(v).replace(/\s+/g,'');
+  var m=s.match(/^(\d{2,4})\*(\d{3,4})(.*)$/);if(!m)return null;
+  var w=+m[1],l1=+m[2];var k=(w>=500||l1>=1000)?10:1;
+  var lens=[l1].concat((m[3].match(/\d{3,4}/g)||[]).map(Number)).map(function(x){return Math.round(x/k);});
+  var seen={};lens=lens.filter(function(x){if(seen[x])return false;seen[x]=1;return x>=150&&x<=230;});
+  if(!lens.length)return null;
+  return{w:Math.round(w/k),lens:lens};
+}
+function _mtArtCode(art){
+  var s=String(art||'').replace(/[.\s]/g,'').toUpperCase().replace(/A/g,'А').replace(/B/g,'В').replace(/C/g,'С');
+  var m=s.match(/^0\d{2}[А-ЯЁ]?/);return m?m[0]:'';
+}
+// Сноски Павлова: «Нагрузка … не более 110 кг, арт 084А до 120кг», «072Б - не более 100 кг, 074Б и 085 - не более 120 кг»
+function _mtFootParse(text){
+  var t=String(text||'').replace(/\s+/g,' ');
+  var res={general:null,by:{},warranty:'',life:''};
+  t.split(/[.;](?!\d)/).forEach(function(cl){
+    cl.split(/,/).forEach(function(c){
+      var lm=c.match(/(?:не\s+более|до)\s*(\d{2,3})\s*кг/i);if(!lm)return;
+      var codes=[],rx=/(?:^|[\s,:])(?:арт\.?\s*)?(0\d{2}\s?[А-ЯA-Zа-яЁё]?)(?=[\s\-–,:]|и|$)/gi,mm;
+      while((mm=rx.exec(c))){var cd=_mtArtCode(mm[1]);if(cd)codes.push(cd);}
+      if(codes.length)codes.forEach(function(cd){res.by[cd]=+lm[1];});
+      else if(res.general==null)res.general=+lm[1];
+    });
+  });
+  var w=t.match(/гарантийн\S*\s+срок[^\d]{0,30}(\d{1,3})\s*мес/i);if(w)res.warranty=w[1]+' мес.';
+  var lifes={},lr=/срок\s+эксплуатации\s*(\d{1,2}(?:\s*-\s*\d{1,2})?)\s*(лет|года|год)/gi,l2;
+  while((l2=lr.exec(t))){lifes[l2[1].replace(/\s/g,'')+' '+l2[2]]=1;}
+  var lk=Object.keys(lifes);if(lk.length===1)res.life=lk[0];
+  return res;
+}
+// Склейка строк состава, разорванных по ячейкам: «Трикотажная ткань на» + «глубокой стежке»
+function _mtMergeLines(items){
+  var out=[];
+  items.forEach(function(it){
+    var prev=out[out.length-1];
+    var cur=it.txt;
+    if(!prev){out.push({txt:cur,g:it.g,lab:it.lab});return;}
+    var same=prev.g===it.g;
+    // «Жаккард люкс стеганный на» + (следующая группа) «орт.пене…» — строка без подписи
+    // перед подписанной обычно относится к ней: берём подпись следующей
+    if(/(\sна|\sиз|-|–|:|\+)$/i.test(prev.txt)&&!same){
+      prev.txt=(prev.txt+' '+cur).replace(/\s+/g,' ');prev.g=it.g;prev.lab=it.lab;return;
+    }
+    if(same&&(/(\sна|\sиз|\sс|\sи|,|-|–|:|\+)$/i.test(prev.txt)||/^\(/.test(cur)||/^(на|из|с|и|в)\s/.test(cur)
+      ||(/^[а-яё]/.test(cur)&&prev.txt.indexOf(' ')<0)||(/^(\d[\d\s,.]*(шт|мм|см)|[A-ZА-ЯЁ]{2,}\s)/.test(cur)&&prev.txt.length<40&&!/\.$/.test(prev.txt))
+      ||(/^[а-яё]/.test(cur)&&/покрыт|чехол/i.test(it.lab||'')))){
+      prev.txt=(prev.txt+' '+cur).replace(/\s+/g,' ').replace(/\s+,/g,',');return;
+    }
+    if(same&&/^[A-ZА-ЯЁ]{2,}$/.test(cur)&&!/\.$/.test(prev.txt)){prev.txt+=', '+cur;return;}
+    // «…на глубокой» + «стежке» — одно слово с маленькой буквы дописываем к предыдущей строке
+    if(/^[а-яё][а-яё(]*$/.test(cur)&&cur.length<14&&!/[.)]$/.test(prev.txt)){
+      prev.txt=(prev.txt+' '+cur).replace(/\s+/g,' ');if(!same){prev.g=it.g;prev.lab=it.lab;}return;
+    }
+    out.push({txt:cur,g:it.g,lab:it.lab});
+  });
+  out.forEach(function(o){o.txt=o.txt.replace(/\+\s*$/,'').trim();});
+  return out;
+}
+// подпись в первой колонке начинает новую группу характеристик?
+function _mtIsLabel(t){
+  t=String(t||'');if(!t)return false;
+  if(/^(пружин|блок|изоляц|наполн|верхн|основа|высот|чехол|ткань|\d+\s*\.)/i.test(t))return true;
+  return !/^[(a-zа-яё]/.test(t);
+}
+function _mtRowText(row){var a=[];(row||[]).forEach(function(v){var t=_mtOne(v);if(t)a.push(t);});return a.join(' ');}
+
+// ── БелАрника (ИП Павлов): лист = 1–2 таблицы «размер → цены по артикулам» ──
+function _mtParsePavlovSheet(data,sn,brand){
+  var R=data.length,models=[],tables=[],r=0;
+  while(r<R){
+    if(_mtSizeCell((data[r]||[])[0])){var s=r;while(r<R&&_mtSizeCell((data[r]||[])[0]))r++;tables.push({s:s,e:r-1});continue;}
+    r++;
+  }
+  var prevEnd=-1;
+  tables.forEach(function(tb,ti){
+    // шапка таблицы: «Размер матраца» / «Стоимость» — 1–3 строки над размерами
+    var H=-1;
+    for(var h=tb.s-1;h>=Math.max(prevEnd+1,tb.s-3);h--){
+      var hr=data[h]||[];
+      if(/^размер\s+(матра|наматра)/i.test(_mtOne(hr[0]))||hr.some(function(v,c){return c>0&&/^стоимость/i.test(_mtOne(v));}))H=h;
+    }
+    if(H<0){prevEnd=tb.e;return;}
+    var regionStart=prevEnd+1;
+    var footEnd=(tables[ti+1]?tables[ti+1].s:R);
+    var foot=[];for(var fr=tb.e+1;fr<footEnd;fr++)foot.push(_mtRowText(data[fr]));
+    var fp=_mtFootParse(foot.join(' '));
+    // серия и описание
+    var series='',desc='',seriesRow=-1,artRow=-1;
+    for(var q=0;q<H;q++){
+      var c0=_mtOne((data[q]||[])[0]);
+      if(/^серия/i.test(c0))seriesRow=q;
+    }
+    for(var q2=regionStart;q2<H;q2++){if(/^(арт|артикул)(?![а-яё])/i.test(_mtOne((data[q2]||[])[0])))artRow=q2;}
+    if(seriesRow>=0){
+      (data[seriesRow]||[]).forEach(function(v,c){
+        var t=_mtOne(v);if(!t||c===0)return;
+        var qm=t.match(/^["«“]\s*([^"»”]+?)\s*["»”]$/);
+        if(qm&&!series)series=_mtTitleCase(qm[1]);
+        else if(/[а-яё]{4}/i.test(t))desc+=(desc?' ':'')+t;
+      });
+      for(var dr=seriesRow+1;dr<(artRow>=0?artRow:H)&&dr<seriesRow+4;dr++){
+        var row=data[dr]||[];if(_mtOne(row[0]))continue;
+        row.forEach(function(v){var t=_mtOne(v);if(/ортопед|матра|класса/i.test(t))desc+=(desc?' ':'')+t;});
+      }
+    }
+    desc=desc.replace(/^\(|\)$/g,'').replace(/\(\s*|\s*\)/g,' ').replace(/\s+,/g,',').replace(/,(?=\S)/g,', ').replace(/\s+/g,' ').trim();
+    var isTopper=/наматра/i.test(_mtOne((data[H]||[])[0])+' '+_mtRowText(data[regionStart]));
+    // колонки цен
+    var cnt={},nRows=tb.e-tb.s+1;
+    for(var sr=tb.s;sr<=tb.e;sr++)(data[sr]||[]).forEach(function(v,c){if(c>0&&_plIsPlainNumCell(v)&&_plToNum(v)>=300)cnt[c]=(cnt[c]||0)+1;});
+    var pcs=Object.keys(cnt).map(Number).filter(function(c){return cnt[c]>=Math.max(1,nRows/2);}).sort(function(a,b){return a-b;});
+    pcs=pcs.filter(function(c,i){
+      if(i===0||pcs[i-1]!==c-1)return true;
+      for(var s2=tb.s;s2<=tb.e;s2++){if(_plToNum((data[s2]||[])[c])!==_plToNum((data[s2]||[])[c-1]))return true;}
+      return false; // объединённая ячейка цены — дубль соседней колонки
+    });
+    if(!pcs.length){prevEnd=tb.e;return;}
+    // артикулы (горизонтально объединённые — значение только в первой ячейке)
+    var arts=[];
+    if(artRow>=0)(data[artRow]||[]).forEach(function(v,c){var t=_mtOne(v);if(c>0&&t)arts.push({txt:t,c:c});});
+    var mods=[];
+    var freePcs=[];
+    pcs.forEach(function(pc){
+      var lab='';
+      for(var hh=H;hh<tb.s;hh++){var t=_mtOne((data[hh]||[])[pc]);if(t&&!/^стоимость/i.test(t))lab=t;}
+      if(lab&&arts.length)mods.push({pc:pc,art:lab.replace(/^0(\d{2}[А-ЯЁA-Z]?)\s*/i,'0.$1 ').trim(),anchor:pc,special:true});
+      else freePcs.push(pc);
+    });
+    if(arts.length===freePcs.length){
+      freePcs.forEach(function(pc,i){mods.push({pc:pc,art:arts[i].txt,anchor:arts[i].c});});
+    }else{
+      var used={};
+      freePcs.forEach(function(pc){
+        var best=-1,bd=1e9;
+        arts.forEach(function(a,i){if(used[i])return;var d=Math.abs(a.c-pc);if(d<bd){bd=d;best=i;}});
+        if(best>=0&&bd<=4){used[best]=1;mods.push({pc:pc,art:arts[best].txt,anchor:arts[best].c});}
+        else mods.push({pc:pc,art:'',anchor:pc});
+      });
+    }
+    mods.sort(function(a,b){return a.anchor-b.anchor;});
+    mods.forEach(function(m,i){
+      m.lo=i===0?1:(mods[i-1].anchor+m.anchor)/2;
+      m.hi=i===mods.length-1?1e9:(m.anchor+mods[i+1].anchor)/2;
+    });
+    // строки характеристик
+    var specStart=artRow>=0?artRow+1:-1;
+    if(specStart<0){for(var ss=regionStart;ss<H;ss++){var l0=_mtOne((data[ss]||[])[0]);if(l0&&!/^(ип\s|серия)/i.test(l0)){specStart=ss;break;}}}
+    if(specStart<0)specStart=H;
+    // группы по подписи в первой колонке
+    var labOf=[],curLab='',firstLab='';
+    for(var lr=specStart;lr<H;lr++){var lb=_mtOne((data[lr]||[])[0]);if(_mtIsLabel(lb)){firstLab=lb;break;}}
+    var gNo=0,passed=false;curLab=firstLab;
+    for(var r2=specStart;r2<H;r2++){
+      var lab0=_mtOne((data[r2]||[])[0]);
+      var real=_mtIsLabel(lab0);
+      if(real){if(passed)gNo++;passed=true;curLab=lab0;}
+      else if(lab0){curLab+=' '+lab0;}
+      labOf[r2]={g:gNo,lab:curLab};
+    }
+    mods.forEach(function(m){
+      var items=[],h='';
+      for(var r3=specStart;r3<H;r3++){
+        if(r3===seriesRow)continue;
+        var row3=data[r3]||[],best=null,bd=1e9;
+        for(var c3=Math.ceil(m.lo);c3<Math.min(row3.length,m.hi);c3++){
+          var t3=_mtOne(row3[c3]);if(!t3||/^стоимость/i.test(t3)||(series&&_mtTitleCase(t3.replace(/["«»“”]/g,''))===series))continue;
+          if(_plIsPlainNumCell(t3)&&!_MT_H_RX.test(t3))continue;
+          var d3=Math.abs(c3-m.anchor);if(d3<bd){bd=d3;best=t3;}
+        }
+        if(!best||/\d{6}|тел\.?\s*[+\d]|@|^ип\s/i.test(best))continue;
+        if(_MT_H_RX.test(best)){h=best.replace(_MT_H_RX,'$1').replace(/\s/g,'');continue;}
+        var lo=labOf[r3]||{g:0,lab:''};
+        items.push({txt:best,g:lo.g,lab:lo.lab});
+      }
+      // спец-исполнение (подпись прямо над ценой): состав — в ячейках под таблицей
+      if(m.special){
+        for(var fr2=tb.e+1;fr2<footEnd;fr2++){var tf=_mtOne((data[fr2]||[])[m.pc]);if(tf&&tf.length<40)items.push({txt:tf,g:99,lab:''});}
+      }
+      var lines=_mtMergeLines(items);
+      var seenG={},layers=[],fillers=[],cover='';
+      lines.forEach(function(L){
+        var t=L.txt.replace(/\s+,/g,',').replace(/,\s*$/,'').trim();if(!t)return;
+        var lab=String(L.lab||'').toLowerCase(),first=!seenG[L.g];seenG[L.g]=1;
+        if(/боннел/.test(lab)&&first&&!/боннел/i.test(t))t=t.replace(/\.\s*$/,'')+' «Боннель»';
+        t=t.replace(/\.\s*$/,'');
+        if(/изоляц/.test(lab)&&first)t='Изоляция блока: '+_mtLow1(t);
+        else if(/покрыт|чехол/.test(lab)){if(first){cover=t;t='Чехол: '+_mtLow1(t);}else cover+=' '+t;}
+        else if(/основа/.test(lab)&&first)t='Основа: '+_mtLow1(t);
+        if(/наполн/.test(lab))fillers.push(L.txt.replace(/,\s*$/,''));
+        if(layers.indexOf(t)<0)layers.push(t);
+      });
+      var code=_mtArtCode(m.art);
+      var load=(code&&fp.by[code]!=null)?fp.by[code]:fp.general;
+      var specs=[];
+      if(h)specs.push(['Высота','≈ '+h+' см']);
+      if(load)specs.push(['Макс. нагрузка','до '+load+' кг на спальное место']);
+      if(/2-?х\s*сторон|двусторон/i.test(desc+' '+foot.join(' ')))specs.push(['Тип','двусторонний (разная мягкость сторон)']);
+      if(fp.warranty)specs.push(['Гарантия',fp.warranty]);
+      if(fp.life)specs.push(['Срок службы',fp.life]);
+      var sizes=[];
+      for(var s3=tb.s;s3<=tb.e;s3++){
+        var sz=_mtSizeCell((data[s3]||[])[0]);var opt=_plToNum((data[s3]||[])[m.pc]);
+        if(sz&&opt>0)sizes.push({w:sz.w,lens:sz.lens,opt:Math.round(opt)});
+      }
+      if(!sizes.length)return;
+      var art=String(m.art||'').replace(/\s+/g,' ').trim();
+      var title,line;
+      if(isTopper){
+        line='Наматрасники';
+        title='Наматрасник'+(fillers.length?' '+fillers.join(' + '):'')+(h?', '+h+' см':'');
+      }else{
+        line=series||String(sn).trim();
+        title=(series?'«'+series+'» ':'')+(art?art:'');
+      }
+      models.push({brand:brand,line:line,title:title.trim()||('Матрас '+String(sn).trim()),sub:isTopper?(cover?'Чехол: '+_mtLow1(cover.replace(/\s+/g,' ')):''):desc,art:art,
+        specs:specs,layers:layers.slice(0,6),cover:cover,sizes:sizes,sheet:String(sn).trim(),topper:isTopper});
+    });
+    prevEnd=tb.e;
+  });
+  return models;
+}
+
+// ── Аскона (SONTERY): блок модели — строка «HIT | Состав | Наименование МЦ | Размер | … | Оптовая цена» ──
+function _mtCompParse(comp){
+  var specs=[],layers=[];
+  var parts=String(comp||'').split(/\n|\s\/\s|\s+(?=\d{1,2}\.\s*[А-ЯЁA-Z])/).map(function(x){return x.replace(/\s+/g,' ').trim();}).filter(Boolean);
+  var map=[[/^h\s*[≈~=]?\s*(.+)$/i,'Высота',function(v){return '≈ '+v.replace(/^[≈~=\s]+/,'');}],
+    [/^max\.?\s*нагрузка\s*:?\s*(.+)$/i,'Макс. нагрузка',function(v){return /кг/i.test(v)&&/^\d/.test(v)?'до '+v.replace(/\s+/g,' ')+' на спальное место':v;}],
+    [/^жесткость\s*:?\s*(.+)$|^жёсткость\s*:?\s*(.+)$/i,'Жёсткость',null],
+    [/^(?:расширенная\s+)?гарантия\s*:?\s*(.+)$/i,'Гарантия',function(v){return v.replace(/месяц\S*/i,'мес.');}],
+    [/^тип\s+матраса\s*:?\s*(.+)$/i,'Тип',null]];
+  parts.forEach(function(p){
+    for(var i=0;i<map.length;i++){
+      var m=p.match(map[i][0]);
+      if(m){var v=(m[1]||m[2]||'').replace(/\s+/g,' ').trim();if(map[i][2])v=map[i][2](v);specs.push([map[i][1],v]);return;}
+    }
+    var lm=p.match(/^\d+\s*\.\s*(.+)$/);
+    if(lm)layers.push(_mtCap(lm[1]));
+    else if(p.length>2&&!/^\*|цветные пены/i.test(p)&&layers.length)layers[layers.length-1]+=' '+p;
+  });
+  var order=['Высота','Макс. нагрузка','Жёсткость','Тип','Гарантия'];
+  specs.sort(function(a,b){return order.indexOf(a[0])-order.indexOf(b[0]);});
+  return{specs:specs,layers:layers};
+}
+function _mtParseAskonaSheet(data,sn,brand){
+  var models=[];
+  var isHdr=function(row){
+    var hasComp=false,hasOpt=false;
+    (row||[]).forEach(function(v){var t=_mtOne(v);if(/^состав$/i.test(t))hasComp=true;if(/оптов/i.test(t))hasOpt=true;});
+    return hasComp&&hasOpt;
+  };
+  for(var r=0;r<data.length;r++){
+    var row=data[r]||[];if(!isHdr(row))continue;
+    var pc=-1,nc=-1;
+    row.forEach(function(v,c){var t=_mtOne(v);if(pc<0&&/оптов/i.test(t))pc=c;if(nc<0&&/наименование/i.test(t))nc=c;});
+    var head=String(row[0]==null?'':row[0]).split('\n')[0].split(/\s{3,}/)[0].replace(/\s+/g,' ').replace(/\s+\/.*$/,'').trim();
+    var sizes=[],comp='',lens='',coll='';
+    var rr=r+1;
+    for(;rr<data.length;rr++){
+      var dr=data[rr]||[];if(isHdr(dr))break;
+      var nm='';
+      if(nc>=0&&/^(матрас|топпер|наматрас)/i.test(_mtOne(dr[nc])))nm=_mtOne(dr[nc]);
+      else dr.forEach(function(v){var t=_mtOne(v);if(!nm&&/^(матрас|топпер|наматрас)/i.test(t))nm=t;});
+      var opt=_plToNum(dr[pc]);
+      if(!nm){if(sizes.length&&!(opt>0))break;continue;}
+      if(!(opt>0))continue;
+      if(!comp)dr.forEach(function(v){var t=_mtTxt(v);if(t.length>40&&t!==nm&&t.length>comp.length)comp=t;});
+      if(!lens)dr.forEach(function(v){var t=_mtOne(v);if(/^длина/i.test(t))lens=(t.match(/\d{3}/g)||[]).join(', ');});
+      var w=null,lab='',L=null;
+      var dm=nm.match(/\bD\s*(\d{3})\b/i);
+      var sm=nm.match(/(\d{3})\s*\*\s*(\d{2,3})/);
+      if(dm){lab='⌀'+dm[1];}
+      else if(sm){L=+sm[1];w=+sm[2];lab=String(w);}
+      else continue;
+      if(!coll){
+        var rest=nm.replace(/^(матрас|топпер|наматрасник)\s*/i,'').replace(/(\d{3})\s*\*\s*(\d{2,3})\s*/,'').replace(/\bD\s*\d{3}\s*/i,'').trim();
+        coll=rest;
+      }
+      sizes.push({w:w,lab:lab,lens:L?[L]:[],opt:Math.round(opt),name:nm});
+    }
+    r=rr-1;
+    if(!sizes.length)continue;
+    var cp=_mtCompParse(comp);
+    // «Prime Hit» − «HIT» → коллекция «Prime»
+    var headLat=head.replace(/\(.*?\)/g,'').replace(/акция/i,'').trim();
+    var collName=coll.replace(new RegExp(headLat.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*$','i'),'').replace(/\s*акция\s*$/i,'').trim();
+    if(collName.toLowerCase()===coll.toLowerCase())collName='';
+    models.push({brand:brand,line:String(sn).replace(/_/g,' ').trim(),title:head,sub:collName?('Коллекция '+_mtCap(collName.toLowerCase()).replace(/\b\w/g,function(x){return x.toUpperCase();})):'',
+      art:'',specs:cp.specs,layers:cp.layers.slice(0,7),lengths:lens,sizes:sizes,sheet:String(sn).trim(),topper:/топпер|наматрас/i.test(coll+' '+head)});
+  }
+  return models;
+}
+
+// ── книга целиком: какие матрасы в ней есть ──
+function _mtSheetData(wb,sn){
+  return _plTrimData(XLSX.utils.sheet_to_json(_plExpandMerges(wb.Sheets[sn]),{header:1,defval:'',raw:false}));
+}
+function mtParseWorkbook(wb,fileName){
+  var out={kind:'',brand:'',models:[]};
+  if(!wb||!wb.SheetNames)return out;
+  var askona=[],pav=[];
+  var fn=String(fileName||'');
+  wb.SheetNames.forEach(function(sn){
+    var data;try{data=_mtSheetData(wb,sn);}catch(e){return;}
+    try{askona=askona.concat(_mtParseAskonaSheet(data,sn,''));}catch(e){}
+    try{pav=pav.concat(_mtParsePavlovSheet(data,sn,''));}catch(e){}
+  });
+  var all=askona.concat(pav);
+  if(!all.length)return out;
+  out.kind=askona.length>=pav.length?'askona':'pavlov';
+  var joined=wb.SheetNames.map(function(sn){try{return _mtRowText((_mtSheetData(wb,sn)[1]||[]))+' '+_mtRowText((_mtSheetData(wb,sn)[0]||[]));}catch(e){return '';}}).join(' ');
+  if(out.kind==='askona')out.brand=/аскона|askona/i.test(fn+' '+joined)||/sontery/i.test(fn)?'Askona':'';
+  else out.brand=/арник/i.test(fn+' '+joined)?'БелАрника':(/павлов/i.test(joined)?'БелАрника':'');
+  out.models=(out.kind==='askona'?askona:pav);
+  var seen={};
+  out.models.forEach(function(m){
+    m.brand=out.brand;
+    var k=(m.line+'|'+m.title+'|'+m.art).toLowerCase();
+    var n=1;while(seen[k+(n>1?'#'+n:'')])n++;
+    m.key=k+(n>1?'#'+n:'');seen[m.key]=1;
+    // общая подпись длин: большинство строк
+    if(!m.lengths){
+      var cnt={};m.sizes.forEach(function(s){var key=s.lens.join('/');cnt[key]=(cnt[key]||0)+1;});
+      var best='',bn=0;for(var kk in cnt)if(cnt[kk]>bn){bn=cnt[kk];best=kk;}
+      m.lengths=best.split('/').join(', ');
+      m.sizes.forEach(function(s){s.lab=String(s.w)+(s.lens.join('/')!==best?'×'+s.lens.join('/'):'');});
+    }
+  });
+  return out;
+}
+
+// ── загрузка прайса БелАрники в «Прайсы»: блоки матрасов → строки price_items ──
+function _autoDetectMatPav(data){
+  var ms;try{ms=_mtParsePavlovSheet(data,'','');}catch(e){return null;}
+  if(!ms||!ms.length)return null;
+  // признак однозначный: ячейки размеров «80*190/195/200» в первой колонке и артикулы над ними
+  return{models:ms.length};
+}
+function _collectMatPav(data,cfg){
+  var rows=[];
+  var _drop=_plNewDrop();
+  try{Object.defineProperty(rows,'_drop',{value:_drop,enumerable:false});}catch(e){rows._drop=_drop;}
+  var ms=_mtParsePavlovSheet(data,cfg.sheetName||'','');
+  ms.forEach(function(m){
+    var kind=m.topper?'Наматрасник':'Матрас';
+    var nmBase=m.topper?(m.title+(m.cover?' ('+_mtLow1(m.cover.replace(/\s+/g,' '))+')':'')):(kind+' '+m.title);
+    var hmm=0;m.specs.forEach(function(s){if(s[0]==='Высота'){var hm=String(s[1]).match(/(\d{1,2})(?:\s*-\s*(\d{1,2}))?/);if(hm)hmm=(+(hm[2]||hm[1]))*10;}});
+    var compat=m.specs.map(function(s){return s[0]+': '+s[1];}).concat(m.layers).join(' · ');
+    m.sizes.forEach(function(s){
+      _drop.scanned++;
+      if(s.opt>_PL_PRICE_MAX){_drop.weird++;return;}
+      var sz=s.w+'×'+s.lens.join('/');
+      rows.push({supplier:cfg.supplier,product_name:nmBase+' · '+sz,price_opt:s.opt,price_retail:0,
+        article:[m.art,_mtArtCode(m.art)].filter(Boolean).join(' · '),
+        category:m.topper?'Наматрасники':('Матрасы «'+m.line+'»'),sheet_name:cfg.sheetName||'',
+        compatibility:compat||null,
+        dim_w:s.w*10,dim_h:hmm||null,dim_d:Math.max.apply(null,s.lens)*10,
+        ptype:m.topper?'наматрасник':'матрас',color:null,doors:null,material:null});
+    });
+  });
+  return rows;
 }
 function globalSearch(){
   clearTimeout(_gsTimer);
@@ -10111,6 +10564,322 @@ async function deleteSavedLabel(i){
 }
 
 // ── ПЕЧАТЬ ЖУРНАЛА ЗАКАЗОВ (в работе / все) ──────────────
+// ═══ v7.92: ЦЕННИКИ НА МАТРАСЫ ПО ПРАЙСУ ═══════════════════════════════
+// Поменялись цены → загрузили новый прайс → отметили линейки → печать.
+// Ценник как образец владельца (фото 10.10.2026): шапка «модель | Размер | Цена»,
+// слева состав, в середине главное (высота, нагрузка, жёсткость, гарантия),
+// справа столбик ширин с подписью «длина 186, 190, 195, 200» и цены.
+// Розничная цена = retailFromOpt(опт) — та же формула, что в заказах
+// (наценка из настроек, округление вверх до 100 ₽), поэтому ценник и заказ совпадают.
+// Разобранный прайс хранится в этом браузере (vd_mt_book_<вид>) — перепечатать
+// можно и без файла; отметки «что печатать» тоже запоминаются (vd_mt_sel).
+
+var _mtBooks={};        // kind → {kind,brand,file,date,models}
+var _mtCur='';          // какой прайс открыт: 'askona' | 'pavlov'
+var _mtSel={};          // key модели → 1 (печатать)
+var _mtPrevKey='';      // какая модель в предпросмотре
+var _mtPendingWB=null,_mtPendingName='';
+
+function _mtLsGet(k,def){try{var v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;}}
+function _mtLsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}
+function _mtLoadState(){
+  ['askona','pavlov'].forEach(function(k){var b=_mtLsGet('vd_mt_book_'+k,null);if(b&&b.models&&b.models.length)_mtBooks[k]=b;});
+  _mtSel=_mtLsGet('vd_mt_sel',{})||{};
+  if(!_mtCur||!_mtBooks[_mtCur])_mtCur=_mtLsGet('vd_mt_cur','')||'';
+  if(!_mtBooks[_mtCur])_mtCur=Object.keys(_mtBooks)[0]||'';
+}
+function _mtKindName(k){return k==='askona'?'Аскона':(k==='pavlov'?'БелАрника':k);}
+
+// ── загрузка прайса ──
+function mtOnFile(input){
+  var file=input.files&&input.files[0];if(!file)return;
+  if(typeof XLSX==='undefined'){toast('⏳ Библиотека Excel ещё загружается — попробуйте через пару секунд','err');return;}
+  var rd=new FileReader();
+  rd.onload=function(e){
+    try{var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});_mtUseWB(wb,file.name);}
+    catch(err){toast('❌ Не удалось прочитать файл: '+err.message,'err',5000);}
+    input.value='';
+  };
+  rd.readAsArrayBuffer(file);
+}
+function _mtUseWB(wb,name){
+  var res=mtParseWorkbook(wb,name);
+  if(!res.models.length){
+    toast('🤔 В этом файле не нашёл матрасов в знакомом виде (Аскона, БелАрника). Ценники для него — в форме выше.','err',6000);
+    return false;
+  }
+  var old=_mtBooks[res.kind];
+  var book={kind:res.kind,brand:res.brand||(old&&old.brand)||_mtKindName(res.kind),file:name||'',date:new Date().toISOString(),models:res.models};
+  // сравниваем с прошлым прайсом: сколько цен поменялось
+  var changed=0,total=0;
+  if(old){
+    var prev={};old.models.forEach(function(m){m.sizes.forEach(function(s){prev[m.key+'|'+s.lab]=s.opt;});});
+    book.models.forEach(function(m){m.sizes.forEach(function(s){var p=prev[m.key+'|'+s.lab];if(p!=null){total++;if(p!==s.opt)changed++;}});});
+  }
+  _mtBooks[res.kind]=book;_mtCur=res.kind;
+  // первая загрузка этого прайса — отмечаем всё; дальше отметки владельца сохраняются
+  var anySel=book.models.some(function(m){return _mtSel[m.key];});
+  if(!anySel&&!old)book.models.forEach(function(m){_mtSel[m.key]=1;});
+  var ok=_mtLsSet('vd_mt_book_'+res.kind,book);
+  _mtLsSet('vd_mt_sel',_mtSel);_mtLsSet('vd_mt_cur',_mtCur);
+  _mtPrevKey='';
+  renderMattressLabels();
+  var lines={};book.models.forEach(function(m){lines[m.line]=1;});
+  toast('🛏 '+_mtKindName(res.kind)+': '+book.models.length+' моделей в '+Object.keys(lines).length+' линейках'
+    +(old?(changed?', цены поменялись у '+changed+' размеров из '+total:', цены те же, что в прошлом прайсе'):'')
+    +(ok?'':' (браузер не дал сохранить — после обновления страницы файл надо будет выбрать снова)'),null,6000);
+  return true;
+}
+// из «Прайсов»: файл уже открыт там
+function mtOnPriceWB(wb,name){
+  var box=document.getElementById('pl-mt-note');
+  _mtPendingWB=null;_mtPendingName='';
+  if(box){box.style.display='none';box.innerHTML='';}
+  var res;try{res=mtParseWorkbook(wb,name);}catch(e){return;}
+  if(!res||!res.models.length)return;
+  _mtPendingWB=wb;_mtPendingName=name||'';
+  if(box){
+    box.style.display='block';
+    box.innerHTML='🛏 Это прайс матрасов (<b>'+esc(_mtKindName(res.kind))+'</b>, '+res.models.length+' моделей). '
+      +(res.kind==='pavlov'?'Листы разберутся сами: модель, высота, состав, цена по каждому размеру. ':'')
+      +'Загрузите его как обычно, а потом напечатайте ценники по новым ценам: '
+      +'<button class="btn btn-outline" style="padding:3px 10px;font-size:12px;margin-left:4px" onclick="mtFromPricesWB()">🏷 Ценники на матрасы</button>';
+  }
+  var fb=document.getElementById('mt-from-prices');if(fb)fb.style.display='inline-flex';
+}
+function mtFromPricesWB(){
+  if(!_mtPendingWB&&typeof _plWB!=='undefined'&&_plWB){_mtPendingWB=_plWB;_mtPendingName=(typeof _plFileName!=='undefined'&&_plFileName)||'';}
+  if(!_mtPendingWB){toast('В «Прайсах» сейчас не открыт файл — выберите его здесь кнопкой «📂 Выбрать файл прайса»','err',5000);return;}
+  showPage('pricelabels');
+  if(_mtUseWB(_mtPendingWB,_mtPendingName)){
+    var c=document.getElementById('mt-card');if(c&&c.scrollIntoView)c.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+function mtSwitch(k){if(!_mtBooks[k])return;_mtCur=k;_mtPrevKey='';_mtLsSet('vd_mt_cur',k);renderMattressLabels();}
+function mtForget(){
+  var b=_mtBooks[_mtCur];if(!b)return;
+  if(!confirm('Убрать сохранённый прайс «'+_mtKindName(_mtCur)+'» из ценников?\nВ «Прайсах» ничего не изменится.'))return;
+  try{localStorage.removeItem('vd_mt_book_'+_mtCur);}catch(e){}
+  delete _mtBooks[_mtCur];_mtCur=Object.keys(_mtBooks)[0]||'';renderMattressLabels();
+}
+
+// ── список линеек и моделей с галочками ──
+function _mtRetail(opt){return retailFromOpt(opt);}
+function _mtRange(m){
+  var a=m.sizes.map(function(s){return _mtRetail(s.opt);}).filter(function(x){return x>0;});
+  if(!a.length)return '';
+  var lo=Math.min.apply(null,a),hi=Math.max.apply(null,a);
+  return lo===hi?fmt(lo)+' ₽':fmt(lo)+' – '+fmt(hi)+' ₽';
+}
+function _mtLines(b){
+  var order=[],by={};
+  b.models.forEach(function(m,i){if(!by[m.line]){by[m.line]=[];order.push(m.line);}by[m.line].push(i);});
+  return order.map(function(l){return{line:l,idx:by[l]};});
+}
+function _mtSelCount(b){return b?b.models.filter(function(m){return _mtSel[m.key];}).length:0;}
+function renderMattressLabels(){
+  var card=document.getElementById('mt-card');if(!card)return;
+  if(!Object.keys(_mtBooks).length)_mtLoadState();
+  var tabs=document.getElementById('mt-tabs'),info=document.getElementById('mt-info'),body=document.getElementById('mt-body');
+  var fb=document.getElementById('mt-from-prices');
+  if(fb)fb.style.display=((typeof _plWB!=='undefined'&&_plWB)||_mtPendingWB)?'inline-flex':'none';
+  var keys=Object.keys(_mtBooks);
+  if(tabs)tabs.innerHTML=keys.length>1?keys.map(function(k){
+    var on=k===_mtCur;
+    return '<span onclick="mtSwitch(\''+k+'\')" style="cursor:pointer;border:1.5px solid '+(on?'#1F4E79':'var(--border)')+';background:'+(on?'#1F4E79':'#fff')+';color:'+(on?'#fff':'var(--text)')+';border-radius:16px;padding:4px 12px;font-size:12.5px;font-weight:600">'+esc(_mtKindName(k))+'</span>';
+  }).join(' '):'';
+  var b=_mtBooks[_mtCur];
+  if(!b){
+    if(info)info.innerHTML='<div style="font-size:12.5px;color:var(--text2);margin-top:8px">Прайс ещё не выбран. Подойдёт тот же файл, что вы загружаете в «Прайсы» (Аскона SONTERY, БелАрника).</div>';
+    if(body)body.style.display='none';
+    return;
+  }
+  var dt=new Date(b.date);
+  var p2=function(n){return(n<10?'0':'')+n;};
+  if(info)info.innerHTML='<div style="font-size:12.5px;margin-top:8px;line-height:1.5">📄 <b>'+esc(_mtKindName(b.kind))+'</b>'+(b.file?' — '+esc(b.file):'')
+    +' <span style="color:var(--text2)">(загружен '+p2(dt.getDate())+'.'+p2(dt.getMonth()+1)+'.'+dt.getFullYear()+')</span>'
+    +' <a href="#" onclick="mtForget();return false" style="font-size:11.5px;color:var(--text2);margin-left:6px">убрать</a></div>'
+    +'<div style="font-size:11.5px;color:var(--text2);margin-top:2px">Цена на ценнике = опт × наценка из настроек (×'+String(Math.round(markupK()*100)/100).replace('.',',')+'), вверх до 100 ₽ — так же, как в заказах. Чтобы цены в заказах тоже обновились, этот же файл загрузите в «Прайсы».</div>';
+  if(body)body.style.display='block';
+  var bi=document.getElementById('mt-brand');if(bi&&document.activeElement!==bi)bi.value=b.brand||'';
+  var list=document.getElementById('mt-list');
+  if(list){
+    list.innerHTML=_mtLines(b).map(function(L,li){
+      var nOn=L.idx.filter(function(i){return _mtSel[b.models[i].key];}).length;
+      var all=nOn===L.idx.length,none=nOn===0;
+      return '<div style="border-bottom:1px solid var(--border)">'
+        +'<label style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--alt);cursor:pointer;font-weight:700;font-size:13px">'
+        +'<input type="checkbox" '+(all?'checked':'')+' data-ind="'+(!all&&!none?1:0)+'" onchange="mtToggleLine('+li+',this.checked)">'
+        +esc(L.line)+' <span style="font-weight:400;color:var(--text2);font-size:12px">'+nOn+' из '+L.idx.length+'</span></label>'
+        +L.idx.map(function(i){
+          var m=b.models[i],on=!!_mtSel[m.key];
+          return '<div style="display:flex;align-items:center;gap:8px;padding:5px 10px 5px 30px;font-size:12.5px'+(m.key===_mtPrevKey?';background:#FFF8E1':'')+'">'
+            +'<input type="checkbox" '+(on?'checked':'')+' onchange="mtToggle('+i+',this.checked)">'
+            +'<span onclick="mtPreview('+i+')" style="flex:1;min-width:0;cursor:pointer" title="Показать ценник">'
+            +'<b>'+esc(m.title)+'</b>'+(m.sub?' <span style="color:var(--text2)">· '+esc(m.sub.length>60?m.sub.slice(0,58)+'…':m.sub)+'</span>':'')
+            +'<span style="display:block;font-size:11px;color:var(--text2)">'+m.sizes.length+' размеров · '+_mtRange(m)+'</span></span>'
+            +'<span onclick="mtPreview('+i+')" style="cursor:pointer;font-size:15px" title="Предпросмотр">👁</span></div>';
+        }).join('')+'</div>';
+    }).join('');
+    [].slice.call(list.querySelectorAll('input[data-ind="1"]')).forEach(function(x){x.indeterminate=true;});
+  }
+  var n=_mtSelCount(b);
+  var pb=document.getElementById('mt-print-btn');
+  if(pb)pb.textContent='🖨 Печать отмеченных ('+n*Math.max(1,parseInt((document.getElementById('mt-copies')||{}).value)||1)+')';
+  var cnt=document.getElementById('mt-count');if(cnt)cnt.textContent=n+' из '+b.models.length;
+  if(!_mtPrevKey){var first=b.models.filter(function(m){return _mtSel[m.key];})[0]||b.models[0];_mtPrevKey=first?first.key:'';}
+  _mtRenderPreview();
+}
+function mtToggle(i,on){
+  var b=_mtBooks[_mtCur];if(!b||!b.models[i])return;
+  if(on)_mtSel[b.models[i].key]=1;else delete _mtSel[b.models[i].key];
+  _mtLsSet('vd_mt_sel',_mtSel);renderMattressLabels();
+}
+function mtToggleLine(li,on){
+  var b=_mtBooks[_mtCur];if(!b)return;
+  var L=_mtLines(b)[li];if(!L)return;
+  L.idx.forEach(function(i){if(on)_mtSel[b.models[i].key]=1;else delete _mtSel[b.models[i].key];});
+  _mtLsSet('vd_mt_sel',_mtSel);renderMattressLabels();
+}
+function mtSelectAll(on){
+  var b=_mtBooks[_mtCur];if(!b)return;
+  b.models.forEach(function(m){if(on)_mtSel[m.key]=1;else delete _mtSel[m.key];});
+  _mtLsSet('vd_mt_sel',_mtSel);renderMattressLabels();
+}
+function mtBrandInput(){
+  var b=_mtBooks[_mtCur];if(!b)return;
+  b.brand=((document.getElementById('mt-brand')||{}).value||'').trim();
+  _mtLsSet('vd_mt_book_'+_mtCur,b);_mtRenderPreview();
+}
+function mtPreview(i){var b=_mtBooks[_mtCur];if(!b||!b.models[i])return;_mtPrevKey=b.models[i].key;renderMattressLabels();}
+
+// ── сам ценник ──
+// std: 190×85 мм, три на листе A4 (как на образце); big: 190×130, два на листе
+function _mtSpec(){
+  var f=(document.getElementById('mt-format')||{}).value||'std';
+  if(f==='big')return{fmt:'big',w:190,h:130,per:2,hd:22,ft:7,k:1.35};
+  return{fmt:'std',w:190,h:85,per:3,hd:15,ft:5.5,k:1};
+}
+function _mtCss(s){
+  var k=s.k;
+  var pt=function(x){return (Math.round(x*k*10)/10)+'pt';};
+  return '.mtl{width:'+s.w+'mm;height:'+s.h+'mm;box-sizing:border-box;border:1.4px solid #222;display:flex;flex-direction:column;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;overflow:hidden;position:relative}'
+    +'.mtl .row{display:grid;grid-template-columns:29% 33% 6% 13% 19%}'
+    +'.mtl .hd{height:'+s.hd+'mm;border-bottom:1.4px solid #222}'
+    +'.mtl .hd>div{display:flex;flex-direction:column;justify-content:center;padding:0 2.5mm;border-right:1px solid #222;overflow:hidden}'
+    +'.mtl .hd>div:last-child{border-right:none}'
+    +'.mtl .ttl{grid-column:1 / span 2;flex-direction:row!important;align-items:center;justify-content:space-between!important;gap:2mm}'
+    +'.mtl .ttl .tt{min-width:0}'
+    +'.mtl .nm{font-weight:800;font-size:'+pt(22)+';line-height:1.02;letter-spacing:.2px}'
+    +'.mtl .br{font-size:'+pt(8)+';color:#444;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.6mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    +'.mtl .logo{height:'+(s.hd-5)+'mm;max-width:28mm;object-fit:contain;flex-shrink:0}'
+    +'.mtl .hc{grid-column:span 2;align-items:center;font-weight:700;font-size:'+pt(12)+'}'
+    +'.mtl .hc small{display:block;font-weight:400;font-size:'+pt(6.5)+';color:#555}'
+    +'.mtl .hp{align-items:center;font-weight:700;font-size:'+pt(12)+'}'
+    +'.mtl .bd{flex:1;min-height:0}'
+    +'.mtl .bd>div{border-right:1px solid #222;overflow:hidden;min-height:0}'
+    +'.mtl .bd>div:last-child{border-right:none}'
+    +'.mtl .lay,.mtl .spc{padding:1.5mm 2.2mm;font-size:'+pt(7.5)+';line-height:1.22}'
+    +'.mtl .lay div{margin-bottom:.5mm;padding-left:2.6mm;text-indent:-2.6mm}'
+    +'.mtl .lay .lh{font-weight:700;text-indent:0;padding-left:0;font-size:'+pt(7)+';color:#444;text-transform:uppercase;letter-spacing:.4px}'
+    +'.mtl .spc{font-size:'+pt(10.5)+';line-height:1.28;display:flex;flex-direction:column;justify-content:center}'
+    +'.mtl .spc div{margin-bottom:.8mm}.mtl .spc b{font-weight:700}'
+    +'.mtl .sub{font-size:'+pt(7.5)+';color:#444;font-style:italic;margin-bottom:1mm}'
+    +'.mtl .len{display:flex;align-items:center;justify-content:center}'
+    +'.mtl .len span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:'+pt(8.5)+';font-weight:700;white-space:nowrap}'
+    +'.mtl .col{display:flex;flex-direction:column}'
+    +'.mtl .col>div{flex:1;display:flex;align-items:center;justify-content:center;border-bottom:1px solid #222;font-weight:700;white-space:nowrap}'
+    +'.mtl .col>div:last-child{border-bottom:none}'
+    +'.mtl .ft{height:'+s.ft+'mm;border-top:1px solid #222;display:flex;align-items:center;justify-content:space-between;padding:0 2.5mm;font-size:'+pt(6.5)+';color:#444}'
+    +'.mtl.prev{box-shadow:0 2px 8px rgba(0,0,0,.12)}';
+}
+function _mtTagHtml(m,s,brand){
+  var n=m.sizes.length;
+  // шрифт цен: чем больше строк, тем мельче (но не меньше 9 pt)
+  var bodyMm=s.h-s.hd-s.ft-1;
+  var rowMm=bodyMm/Math.max(1,n);
+  var pricePt=Math.max(8,Math.min(18*s.k,rowMm*2.83*0.62));
+  var sizePt=Math.max(7.5,Math.min(15*s.k,rowMm*2.83*0.55));
+  var nmPt=Math.max(11,Math.min(22,22*Math.sqrt(12/Math.max(12,m.title.length))))*s.k;
+  // короткая подпись («Коллекция Prime») — в шапку, длинное описание серии — над характеристиками
+  var longSub=(m.sub||'').length>32;
+  var br=[brand||m.brand||'',longSub?'':(m.sub||'')].filter(Boolean).join(' · ');
+  var specs=(m.specs||[]).slice(0,6);
+  var lay=(m.layers||[]);
+  var lens=m.lengths?('длина '+m.lengths):'';
+  return '<div class="mtl">'
+    +'<div class="row hd">'
+    +'<div class="ttl"><div class="tt">'+(br?'<div class="br">'+esc(br)+'</div>':'')+'<div class="nm" style="font-size:'+nmPt.toFixed(1)+'pt">'+esc(m.title)+'</div></div>'
+    +'<img src="'+LOGO+'" class="logo" alt=""></div>'
+    +'<div class="hc">Размер<small>ширина, см</small></div>'
+    +'<div class="hp">Цена, ₽</div></div>'
+    +'<div class="row bd">'
+    +'<div class="lay mt-fit">'+(lay.length?'<div class="lh">Состав</div>'+lay.map(function(x){return '<div>• '+esc(x)+'</div>';}).join(''):'')+'</div>'
+    +'<div class="spc mt-fit">'+(longSub?'<div class="sub">'+esc(m.sub)+'</div>':'')+specs.map(function(x){return '<div><b>'+esc(x[0])+':</b> '+esc(x[1])+'</div>';}).join('')+'</div>'
+    +'<div class="len">'+(lens?'<span>'+esc(lens)+'</span>':'')+'</div>'
+    +'<div class="col" style="font-size:'+sizePt.toFixed(1)+'pt">'+m.sizes.map(function(z){return '<div>'+esc(z.lab||String(z.w))+'</div>';}).join('')+'</div>'
+    +'<div class="col" style="font-size:'+pricePt.toFixed(1)+'pt">'+m.sizes.map(function(z){var r=_mtRetail(z.opt);return '<div>'+(r?fmt(r):'—')+'</div>';}).join('')+'</div>'
+    +'</div>'
+    +'<div class="ft"><span>Цена за 1 шт. Другие размеры и чехлы — спросите у продавца</span>'+_mtStamp()+'</div>'
+    +'</div>';
+}
+function _mtStamp(){var d=new Date();var p=function(n){return(n<10?'0':'')+n;};return '<span>'+p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear()+'</span>';}
+// длинный состав — плавно уменьшаем шрифт, чтобы ничего не обрезалось
+function _mtFit(root){
+  [].slice.call(root.querySelectorAll('.mt-fit')).forEach(function(el){
+    var cs=(el.ownerDocument.defaultView||window).getComputedStyle(el);
+    var fs=parseFloat(cs.fontSize)||10;
+    for(var i=0;i<30&&el.scrollHeight>el.clientHeight+1&&fs>5;i++){fs-=0.4;el.style.fontSize=fs+'px';}
+  });
+}
+function _mtRenderPreview(){
+  var box=document.getElementById('mt-preview');if(!box)return;
+  var b=_mtBooks[_mtCur];
+  var m=b&&b.models.filter(function(x){return x.key===_mtPrevKey;})[0];
+  if(!m){box.innerHTML='';return;}
+  var s=_mtSpec();
+  var MM=96/25.4,pxW=s.w*MM,pxH=s.h*MM;
+  var maxW=Math.min(560,(box.clientWidth||560));
+  var sc=Math.min(1,maxW/pxW);
+  box.innerHTML='<style>'+_mtCss(s)+'</style>'
+    +'<div style="width:'+Math.round(pxW*sc)+'px;height:'+Math.round(pxH*sc)+'px;overflow:hidden">'
+    +'<div style="transform:scale('+sc+');transform-origin:top left">'+_mtTagHtml(m,s,b.brand)+'</div></div>'
+    +'<div style="font-size:11px;color:var(--text2);margin-top:6px">Предпросмотр «'+esc(m.title)+'»'+(sc<1?' уменьшен до '+Math.round(sc*100)+'%':'')+'. Печать — '+s.w+'×'+s.h+' мм, '+s.per+' на листе A4. '
+    +'<a href="#" onclick="mtPrintOne();return false">Напечатать только этот</a></div>';
+  _mtFit(box);
+}
+function _mtPrint(models){
+  var s=_mtSpec();
+  var b=_mtBooks[_mtCur];
+  var copies=Math.max(1,Math.min(20,parseInt((document.getElementById('mt-copies')||{}).value)||1));
+  var tags=[];
+  models.forEach(function(m){for(var i=0;i<copies;i++)tags.push(_mtTagHtml(m,s,b.brand));});
+  if(!tags.length){toast('Отметьте галочками, какие матрасы печатать','err');return;}
+  var gap=s.fmt==='big'?8:5;
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ценники на матрасы</title><style>'
+    +'@page{size:A4 portrait;margin:8mm 10mm}'
+    +'body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +_mtCss(s)
+    +'.mtl{margin:0 auto '+gap+'mm;page-break-inside:avoid;break-inside:avoid}'
+    +'.mtl:nth-of-type('+s.per+'n){page-break-after:always;break-after:page}'
+    +'.mtl:last-child{page-break-after:auto;break-after:auto}'
+    +'</style></head><body>'+tags.join('')+'</body></html>';
+  var w=window.open('','_blank');
+  if(!w){toast('⚠️ Разрешите всплывающие окна для этого сайта','err',4000);return;}
+  w.document.write(html);w.document.close();
+  var imgs=[].slice.call(w.document.querySelectorAll('img'));
+  Promise.all(imgs.map(function(img){return new Promise(function(r){if(img.complete)r();else{img.onload=r;img.onerror=r;}});}))
+    .then(function(){try{_mtFit(w.document);}catch(e){}setTimeout(function(){w.print();},300);});
+  toast('🖨 Ценников: '+tags.length+' ('+Math.ceil(tags.length/s.per)+' лист.)');
+}
+function mtPrintSelected(){
+  var b=_mtBooks[_mtCur];if(!b)return;
+  _mtPrint(b.models.filter(function(m){return _mtSel[m.key];}));
+}
+function mtPrintOne(){
+  var b=_mtBooks[_mtCur];if(!b)return;
+  _mtPrint(b.models.filter(function(m){return m.key===_mtPrevKey;}));
+}
 function printActiveOrders(){printOrdersJournal('active');}
 function printOrdersJournal(mode){
   mode=mode||'active';
@@ -10231,7 +11000,7 @@ function printOrder(id){
   items.forEach(function(it,i){
     var det=[];
     if(it.color)det.push('Цвет/ткань: '+esc(it.color));
-    if(it.dims)det.push('Размер: '+esc(it.dims));
+    if(it.dims)det.push((/^(габарит|спальн)/i.test(it.dims)?'':'Размер: ')+esc(it.dims)); // v7.92: размер уже подписан
     if(it.fabric_category)det.push('Категория ткани: '+it.fabric_category);
     if(it.supplier_manual)det.push('Поставщик: '+esc(it.supplier_manual));
     var sum=fmt((it.price_discounted||it.price_retail||0)*(it.qty||1));
@@ -10549,7 +11318,7 @@ function _draftSave(){
     var qtyEl=isFab?document.getElementById('fi-qty-'+i):document.getElementById('fi-qty2-'+i);
     var avEl=isFab?document.getElementById('fi-avail-cat-'+i):document.getElementById('fi-avail-'+i);
     d.items.push({model:m.value,color:(document.getElementById('fi-color-'+i)||{}).value||'',
-      dims:(document.getElementById('fi-dims-'+i)||{}).value||'',
+      dims:_itemDims(i),
       sup:((document.getElementById('sup-lbl-'+i)||{}).textContent||'').trim(),
       supMan:(document.getElementById('fi-supplier-'+i)||{}).value||'',
       cat:isFab?catSel.value:'',cats:(catSel&&catSel.dataset.cats)||'',catPrices:(catSel&&catSel.dataset.prices)||'',
@@ -10588,7 +11357,7 @@ function restoreDraft(){
     addFormItem();var id2=itemCount;if(!it)return;
     document.getElementById('fi-model-'+id2).value=it.model||'';
     document.getElementById('fi-color-'+id2).value=it.color||'';
-    document.getElementById('fi-dims-'+id2).value=it.dims||'';
+    _setItemDims(id2,it.dims||'');
     document.getElementById('fi-supplier-'+id2).value=it.supMan||'';
     if(it.sup){
       var l=document.getElementById('sup-lbl-'+id2);l.textContent=it.sup;l.style.display='inline';
@@ -10641,6 +11410,37 @@ function _draftArm(ms){clearTimeout(_draftTimer);_draftTimer=setTimeout(_draftSa
   pg.addEventListener('change',function(){_draftArm(300);});
 })();
 
+// ═══ v7.92: два размера у товара — габаритный и спальное место ═══
+// В базе по-прежнему одно поле dims (SQL не нужен): туда пишется текст с подписями
+// «Габарит: 2200×950×900 мм; Спальное место: 1950×1400 мм». Так размер подписан
+// везде, где он печатается: договор, акт, наряд, карточка заказа, сообщение клиенту.
+function _dimsJoin(g,sl){
+  g=String(g||'').trim().replace(/^габарит\S*(?:\s+размер)?\s*:?\s*/i,'');
+  sl=String(sl||'').trim().replace(/^спальн\S*\s+мест\S*\s*:?\s*/i,'');
+  var a=[];
+  if(g)a.push('Габарит: '+g);
+  if(sl)a.push('Спальное место: '+sl);
+  return a.join('; ');
+}
+function _dimsSplit(str){
+  str=String(str||'').trim();
+  var g=str,sl='';
+  var m=str.match(/^(.*?)[;,]?\s*спальн\S*\s+мест\S*\s*:?\s*(.+)$/i);
+  if(m){g=m[1];sl=m[2];}
+  g=g.replace(/[;,\s]+$/,'').replace(/^габарит\S*(?:\s+размер)?\s*:?\s*/i,'').trim();
+  return{g:g,s:sl.trim()};
+}
+function _itemDims(id){
+  var g=((document.getElementById('fi-dims-'+id)||{}).value||'');
+  var sl=((document.getElementById('fi-sleep-'+id)||{}).value||'');
+  return _dimsJoin(g,sl);
+}
+function _setItemDims(id,str){
+  var p=_dimsSplit(str);
+  var ge=document.getElementById('fi-dims-'+id),se=document.getElementById('fi-sleep-'+id);
+  if(ge)ge.value=p.g;
+  if(se)se.value=p.s;
+}
 function addFormItem(){
   // v6.8: заполненные товары сворачиваем в строку — форма не растягивается
   for(var p=1;p<itemCount+1;p++)collapseItem(p);
@@ -10659,7 +11459,12 @@ function addFormItem(){
       '</div></div>'+
     '<div class="form-row" style="margin-bottom:10px">'+
       '<div class="fg"><label>Цвет / Ткань</label><input type="text" id="fi-color-'+id+'" class="inp-gold" placeholder="Цвет или ткань..." oninput="onFabricInput('+id+')"></div>'+
-      '<div class="fg"><label>Размер</label><input type="text" id="fi-dims-'+id+'" class="inp-gold" placeholder="напр. 2200×950 мм"></div>'+
+      '<div class="fg"><label>Габаритный размер</label><input type="text" id="fi-dims-'+id+'" class="inp-gold" placeholder="напр. 2200×950×900 мм"></div>'+
+    '</div>'+
+    // v7.92: у диванов и кроватей два размера — в договоре каждый подписан
+    '<div class="form-row" style="margin-bottom:10px">'+
+      '<div class="fg"><label>Спальное место <small style="color:var(--text2)">(диваны, кровати)</small></label><input type="text" id="fi-sleep-'+id+'" class="inp-gold" placeholder="напр. 1950×1400 мм — если есть"></div>'+
+      '<div class="fg" style="align-self:end;font-size:11px;color:var(--text2);line-height:1.35;padding-bottom:6px">В договоре будет: «Габарит: …; Спальное место: …»</div>'+
     '</div>'+
     '<div id="fab-hint-'+id+'" style="display:none"></div>'+
     // v7.20: поставщик выбирается из фиксированного списка (всплывающее окно)
@@ -10776,7 +11581,7 @@ function collapseItem(id){
   var model=((document.getElementById('fi-model-'+id)||{}).value||'').trim();
   if(!model)return; // пустой товар не сворачиваем
   var color=((document.getElementById('fi-color-'+id)||{}).value||'').trim();
-  var dims=((document.getElementById('fi-dims-'+id)||{}).value||'').trim();
+  var dims=_itemDims(id);
   var catSel=document.getElementById('fi-cat-'+id);
   var isFabric=!!(catSel&&catSel.value);
   var qtyEl=isFabric?document.getElementById('fi-qty-'+id):document.getElementById('fi-qty2-'+id);
@@ -10838,7 +11643,7 @@ function duplicateFormItem(id){
   var srcCat=document.getElementById('fi-cat-'+id);
   var isFabric=!!(srcCat&&srcCat.style&&document.getElementById('cat-row-'+id).style.display!=='none');
   var data={
-    model:v('fi-model-'),color:v('fi-color-'),dims:v('fi-dims-'),
+    model:v('fi-model-'),color:v('fi-color-'),dims:_itemDims(id),
     supplierManual:v('fi-supplier-'),
     supLabel:((document.getElementById('sup-lbl-'+id)||{}).textContent||''),
     qty:isFabric?v('fi-qty-'):v('fi-qty2-'),
@@ -10852,7 +11657,7 @@ function duplicateFormItem(id){
   addFormItem();
   var n=itemCount,nb=document.getElementById('ib-'+n);
   var set=function(pfx,val){var e=document.getElementById(pfx+n);if(e&&val!=null)e.value=val;};
-  set('fi-model-',data.model);set('fi-color-',data.color);set('fi-dims-',data.dims);
+  set('fi-model-',data.model);set('fi-color-',data.color);_setItemDims(n,data.dims);
   set('fi-supplier-',data.supplierManual);
   if(data.supLabel){
     var lbl=document.getElementById('sup-lbl-'+n);
@@ -11005,7 +11810,7 @@ function selectModel(id,item){
   var lbl=document.getElementById('sup-lbl-'+id);lbl.textContent=item.sup;lbl.style.display='inline';
   // v6.8: поставщик определился из прайса — поле прячем (виден бейдж; клик по бейджу вернёт поле)
   if(item.sup){var _sr=document.getElementById('suprow-'+id);if(_sr)_sr.style.display='none';}
-  if(item.dims)document.getElementById('fi-dims-'+id).value=item.dims;
+  if(item.dims)_setItemDims(id,item.dims);
   var manEl=document.getElementById('fi-manual-'+id);if(manEl)manEl.value='';
   var ib=document.getElementById('ib-'+id);if(ib)delete ib.dataset.manual;
   var catRow=document.getElementById('cat-row-'+id);
@@ -11172,7 +11977,11 @@ function recalcTotals(){
   document.getElementById('f-remainder').value=discounted?Math.max(0,discounted-prepay-_gotEarlier):'';
   // v6.8: липкая панель — предоплата и долг клиента
   var tp=document.getElementById('t-prepay');if(tp)tp.textContent=prepay?fmt(prepay)+' ₽':'—';
-  var debt=Math.max(0,discounted-prepay-_gotEarlier)+delivery;
+  // v7.92: доставка и занос, отмеченные «✅ Оплачена», в долг клиента не входят —
+  // так же считает сам заказ после сохранения (orderDebt в 20_core.js)
+  var _dpEl=document.getElementById('f-delivery-paid');
+  var _delivPaid=!!(_dpEl&&_dpEl.value==='yes');
+  var debt=Math.max(0,discounted-prepay-_gotEarlier)+(_delivPaid?0:delivery);
   var td=document.getElementById('t-debt');if(td)td.textContent=(goods||delivery)?fmt(debt)+' ₽':'—';
   // v6.8: статус оплаты считается сам (кредит/рассрочка выбираются отдельно)
   var credit=(document.getElementById('f-credit')||{}).value||'';
@@ -11241,7 +12050,7 @@ function saveOrder(){
     var disc=_discPct();
     var availEl=isFabric?document.getElementById('fi-avail-cat-'+i):document.getElementById('fi-avail-'+i);
     var colorVal=document.getElementById('fi-color-'+i)?document.getElementById('fi-color-'+i).value.trim():'';
-    var dimsVal=document.getElementById('fi-dims-'+i)?document.getElementById('fi-dims-'+i).value.trim():'';
+    var dimsVal=_itemDims(i); // v7.92: «Габарит: …; Спальное место: …»
     var supplierVal=document.getElementById('sup-lbl-'+i)?document.getElementById('sup-lbl-'+i).textContent.trim():'';
     var supplierManualVal=document.getElementById('fi-supplier-'+i)?document.getElementById('fi-supplier-'+i).value.trim():'';
     // v6.8: цвет/размер — мягкая проверка (один вопрос, не блокирует);
@@ -11574,7 +12383,7 @@ function editOrder(id){
       if(!item.supplier_manual){var _sr2=document.getElementById('suprow-'+id2);if(_sr2)_sr2.style.display='none';}
     }
     if(item.color)document.getElementById('fi-color-'+id2).value=item.color;
-    if(item.dims)document.getElementById('fi-dims-'+id2).value=item.dims;
+    if(item.dims)_setItemDims(id2,item.dims);
     if(item.supplier_manual)document.getElementById('fi-supplier-'+id2).value=item.supplier_manual;
     // v7.58: показываем прямо в строке, что позиция уже у клиента и что за неё
     // получены деньги. Раньше этого в форме видно не было — продавец правил или
@@ -11669,8 +12478,21 @@ function _mgrRender(){
       +'<button onclick="mgrDelete('+i+')" title="Убрать из списка (уволился)" style="background:none;border:none;color:#B0BEC5;cursor:pointer;font-size:14px;padding:0 4px">✕</button></div>';
   }).join(''):'<div style="font-size:12.5px;color:var(--text2)">Список пока пуст — впишите имя ниже, оно запомнится.</div>';
 }
+// v7.92: кто уже выбран на СЕГОДНЯ (пусто — если день ещё не начат)
+function _mgrToday(){
+  var today=new Date().toISOString().slice(0,10);
+  if(localStorage.getItem('vd_manager_day')!==today)return '';
+  return (localStorage.getItem('vd_manager')||'').trim();
+}
+function _mgrHint(){
+  var h=document.getElementById('mm-hint');if(!h)return;
+  var cur=_mgrToday();
+  h.innerHTML=cur
+    ?'Сегодня работает: <b>'+esc(cur)+'</b>. Новое имя просто добавится в список — сегодняшний менеджер <b>не поменяется</b>. Чтобы сменить, нажмите на имя выше.'
+    :'Впишите имя и нажмите «➕ Добавить в список». Чтобы отметить, кто работает сегодня, нажмите на имя.';
+}
 function openManagerModal(){
-  _mgrRender();
+  _mgrRender();_mgrHint();
   var inp=document.getElementById('mm-name');if(inp)inp.value='';
   document.getElementById('modal-manager').classList.add('open');
   setTimeout(function(){if(inp&&!_mgrGetList().length)inp.focus();},150);
@@ -11688,14 +12510,44 @@ function mgrDelete(i){
   }
   _mgrRender();_mgrBadge();
 }
+// v7.92: «➕ Добавить в список» — только пополняет список сотрудников.
+// Раньше вписанное имя по «Сохранить» сразу становилось менеджером дня:
+// владелец заносил продавца, который выйдет завтра, и сегодняшние заказы
+// начинали писаться на него.
+function mgrAddFromInput(){
+  var inp=document.getElementById('mm-name');
+  var name=(inp&&inp.value||'').trim().replace(/\s+/g,' ');
+  if(!name){toast('⚠️ Впишите имя нового сотрудника','err');if(inp)inp.focus();return false;}
+  var list=_mgrGetList();
+  var exists=null;
+  list.forEach(function(m){if(m.toLowerCase()===name.toLowerCase())exists=m;});
+  if(exists){toast('«'+exists+'» уже есть в списке');}
+  else{list.push(name);_mgrSaveList(list);toast('➕ «'+name+'» добавлен в список'+(_mgrToday()?'. Сегодня по-прежнему: '+_mgrToday():''));}
+  if(inp)inp.value='';
+  _mgrRender();_mgrHint();
+  return true;
+}
+// «Готово»: имя в поле — добавляем в список. Менеджером дня оно становится,
+// только если на сегодня ещё никто не выбран (первый запуск за день).
 function mgrSaveFromInput(){
   var inp=document.getElementById('mm-name');
-  var name=(inp&&inp.value||'').trim();
-  if(!name){toast('⚠️ Нажмите на имя в списке или впишите новое','err');return;}
+  var name=(inp&&inp.value||'').trim().replace(/\s+/g,' ');
+  var cur=_mgrToday();
+  if(!name){
+    if(cur){closeModal('modal-manager');return;}
+    toast('⚠️ Нажмите на имя в списке — кто работает сегодня','err');return;
+  }
   var list=_mgrGetList();
   var exists=null;
   list.forEach(function(m){if(m.toLowerCase()===name.toLowerCase())exists=m;});
   if(!exists)list.push(name);
+  if(cur){
+    _mgrSaveList(list);
+    if(inp)inp.value='';
+    closeModal('modal-manager');
+    toast((exists?'«'+exists+'» уже в списке':'➕ «'+name+'» добавлен в список')+'. Сегодня по-прежнему работает: '+cur,null,4500);
+    return;
+  }
   _mgrApply(exists||name,list);
 }
 function _mgrApply(name,list){
