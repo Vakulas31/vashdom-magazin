@@ -301,15 +301,6 @@ button.pl:hover,a:hover > .pl{filter:brightness(.97)}
 .kit-mini-h{font-weight:700;color:#4A2C7A}
 .kit-mini span{color:var(--text2)}
 .kit-mini-ex{color:var(--text2)}
-.kit-mini-l{display:flex;align-items:flex-start;gap:6px;margin:1px 0}
-.kit-mini-add{flex-shrink:0;border:1px solid #c9b6e6;background:#fff;color:#4A2C7A;border-radius:5px;padding:0 6px;font-size:11px;line-height:17px;cursor:pointer}
-.kit-mini-add:hover{background:#4A2C7A;color:#fff}
-.kit-mini-ex label{white-space:nowrap;margin-right:8px;cursor:pointer}
-.ac-kit{display:none;margin-top:3px;font-size:11px;line-height:1.7}
-.ac-kit-h{color:#4A2C7A;font-weight:700;margin-right:4px}
-.ac-kit-v{display:inline-block;border:1px solid #c9b6e6;background:#FAF7FD;color:#333;border-radius:10px;padding:0 8px;margin:1px 4px 1px 0;cursor:pointer}
-.ac-kit-v:hover{background:#4A2C7A;color:#fff}.ac-kit-v:hover b{color:#fff}
-.ac-kit-v b{color:#BF360C}
 .kit-rule{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-bottom:1px solid var(--border);font-size:12.5px}
 .kit-rule small{display:block;color:var(--text2);font-size:11px;line-height:1.4}
 .kit-rule.off{opacity:.55}
@@ -502,6 +493,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <option value="yes">✅ Оплачена</option>
         </select></div>
     </div>
+    <!-- v7.94: сколько и за что клиент платит сейчас — доставка «Оплачена» видна явно -->
+    <div id="f-deliv-paid-note" style="font-size:12px;margin:-4px 0 10px;display:none"></div>
     <!-- v6.8: предоплата с кнопками-подсказками; статус считается сам -->
     <div class="fg" style="margin-bottom:4px">
       <label>Предоплата за товары (₽)</label>
@@ -567,8 +560,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Товары<br><b id="t-goods" style="font-size:14px;color:#1a1a1a">—</b></div>
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Скидка<br><b id="t-discount" style="font-size:14px;color:#1565C0">—</b></div>
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Товары итого<br><b id="t-discounted" style="font-size:14px;color:#BF360C">—</b></div>
-      <div style="font-size:11px;color:var(--text2);line-height:1.3"><span id="t-deliv-lbl">Дост.+занос</span><br><b id="t-delivery" style="font-size:14px;color:#1a1a1a">—</b></div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.3"><span id="t-deliv-lbl">Дост.+занос</span><br><b id="t-delivery" style="font-size:14px;color:#1a1a1a">—</b><div id="t-deliv-sub" style="font-size:10px"></div></div>
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Предоплата<br><b id="t-prepay" style="font-size:14px;color:#1B5E20">—</b></div>
+      <div id="t-got-wrap" style="font-size:11px;color:var(--text2);line-height:1.3;display:none">Получено сейчас<br><b id="t-got" style="font-size:14px;color:#1B5E20">—</b><div id="t-got-sub" style="font-size:10px;color:#1B5E20"></div></div>
       <div style="font-size:11px;color:var(--text2);line-height:1.3">Долг клиента<br><b id="t-debt" style="font-size:17px;color:#BF360C">—</b></div>
       <button class="btn btn-success" onclick="saveOrder()" id="save-btn" style="margin-left:auto;padding:12px 22px">✅ Сохранить заказ</button>
     </div>
@@ -2466,9 +2460,15 @@ function orderCard(o){
     '<div class="ftr-col"><div class="ftr-lbl">Долг</div><div class="ftr-val" style="color:#1B5E20">✅ 0 ₽</div></div>';
   var ftrDeliv=delivCost>0?(delivExternal?
     '<div class="ftr-col" style="opacity:.55"><div class="ftr-lbl">'+delivLabel(o)+' <span style="font-size:10px;color:#888">сторонняя</span></div><div class="ftr-val" style="color:#888">'+fmt(delivCost)+' ₽</div><div style="font-size:9px;color:#999;margin-top:1px">не наша · мимо кассы</div></div>':
-    '<div class="ftr-col"><div class="ftr-lbl">'+delivLabel(o)+' <span style="font-size:10px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'✅':'⏳')+'</span></div><div class="ftr-val">'+fmt(delivCost)+' ₽</div></div>'):'';
+    '<div class="ftr-col"><div class="ftr-lbl">'+delivLabel(o)+' <span style="font-size:10px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'✅':'⏳')+'</span></div><div class="ftr-val">'+fmt(delivCost)+' ₽</div>'
+      // v7.94: словами — оплачена или платится при получении
+      +'<div style="font-size:10px;margin-top:2px;color:'+(delivPaid?'#1B5E20':'#E65100')+'">'+(delivPaid?'оплачена':(_done?'':'при получении'))+'</div></div>'):'';
+  // v7.94: доставка, оплаченная при оформлении, — видна рядом с предоплатой
+  var _dPre=(typeof delivPrepaidSum==='function')?delivPrepaidSum(o,itemsPaid,orderPaysSum(o)):0;
   var ftrPre=(o.prepayment||0)>0?
-    '<div class="ftr-col"><div class="ftr-lbl">Предоплата'+(o.payment_method?' <span style="font-size:9px;color:var(--text2)">'+o.payment_method+'</span>':'')+'</div><div class="ftr-val">'+fmt(o.prepayment)+' ₽</div></div>':'';
+    '<div class="ftr-col"><div class="ftr-lbl">Предоплата'+(o.payment_method?' <span style="font-size:9px;color:var(--text2)">'+o.payment_method+'</span>':'')+'</div><div class="ftr-val">'+fmt(o.prepayment)+' ₽</div>'
+      +(_dPre>0?'<div style="font-size:10px;color:#1B5E20;margin-top:2px">+ '+delivLabel(o,true)+' '+fmt(_dPre)+' = '+fmt(Math.round(o.prepayment||0)+_dPre)+' ₽</div>':'')+'</div>':
+    (_dPre>0?'<div class="ftr-col"><div class="ftr-lbl">Оплачено при оформлении</div><div class="ftr-val" style="color:#1B5E20">'+fmt(_dPre)+' ₽</div><div style="font-size:10px;color:#1B5E20;margin-top:2px">'+delivLabel(o,true)+'</div></div>':'');
   // v6.7: сколько уже получено при доставке позиций
   var ftrItemPaid=itemsPaid>0?
     '<div class="ftr-col"><div class="ftr-lbl">💰 Оплачено при доставке</div><div class="ftr-val" style="color:#1B5E20">'+fmt(itemsPaid)+' ₽</div></div>':'';
@@ -8137,7 +8137,7 @@ function _gsRenderRows(rows,q,box,note){
       +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')
       +'</div>'
       +_webBtn('_gsLastResults',i)
-      +'<button id="gs-add-'+i+'" class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSearch('+i+')">➕ В расчёт</button>'
+      +'<button class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSearch('+i+')">➕ В расчёт</button>'
       +'</div>';
   });
   box.innerHTML=(note?'<div style="font-size:12px;color:#E65100;background:#FFF3E0;border-radius:6px;padding:6px 10px;margin-bottom:6px">'+note+'</div>':'')
@@ -8760,14 +8760,12 @@ function searchPriceItems(id,q){
           +(_expired?'<span style="font-size:10px;font-weight:700;color:#9c3b2e;display:block">⌛ акция закончилась '+p.valid_until+' — цена может быть неактуальна</span>':'')
           +(p.article?'<span style="font-size:10px;color:#333;display:block">'+p.article+'</span>':'')
           +(_retN?'<span style="font-size:12px;font-weight:700;color:#BF360C;display:block">розн.: '+fmt(_retN)+' ₽</span>':'')
-          +(_optN?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(_optN)+' ₽</span>':'')
-          +'<span class="ac-kit"></span>'; // v7.94: кровать в сборе
+          +(_optN?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(_optN)+' ₽</span>':'');
         d.onmousedown=function(){
           if(it.expired&&!confirm('У этого товара акционная цена, срок которой истёк '+it.validUntil+'.\n\nВзять её в заказ всё равно?'))return;
           selectModel(id,it);
         };
         list.appendChild(d);
-        if(typeof kitDecorateAc==='function')kitDecorateAc(d.querySelector('.ac-kit'),p,it,id);
       });
       if(list.children.length>0)list.style.display='block';
     }).catch(function(){});
@@ -10300,8 +10298,6 @@ function kitOfferForItem(id,item){
     var cur=(document.getElementById('fi-model-'+id)||{}).value||'';
     if(cur!==item.name)return; // продавец уже выбрал другое
     _kitState[id]={kit:kit};
-    // v7.94: комплектацию уже выбрали в выпадающем списке
-    if(item.kitSel!=null&&kit.groups[0]&&(item.kitSel===-1?kit.groups[0].allowNone:kit.groups[0].variants[item.kitSel]))kit.groups[0].sel=item.kitSel;
     _kitApply(id);
   }).catch(function(){});
 }
@@ -10327,13 +10323,13 @@ function _kitCardHtml(id,kit,editable){
   kit.groups.forEach(function(g,gi){
     h+='<div class="kit-grp">'+esc(g.name)+':</div>';
     g.variants.forEach(function(v,vi){
-      var vret=0,miss=[];v.parts.forEach(function(p){if(p.found)vret+=_kitPartRet(p);else miss.push(p.label);}); // v7.94: сумма показанных цен частей
+      var vopt=0,miss=[];v.parts.forEach(function(p){if(p.found)vopt+=p.opt*(p.qty||1);else miss.push(p.label);});
       var on=g.sel===vi;
       h+='<label class="kit-opt'+(on?' on':'')+'">'
         +(editable?'<input type="radio" name="kitg-'+id+'-'+gi+'" '+(on?'checked':'')+' onchange="kitPickVariant('+id+','+gi+','+vi+')">':(on?'● ':'○ '))
         +'<span class="kit-l">'+esc(v.name)
         +'<small>'+v.parts.map(function(p){return esc(p.found?(p.label+(p.qty>1?' ×'+p.qty:'')+' — '+fmt(_kitPartRet(p))+' ₽'):('⚠ нет в прайсе: '+p.label));}).join(' · ')+'</small></span>'
-        +'<span class="kit-p">+'+fmt(vret)+' ₽</span></label>';
+        +'<span class="kit-p">+'+fmt(Math.round(vopt*markupK()))+' ₽</span></label>';
     });
     if(g.allowNone){
       var on0=g.sel===-1;
@@ -10377,11 +10373,8 @@ function kitOff(id){
 
 // ── в поиске по прайсам ──
 var _kitSearchSeq=0;
-// v7.94: найденные комплекты строк поиска — чтобы из них можно было добавить в расчёт
-var _kitSearchKits={};
 function kitDecorateRows(rows,prefix){
   var seq=++_kitSearchSeq;
-  _kitSearchKits={};
   kitRulesLoad().then(function(rules){
     (rows||[]).slice(0,40).forEach(function(p,i){
       var box=document.getElementById(prefix+i);if(!box)return;
@@ -10391,72 +10384,21 @@ function kitDecorateRows(rows,prefix){
         if(seq!==_kitSearchSeq)return;
         var b=document.getElementById(prefix+i);if(!b)return;
         if(!kit){b.innerHTML='';return;}
-        var key=prefix+i;
-        _kitSearchKits[key]={kit:kit,row:p};
-        _kitMiniRender(key);
-        var ab=document.getElementById(prefix.replace(/kit-$/,'add-')+i);
-        if(ab){ab.textContent='➕ Только кровать';ab.title='Добавить в расчёт кровать без основания и допчастей. Кровать в сборе — кнопками ➕ в блоке «🧩 В сборе»';}
+        var lines=[];
+        if(kit.groups.length){
+          var g=kit.groups[0];
+          g.variants.forEach(function(v,vi){
+            var save=g.sel;g.sel=vi;var t=kitTotals(kit);g.sel=save;
+            var miss=v.parts.filter(function(x){return !x.found;}).length;
+            lines.push('<div><b>'+fmt(t.ret)+' ₽</b> — '+esc(v.name)+' <span>('+v.parts.map(function(x){return esc(x.found?x.label+' '+fmt(_kitPartRet(x)):'⚠ '+x.label+' нет в прайсе');}).join(' + ')+')</span>'+(miss?' ⚠':'')+'</div>');
+          });
+        }else{var t0=kitTotals(kit);lines.push('<div><b>'+fmt(t0.ret)+' ₽</b> — '+t0.lines.map(function(x){return esc(x.label);}).join(' + ')+'</div>');}
+        var ex=kit.extras.filter(function(x){return x.found;});
+        if(ex.length)lines.push('<div class="kit-mini-ex">по желанию: '+ex.map(function(x){return esc(x.label)+(x.on?'':'')+' +'+fmt(_kitPartRet(x))+' ₽';}).join(', ')+'</div>');
+        b.innerHTML='<div class="kit-mini"><div class="kit-mini-h">🧩 В сборе ('+esc(kit.src==='price'?'состав из прайса':kit.title)+'):</div>'+lines.join('')+'</div>';
       }).catch(function(){var b=document.getElementById(prefix+i);if(b)b.innerHTML='';});
     });
   });
-}
-function _kitMiniRender(key){
-  var e=_kitSearchKits[key],b=document.getElementById(key);if(!e||!b)return;
-  var kit=e.kit,lines=[],ka=esc(key).replace(/'/g,'');
-  var addBtn=function(vi){return '<button class="kit-mini-add" title="Добавить в расчёт эту комплектацию" onclick="kitCalcAdd(\''+ka+'\','+vi+')">➕</button>';};
-  if(kit.groups.length){
-    var g=kit.groups[0];
-    g.variants.forEach(function(v,vi){
-      var save=g.sel;g.sel=vi;var t=kitTotals(kit);g.sel=save;
-      var miss=v.parts.filter(function(x){return !x.found;}).length;
-      lines.push('<div class="kit-mini-l">'+addBtn(vi)+'<div><b>'+fmt(t.ret)+' ₽</b> — '+esc(v.name)+' <span>('+v.parts.map(function(x){return esc(x.found?x.label+' '+fmt(_kitPartRet(x)):'⚠ '+x.label+' нет в прайсе');}).join(' + ')+')</span>'+(miss?' ⚠':'')+'</div></div>');
-    });
-  }else{var t0=kitTotals(kit);lines.push('<div class="kit-mini-l">'+addBtn(-1)+'<div><b>'+fmt(t0.ret)+' ₽</b> — '+t0.lines.map(function(x){return esc(x.label);}).join(' + ')+'</div></div>');}
-  var ex=[];kit.extras.forEach(function(x,ei){if(x.found)ex.push({x:x,ei:ei});});
-  if(ex.length)lines.push('<div class="kit-mini-ex">'+(ex.some(function(o){return !o.x.need;})?'по желанию: ':'')+ex.map(function(o){
-    return '<label><input type="checkbox" '+(o.x.on?'checked':'')+' onchange="kitMiniExtra(\''+ka+'\','+o.ei+',this.checked)"> '+esc(o.x.label)+' +'+fmt(_kitPartRet(o.x))+' ₽</label>';}).join(' '));
-  b.innerHTML='<div class="kit-mini"><div class="kit-mini-h">🧩 В сборе ('+esc(kit.src==='price'?'состав из прайса':kit.title)+'):</div>'+lines.join('')+'</div>';
-}
-function kitMiniExtra(key,ei,on){var e=_kitSearchKits[key];if(!e||!e.kit.extras[ei])return;e.kit.extras[ei].on=!!on;_kitMiniRender(key);}
-// v7.94: в выпадающем списке «Модель / Товар» нового заказа — цены кровати в сборе;
-// клик по комплектации выбирает кровать сразу с ней
-function kitDecorateAc(span,p,it,id){
-  if(!span||!(+p.price_opt>0))return;
-  kitRulesLoad().then(function(rules){
-    if(!_kitParseSpec(p.compatibility)&&!kitRuleFor(p,rules)&&!/кровать.*\d{3,4}\s*[хxХX×*]\s*\d{3,4}/i.test(p.product_name||''))return null;
-    return kitResolve(p);
-  }).then(function(kit){
-    if(!kit||!span.isConnected)return;
-    var h='<span class="ac-kit-h">🧩 в сборе:</span>';
-    var g=kit.groups[0];
-    if(g){
-      g.variants.forEach(function(v,vi){
-        var save=g.sel;g.sel=vi;var t=kitTotals(kit);g.sel=save;
-        var miss=v.parts.some(function(x){return !x.found;});
-        h+='<span class="ac-kit-v" data-vi="'+vi+'" title="Выбрать кровать сразу с этой комплектацией">'+esc(v.name)+' <b>'+fmt(t.ret)+' ₽</b>'+(miss?' ⚠':'')+'</span>';
-      });
-    }else{var t0=kitTotals(kit);h+='<span class="ac-kit-v" data-vi="-2"><b>'+fmt(t0.ret)+' ₽</b></span>';}
-    span.innerHTML=h;span.style.display='block';
-    [].slice.call(span.querySelectorAll('.ac-kit-v')).forEach(function(el){
-      el.onmousedown=function(ev){
-        ev.stopPropagation();ev.preventDefault();
-        if(it.expired&&!confirm('У этого товара акционная цена, срок которой истёк '+it.validUntil+'.\n\nВзять её в заказ всё равно?'))return;
-        var vi=+el.dataset.vi;var it2={};for(var k in it)it2[k]=it[k];
-        if(vi>=0)it2.kitSel=vi;
-        selectModel(id,it2);
-      };
-    });
-  }).catch(function(){});
-}
-// Кровать в сборе → в быстрый расчёт одной строкой (как в заказе): опт = сумма оптов
-function kitCalcAdd(key,vi){
-  var e=_kitSearchKits[key];if(!e||typeof calcAdd!=='function')return;
-  var kit=e.kit,p=e.row,g=kit.groups[0],save=g?g.sel:null;
-  if(g&&vi>=0)g.sel=vi;
-  var t=kitTotals(kit),name=kitName(kit);
-  if(g)g.sel=save;
-  calcAdd({name:name,supplier:p.supplier||'',article:p.article||'',opt:t.opt,retail:t.ret});
-  if(t.missing.length)toast('⚠ Не нашёл в прайсе: '+t.missing.map(function(x){return x.label;}).join(', ')+' — их цена в сумму не вошла','err',6000);
 }
 
 // ── правила: экран владельца («Прайсы» → «🧩 Комплекты») ──
@@ -12754,6 +12696,9 @@ function recalcTotals(){
   var _delivPaid=!!(_dpEl&&_dpEl.value==='yes');
   var debt=Math.max(0,discounted-prepay-_gotEarlier)+(_delivPaid?0:delivery);
   var td=document.getElementById('t-debt');if(td)td.textContent=(goods||delivery)?fmt(debt)+' ₽':'—';
+  // v7.94: «Оплачена» раньше просто убирала доставку из долга, и казалось, что
+  // деньги за неё пропали. Показываем явно: что оплачено и сколько взять сейчас.
+  _delivPaidShow(prepay,delivery,_delivPaid);
   // v6.8: статус оплаты считается сам (кредит/рассрочка выбираются отдельно)
   var credit=(document.getElementById('f-credit')||{}).value||'';
   var _paidAll=prepay+_gotEarlier;
@@ -13359,6 +13304,37 @@ document.addEventListener('visibilitychange',function(){
   var today=new Date().toISOString().slice(0,10);
   if(localStorage.getItem('vd_manager_day')!==today)checkManagerDay();
 });
+
+// v7.94: подсказка под «Оплата доставки» и ячейка «Получено сейчас» в итогах
+function _delivPaidShow(prepay,delivery,paid){
+  var dSub=document.getElementById('t-deliv-sub');
+  if(dSub){
+    dSub.textContent=delivery>0?(paid?'✅ оплачена':'⏳ при получении'):'';
+    dSub.style.color=paid?'#1B5E20':'#E65100';
+  }
+  var gotNow=prepay+(paid?delivery:0);
+  var gw=document.getElementById('t-got-wrap');
+  if(gw){
+    var show=paid&&delivery>0;
+    gw.style.display=show?'':'none';
+    if(show){
+      document.getElementById('t-got').textContent=fmt(gotNow)+' ₽';
+      document.getElementById('t-got-sub').textContent=(prepay>0?'товар '+fmt(prepay)+' + ':'')+'доставка '+fmt(delivery);
+    }
+  }
+  var dn=document.getElementById('f-deliv-paid-note');
+  if(!dn)return;
+  if(!(delivery>0)){dn.style.display='none';dn.innerHTML='';return;}
+  var lbl=delivLabel({delivery_type:(document.getElementById('f-delivery-type')||{}).value,
+    delivery_cost:parseFloat(document.getElementById('f-delivery').value)||0,
+    lifting_cost:parseFloat(document.getElementById('f-lifting').value)||0},'gen');
+  dn.style.display='';
+  dn.innerHTML=paid
+    ?'<span style="color:#1B5E20">✅ Клиент оплачивает стоимость '+lbl+' сейчас — <b>'+fmt(delivery)+' ₽</b>. '
+      +'Всего взять сейчас: <b>'+fmt(gotNow)+' ₽</b>'+(prepay>0?' (предоплата за товар '+fmt(prepay)+' + '+fmt(delivery)+')':'')+'. '
+      +'В «Учёте» это будет отдельная строка «доставка при оформлении», в договоре — «оплачена при оформлении».</span>'
+    :'<span style="color:#8a5a18">⏳ Стоимость '+lbl+' — '+fmt(delivery)+' ₽ — клиент платит при получении, она входит в «Долг клиента».</span>';
+}
 // v7.57: грузим ПОРЦИЯМИ. Раньше просили 2500 одним запросом, а сервер отдаёт
 // максимум 1000 и об обрезке не сообщает: в базе 2106 клиентов, список обрывался
 // на «Ладный Вадим Викторович», и всё, что дальше по алфавиту, поиском в этом
@@ -14368,6 +14344,7 @@ function _vdDocCss(){
     +'.opt{border:1.5px solid #000;padding:5px 8px;margin:4px 0;page-break-inside:avoid}'
     +'.opt .row{margin:3px 0}'
     +'.box{display:inline-block;width:12px;height:12px;border:1.5px solid #000;vertical-align:-1px;margin-right:6px}'
+    +'.box.x{position:relative}.box.x:before,.box.x:after{content:"";position:absolute;left:-1px;top:4.5px;width:12px;height:1.5px;background:#000;transform:rotate(45deg)}.box.x:after{transform:rotate(-45deg)}'
     +'.fill{display:inline-block;border-bottom:1px solid #000;min-width:60px}'
     +'.sigs{display:flex;gap:24px;margin-top:9px;page-break-inside:avoid}'
     +'.sb{flex:1;font-size:9pt}'
@@ -14447,6 +14424,30 @@ function _vdSpecRows(items){
   return rows;
 }
 
+// ═══ v7.94: строки «Доставка» и «Подъём (занос)» в разделе 7 договора ═══
+// Раньше обе строки печатались одинаково, и при «Только доставка» в строке
+// заноса оставались пустые промежутки — их можно было дописать после подписания.
+// Теперь услуга, которая не заказана, перечёркнута: в квадрате крестик, вместо
+// промежутков прочерки и слово «не требуется». Квадрат заказанной услуги
+// по-прежнему пустой — отметку ставит сам Покупатель (заранее проставленная
+// галочка = навязанная услуга, ч. 2.1 ст. 14.8 КоАП, см. разбор 29.07.2026).
+function _vdDelivRows(o,delivCost,liftCost){
+  var t=String(o.delivery_type||'');
+  var pickup=/самовыв/i.test(t);
+  var onlyDeliv=/только\s*доставк/i.test(t);
+  var noDeliv=pickup;
+  var noLift=pickup||(onlyDeliv&&!(liftCost>0));
+  var dash='<strong>—</strong>';
+  var no='<strong>не требуется</strong>';
+  var r1=noDeliv
+    ?'<div class="row"><span class="box x"></span> Доставка по адресу: '+dash+' — '+no+' (самовывоз)</div>'
+    :'<div class="row"><span class="box"></span> Доставка по адресу: '+_vdBlank(o.client_address,230)+' — стоимость '+(delivCost>0?'<strong>'+fmt(delivCost)+'</strong>':'<span class="fill">&nbsp;</span>')+' руб.</div>';
+  var r2=noLift
+    ?'<div class="row"><span class="box x"></span> Подъём (занос) — '+no+' (этаж '+dash+', кв. '+dash+', итого '+dash+' руб.)</div>'
+    :'<div class="row"><span class="box"></span> Подъём (занос) на '+(o.floor?('<strong>'+esc(String(o.floor))+'</strong>'):'<span class="fill" style="min-width:34px">&nbsp;</span>')+' этаж, кв. '+(o.apartment?('<strong>'+esc(o.apartment)+'</strong>'):'<span class="fill" style="min-width:34px">&nbsp;</span>')+', грузовой лифт: '+(o.has_lift===true?'<strong>есть</strong>':(o.has_lift===false?'<strong>нет</strong>':'есть / нет'))+' — итого '+(liftCost>0?'<strong>'+fmt(liftCost)+'</strong>':'<span class="fill">&nbsp;</span>')+' руб.</div>';
+  return r1+r2;
+}
+
 function printContract(orderId){
   var o=allOrders.find(function(x){return x.id===orderId;});if(!o)return;
   var items=o.order_items||[];
@@ -14487,7 +14488,9 @@ function printContract(orderId){
     +'<div class="cl">3.2. В момент подписания Договора Покупатель вносит предоплату: <strong>'+fmt(prepay)+' руб.</strong></div>'
     +'<div class="cl">3.3. Оставшаяся сумма за Товар — <strong>'+fmt(goodsLeft)+' руб.</strong> — вносится при получении Товара, в момент подписания акта приёма-передачи.</div>'
     +'<div class="cl">3.4. Дополнительные услуги (раздел 7) оплачиваются отдельно и в стоимость Товара не входят.'
-    +(delivUnpaid>0?' Дополнительно при получении оплачиваются доставка и занос: <strong>'+fmt(delivUnpaid)+' руб.</strong> Итого к оплате при получении: <strong>'+fmt(goodsLeft+delivUnpaid)+' руб.</strong>':'')
+    +(delivUnpaid>0?' Дополнительно при получении оплачивается стоимость '+delivLabel(o,'gen')+': <strong>'+fmt(delivUnpaid)+' руб.</strong> Итого к оплате при получении: <strong>'+fmt(goodsLeft+delivUnpaid)+' руб.</strong>':'')
+    // v7.94: оплаченная при оформлении доставка тоже видна в договоре
+    +(delivTotal>0&&o.delivery_paid==='yes'&&o.delivery_our!==false?' Стоимость '+delivLabel(o,'gen')+' <strong>оплачена при оформлении: '+fmt(delivTotal)+' руб.</strong>':'')
     +'</div>'
     +'<div class="cl">3.5. Цена Товара, согласованная в Спецификации, изменению в одностороннем порядке не подлежит.</div>'
 
@@ -14514,8 +14517,7 @@ function printContract(orderId){
     +'<div class="sec">7. ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ</div>'
     +'<div class="cl">7.1. Доставка и подъём (занос) — <strong>дополнительные возмездные услуги</strong>. Оказываются только при волеизъявлении Покупателя, выраженном отметкой и подписью ниже. <strong>Отказ от них не влияет на заключение и исполнение Договора.</strong></div>'
     +'<div class="opt">'
-    +'<div class="row"><span class="box"></span> Доставка по адресу: '+_vdBlank(o.client_address,230)+' — стоимость '+(delivCost>0?'<strong>'+fmt(delivCost)+'</strong>':'<span class="fill">&nbsp;</span>')+' руб.</div>'
-    +'<div class="row"><span class="box"></span> Подъём (занос) на '+(o.floor?('<strong>'+esc(String(o.floor))+'</strong>'):'<span class="fill" style="min-width:34px">&nbsp;</span>')+' этаж, кв. '+(o.apartment?('<strong>'+esc(o.apartment)+'</strong>'):'<span class="fill" style="min-width:34px">&nbsp;</span>')+', грузовой лифт: '+(o.has_lift===true?'<strong>есть</strong>':(o.has_lift===false?'<strong>нет</strong>':'есть / нет'))+' — итого '+(liftCost>0?'<strong>'+fmt(liftCost)+'</strong>':'<span class="fill">&nbsp;</span>')+' руб.</div>'
+    +_vdDelivRows(o,delivCost,liftCost)
     +'<div class="row small"><span class="vmark">✔</span> Подпись Покупателя о заказе указанных услуг: <span class="fill" style="min-width:150px">&nbsp;</span></div>'
     +'</div>'
     +'<div class="cl">7.2. Стоимость подъёма (заноса) — <strong>'+VD_SHOP.liftPerFloor+' руб. за этаж за одну позицию Спецификации</strong>. При наличии в доме исправного грузового лифта — '+VD_SHOP.liftPerFloor+' руб. за одну позицию независимо от этажа.</div>'
