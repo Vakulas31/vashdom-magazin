@@ -345,7 +345,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.94</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.95</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -7131,17 +7131,31 @@ async function importAllSheets(){
   // лист «ПРАЙС-ЛИСТ» содержит всё, а «Гостиные», «Спальни», «Тумбы ТВ.» и
   // остальные — его же куски. Загрузив всё подряд, получали каждый товар два-
   // три раза: в поиске одинаковые строки, и не понять, какая настоящая.
-  var _keysOf=function(p){var k={};p.rows.forEach(function(r){k[String(r.product_name).toLowerCase()+'|'+Math.round(r.price_opt||0)]=1;});return k;};
+  // v7.95: сравнение по «название|цена» строгое, а прайс СТИЛЬ (12.10.2026) в
+  // «Бланке заказа» дописывает к названию пометку («БОХО Кухня 1,8 м.
+  // ЦЕНА СНИЖЕНА!!!»), а на листе раздела — нет. Совпало 14 из 15, порог 95 %
+  // не набрался, лист «ВИОЛА НЕО» загрузился вторым экземпляром. Теперь
+  // при той же цене строка считается той же, если одно название — начало другого.
+  var _nmKey=function(x){return String(x||'').toLowerCase().replace(/[\s\u00a0]+/g,' ').trim();};
+  var _keysOf=function(p){var k={},byP={};p.rows.forEach(function(r){var nm=_nmKey(r.product_name),pr=Math.round(r.price_opt||0);
+    k[nm+'|'+pr]=1;(byP[pr]=byP[pr]||[]).push(nm);});return{k:k,byP:byP};};
+  var _hasKey=function(kj,key){
+    if(kj.k[key])return true;
+    var cut=key.lastIndexOf('|'),nm=key.slice(0,cut),list=kj.byP[key.slice(cut+1)];
+    if(!list||nm.length<4)return false;
+    for(var q=0;q<list.length;q++){var o=list[q];if(o.length>=4&&(o.indexOf(nm)===0||nm.indexOf(o)===0))return true;}
+    return false;
+  };
   var _pk=plan.map(_keysOf);
   var _dupOf={};
   plan.forEach(function(p,i){
-    var ki=_pk[i],ni=Object.keys(ki).length;if(!ni)return;
+    var ki=_pk[i].k,ni=Object.keys(ki).length;if(!ni)return;
     for(var j=0;j<plan.length;j++){
       if(j===i||_dupOf[j]!=null)continue;
-      var kj=_pk[j],nj=Object.keys(kj).length;
+      var kj=_pk[j],nj=Object.keys(kj.k).length;
       // «копия» — лист целиком (от 95 %) лежит в другом, который БОЛЬШЕ
       if(nj<ni||(nj===ni&&j>i))continue;
-      var inside=0;for(var key in ki)if(kj[key])inside++;
+      var inside=0;for(var key in ki)if(_hasKey(kj,key))inside++;
       if(inside>=ni*0.95){_dupOf[i]=j;break;}
     }
   });
