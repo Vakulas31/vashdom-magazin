@@ -297,6 +297,9 @@ button.pl:hover,a:hover > .pl{filter:brightness(.97)}
 .kit-p{white-space:nowrap;font-weight:700}
 .kit-miss{margin-top:6px;color:#E65100;font-size:11.5px}
 .kit-ft{margin-top:6px;font-size:11px;color:var(--text2);line-height:1.4}
+.kit-mini-l{display:block}
+.kit-add{border:1.5px solid #1565C0;background:#fff;color:#1565C0;border-radius:50%;width:20px;height:20px;line-height:16px;font-size:15px;font-weight:700;padding:0;cursor:pointer;vertical-align:middle;margin-right:5px;display:inline-block;text-align:center;font-family:Arial,sans-serif}
+.kit-add:hover{background:#1565C0;color:#fff}.kit-add.sm{width:17px;height:17px;line-height:13px;font-size:13px;margin:0 0 0 2px}
 .kit-mini{margin-top:3px;font-size:11.5px;background:#FAF7FD;border:1px solid #e3d8f1;border-radius:6px;padding:4px 8px;line-height:1.45}
 .kit-mini-h{font-weight:700;color:#4A2C7A}
 .kit-mini span{color:var(--text2)}
@@ -345,7 +348,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.95</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.96</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -9991,7 +9994,9 @@ var KIT_DEFAULTS=[
  {id:'bravo-ct',on:true,name:'Браво · кровати из массива с центральной траверсой (ЦТ)',
   when:{sup:'браво',sheet:'массив',all:['кровать','(цт)'],none:['ящиками','комплектующ','опора','матрас','защит','карниз','ножек','траверса']},
   parts:[
-   {label:'центральная траверса',find:['центральная траверса'],none:['н-330'],size:'need',group:'Основание',variant:'Центральная траверса (ламели)'},
+   // v7.96: траверса ЦТ бывает только 1200–1800; на 900 ставят обычные ламели
+   {label:'центральная траверса',find:['центральная траверса'],none:['н-330'],size:'need',group:'Основание',variant:'Центральная траверса (ламели)',
+    alt:['комплектующие на кровать с ламелями'],altLabel:'комплектующие (ламели)',altVariant:'Ламельное основание'},
    {label:'опора с гибким основанием',find:['опора с гибким основанием'],none:['74в','гпм','74 в'],size:'need',group:'Основание',variant:'Металлокаркас'},
    {label:'комплект ножек',find:['комплект ножек'],compat:true,group:'Основание',variant:'Металлокаркас'},
    {label:'ящики выкатные (2 шт.)',find:['ящик выкатной','для кровати'],opt:'off',models:['сканди','грация разборная','карина-7 разборная','лаура разборная','виола','глория','джуниор']}
@@ -10051,16 +10056,32 @@ var KIT_DEFAULTS=[
 ];
 var _kitRules=null,_kitRulesSrc='',_kitRulesP=null;
 function _kitCopy(x){return JSON.parse(JSON.stringify(x));}
+// v7.96: сохранённые владельцем правила не знают о новых запасных поисках из
+// программы — дописываем их в ту же часть (то же правило, та же группа и слова поиска),
+// если владелец не задал свои. Остальные правки владельца не трогаем.
+function _kitMigrate(rules){
+  (rules||[]).forEach(function(r){
+    var d=KIT_DEFAULTS.filter(function(x){return x.id===r.id;})[0];if(!d)return;
+    (d.parts||[]).forEach(function(dp){
+      if(!dp.alt)return;
+      (r.parts||[]).forEach(function(rp){
+        if(rp.alt||rp.group!==dp.group||String((rp.find||[])[0])!==String(dp.find[0]))return;
+        rp.alt=dp.alt.slice();if(dp.altLabel)rp.altLabel=dp.altLabel;if(dp.altVariant)rp.altVariant=dp.altVariant;
+      });
+    });
+  });
+  return rules;
+}
 function kitRulesLoad(force){
   if(_kitRulesP&&!force)return _kitRulesP.then(function(){return _kitRules;});
   var fromLocal=function(){
-    try{var v=JSON.parse(localStorage.getItem('vd_kit_rules')||'null');if(v&&Array.isArray(v.rules)){_kitRules=v.rules;_kitRulesSrc='local';return;}}catch(e){}
+    try{var v=JSON.parse(localStorage.getItem('vd_kit_rules')||'null');if(v&&Array.isArray(v.rules)){_kitRules=_kitMigrate(v.rules);_kitRulesSrc='local';return;}}catch(e){}
     _kitRules=_kitCopy(KIT_DEFAULTS);_kitRulesSrc='default';
   };
   _kitRulesP=(typeof sbGet==='function'?sbGet('app_settings','select=key,value&key=eq.kit_rules'):Promise.reject())
     .then(function(rows){
       var v=rows&&rows[0]&&rows[0].value;var o=null;try{o=v?JSON.parse(v):null;}catch(e){}
-      if(o&&Array.isArray(o.rules)){_kitRules=o.rules;_kitRulesSrc='base';}else fromLocal();
+      if(o&&Array.isArray(o.rules)){_kitRules=_kitMigrate(o.rules);_kitRulesSrc='base';}else fromLocal();
     }).catch(function(){fromLocal();});
   // всегда отдаём ТЕКУЩИЕ правила (после правки владельцем — уже новые)
   return _kitRulesP.then(function(){return _kitRules;});
@@ -10231,7 +10252,9 @@ function kitResolve(it){
         // не нашлось своей части — запасной вариант поиска (общие щиты и т.п.)
         if(c||!pt.alt||!pt.alt.length)return{pt:pt,c:c};
         var w2=pt.alt.map(function(w){return _kitFill(w,model);}).filter(Boolean);
-        return _kitFetch(sup,w2).then(function(c2){return{pt:pt,c:_kitPick(c2,pt,ctx)};});
+        // запасной поиск идёт без «кроме» основной части (там слова про траверсу)
+        var pt2=pt.altLabel?Object.assign({},pt,{none:[]}):pt;
+        return _kitFetch(sup,w2).then(function(c2){var c3=_kitPick(c2,pt2,ctx);return{pt:pt,c:c3,alt:!!c3};});
       });
     });
     return Promise.all(jobs).then(function(res){
@@ -10239,11 +10262,13 @@ function kitResolve(it){
       res.forEach(function(x){
         if(!x)return;
         var pt=x.pt,c=x.c;
-        var P={label:pt.label,name:c?c.product_name:'',opt:c?+c.price_opt:0,qty:_kitQty(pt,ctx),found:!!c,need:pt.opt==='need',
+        // v7.96: найдено запасным поиском — подпись и вариант по нему (ламели вместо траверсы)
+        var _lbl=(x.alt&&pt.altLabel)||pt.label;
+        var P={label:_lbl,name:c?c.product_name:'',opt:c?+c.price_opt:0,qty:_kitQty(pt,ctx),found:!!c,need:pt.opt==='need',
           on:pt.opt!=='off',sizeW:pt.size?ctx.W:0};
         if(pt.group){
           if(!groups[pt.group]){groups[pt.group]={name:pt.group,allowNone:true,sel:0,variants:[],_v:{}};gorder.push(pt.group);}
-          var g=groups[pt.group],vn=pt.variant||pt.label;
+          var g=groups[pt.group],vn=(x.alt&&pt.altVariant)||pt.variant||pt.label;
           if(!g._v[vn]){g._v[vn]={name:vn,parts:[]};g.variants.push(g._v[vn]);}
           g._v[vn].parts.push(P);
         }else extras.push(P);
@@ -10387,6 +10412,25 @@ function kitOff(id){
 
 // ── в поиске по прайсам ──
 var _kitSearchSeq=0;
+// v7.96: «➕» у каждого варианта сборки в поиске — кровать с выбранным
+// основанием уходит в «Быстрый расчёт» ОДНОЙ строкой (как в заказе: название
+// «… — в комплекте: …», опт = сумма оптов). Из расчёта — в заказ как обычно.
+var _kitSearchKits={};
+function kitToCalc(key,vi){
+  var o=_kitSearchKits[key];if(!o)return;
+  var kit=o.kit,save=kit.groups.map(function(g){return g.sel;});
+  if(vi>=0&&kit.groups[0])kit.groups[0].sel=vi;
+  var on=kit.extras.map(function(x){return x.on;});
+  kit.extras.forEach(function(x){x.on=false;}); // допчасти — отдельной кнопкой
+  var t=kitTotals(kit),nm=kitName(kit);
+  kit.groups.forEach(function(g,k){g.sel=save[k];});kit.extras.forEach(function(x,k){x.on=on[k];});
+  if(t.missing.length){toast('⚠ Не всё нашлось в прайсе: '+t.missing.map(function(x){return x.label;}).join(', '),'err',5000);return;}
+  calcAdd({name:nm,supplier:o.p.supplier||'',article:o.p.article||'',opt:t.opt,retail:0});
+}
+function kitExtraToCalc(key,xi){
+  var o=_kitSearchKits[key];if(!o)return;var x=o.kit.extras[xi];if(!x||!x.found)return;
+  calcAdd({name:x.name||x.label,supplier:o.p.supplier||'',article:'',opt:x.opt*(x.qty||1),retail:0});
+}
 function kitDecorateRows(rows,prefix){
   var seq=++_kitSearchSeq;
   kitRulesLoad().then(function(rules){
@@ -10398,17 +10442,20 @@ function kitDecorateRows(rows,prefix){
         if(seq!==_kitSearchSeq)return;
         var b=document.getElementById(prefix+i);if(!b)return;
         if(!kit){b.innerHTML='';return;}
-        var lines=[];
+        var lines=[],key=prefix+i;
+        _kitSearchKits[key]={kit:kit,p:p};
+        var addBtn=function(vi,title){return '<button type="button" class="kit-add" title="'+title+'" onclick="event.stopPropagation();kitToCalc(\''+key+'\','+vi+')">+</button>';};
         if(kit.groups.length){
           var g=kit.groups[0];
           g.variants.forEach(function(v,vi){
             var save=g.sel;g.sel=vi;var t=kitTotals(kit);g.sel=save;
             var miss=v.parts.filter(function(x){return !x.found;}).length;
-            lines.push('<div><b>'+fmt(t.ret)+' ₽</b> — '+esc(v.name)+' <span>('+v.parts.map(function(x){return esc(x.found?x.label+' '+fmt(_kitPartRet(x)):'⚠ '+x.label+' нет в прайсе');}).join(' + ')+')</span>'+(miss?' ⚠':'')+'</div>');
+            lines.push('<div class="kit-mini-l">'+(miss?'':addBtn(vi,'В расчёт: кровать + '+esc(v.name).toLowerCase()+' — '+fmt(t.ret)+' ₽'))+'<b>'+fmt(t.ret)+' ₽</b> — '+esc(v.name)+' <span>('+v.parts.map(function(x){return esc(x.found?x.label+' '+fmt(_kitPartRet(x)):'⚠ '+x.label+' нет в прайсе');}).join(' + ')+')</span>'+(miss?' ⚠':'')+'</div>');
           });
-        }else{var t0=kitTotals(kit);lines.push('<div><b>'+fmt(t0.ret)+' ₽</b> — '+t0.lines.map(function(x){return esc(x.label);}).join(' + ')+'</div>');}
+        }else{var t0=kitTotals(kit);lines.push('<div class="kit-mini-l">'+addBtn(-1,'В расчёт комплектом')+'<b>'+fmt(t0.ret)+' ₽</b> — '+t0.lines.map(function(x){return esc(x.label);}).join(' + ')+'</div>');}
         var ex=kit.extras.filter(function(x){return x.found;});
-        if(ex.length)lines.push('<div class="kit-mini-ex">по желанию: '+ex.map(function(x){return esc(x.label)+(x.on?'':'')+' +'+fmt(_kitPartRet(x))+' ₽';}).join(', ')+'</div>');
+        if(ex.length)lines.push('<div class="kit-mini-ex">по желанию: '+ex.map(function(x){var xi=kit.extras.indexOf(x);
+          return esc(x.label)+' +'+fmt(_kitPartRet(x))+' ₽ <button type="button" class="kit-add sm" title="Добавить в расчёт отдельной строкой" onclick="event.stopPropagation();kitExtraToCalc(\''+key+'\','+xi+')">+</button>';}).join(', ')+'</div>');
         b.innerHTML='<div class="kit-mini"><div class="kit-mini-h">🧩 В сборе ('+esc(kit.src==='price'?'состав из прайса':kit.title)+'):</div>'+lines.join('')+'</div>';
       }).catch(function(){var b=document.getElementById(prefix+i);if(b)b.innerHTML='';});
     });
@@ -10490,12 +10537,14 @@ function kitRuleSaveForm(){
   var g=function(id){return((document.getElementById(id)||{}).value||'').trim();};
   var r={id:(_kitEditIdx>=0&&_kitRules[_kitEditIdx].id)||('my-'+Date.now()),on:_kitEditIdx>=0?_kitRules[_kitEditIdx].on!==false:true,name:g('kr-name'),
     when:{sup:g('kr-sup'),sheet:g('kr-sheet'),all:_kitList(g('kr-all')),any:_kitList(g('kr-any')),none:_kitList(g('kr-none'))},parts:[]};
-  [].slice.call(document.querySelectorAll('#kr-parts .kit-prow')).forEach(function(row){
+  var _old=(_kitEditIdx>=0&&_kitRules[_kitEditIdx]&&_kitRules[_kitEditIdx].parts)||[];
+  [].slice.call(document.querySelectorAll('#kr-parts .kit-prow')).forEach(function(row,ri){
     var q=function(k){var e=row.querySelector('[data-k="'+k+'"]');return e?(e.type==='checkbox'?e.checked:String(e.value||'').trim()):'';};
     var p={label:q('label'),find:_kitList(q('find'))};
     if(!p.label||!p.find.length)return;
     var none=_kitList(q('none'));if(none.length)p.none=none;
     var alt=_kitList(q('alt'));if(alt.length)p.alt=alt;
+    var _op=_old[ri];if(alt.length&&_op&&_op.label===p.label){if(_op.altLabel)p.altLabel=_op.altLabel;if(_op.altVariant)p.altVariant=_op.altVariant;}
     var gv=q('gv');if(gv){var k=gv.indexOf(':');p.group=(k>=0?gv.slice(0,k):gv).trim();p.variant=(k>=0?gv.slice(k+1):p.label).trim()||p.label;}
     if(q('size'))p.size=q('size');
     if(q('opt')&&q('opt')!=='on')p.opt=q('opt');
