@@ -373,7 +373,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v7.98</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.0</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -5312,11 +5312,12 @@ function _collectRows(data,cfg){
   var _noteRun=false;
   // v7.93: «Комплектующие с металлокаркасом / с подъёмным механизмом» под кроватью
   // (Браво ММ) — запоминаем состав и цены и записываем их в саму кровать
-  var _kc=null;
+  var _kc=null,_kcAll=[],_kpIdx=[]; // v7.99: все комплекты листа и строки-части — для проверки опечаток
   var _kcFlush=function(){
     if(_kc&&_kc.groups.length&&_kc.bedEnd!=null){
       var spec=_plKitSpecStr(_kc.groups);
-      if(spec)for(var k=_kc.start;k<_kc.bedEnd;k++){var c0=rows[k].compatibility;rows[k].compatibility=(spec+(c0?' · '+c0:'')).slice(0,900);}
+      if(spec){for(var k=_kc.start;k<_kc.bedEnd;k++){var c0=rows[k].compatibility;rows[k].compatibility=(spec+(c0?' · '+c0:'')).slice(0,900);}
+        _kcAll.push({start:_kc.start,end:_kc.bedEnd,groups:_kc.groups,spec:spec});}
     }
     _kc=null;
   };
@@ -5449,10 +5450,53 @@ function _collectRows(data,cfg){
     }
     var _cmp=[noteBuf,rowCompat].filter(Boolean).join(' · ').slice(0,900)||null;
     rows.push({supplier:cfg.supplier,product_name:nameVal,price_opt:optNum,price_retail:retVal,article:(_subSection&&String(artVal||'').indexOf(_subSection)<0?(artVal?artVal+' · ':'')+_subSection:artVal),category:rowCategory||currentSection,sheet_name:cfg.sheetName||'',compatibility:_cmp,dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
-    if(_kc&&_kc.cur)_kc.cur.parts.push({n:nameVal,p:optNum}); // v7.93
+    if(_kc&&_kc.cur){_kc.cur.parts.push({n:nameVal,p:optNum,ri:rows.length-1});_kpIdx.push(rows.length-1);} // v7.93
   }
   _kcFlush();
+  _plKitPriceTypos(rows,_kpIdx,_kcAll); // v7.99
   return rows;
+}
+// ═══ v7.99: ОПЕЧАТКА В ЦЕНЕ ЧАСТИ КОМПЛЕКТА ═══════════════════════════
+// Прайс Браво 12.10.2026: «Опора … ЮР 74В-16-1588х2000 с ГПМ ЮР 76.400» на листе
+// ММ-кроватей встречается 18 раз — 17 раз за 6 051 ₽ и один раз (у Вендетты)
+// за 601 ₽. Комплект Вендетты «с подъёмным механизмом» выходил 2 471 ₽ вместо
+// ~7 900 ₽, и розница кровати — на ~8 000 ₽ дешевле, чем надо.
+// Правило: одна и та же часть (то же название) встречается на листе ≥3 раз,
+// и у одной из строк цена меньше пятой части обычной — берём обычную цену,
+// а часть помечаем «⚠» и пишем об этом в отчёт загрузки. Поставщик исправит
+// прайс — правило само перестанет срабатывать.
+function _plKitPriceTypos(rows,idx,kits){
+  var by={};
+  (idx||[]).forEach(function(i){var r=rows[i];if(!r||!(r.price_opt>0))return;var k=String(r.product_name).toLowerCase().replace(/\s+/g,' ').trim();(by[k]=by[k]||[]).push(i);});
+  var fixes=[];
+  Object.keys(by).forEach(function(k){
+    var list=by[k];if(list.length<3)return;
+    var cnt={};list.forEach(function(i){var p=Math.round(rows[i].price_opt*100)/100;cnt[p]=(cnt[p]||0)+1;});
+    var mode=0,mc=0;Object.keys(cnt).forEach(function(p){if(cnt[p]>mc){mc=cnt[p];mode=+p;}});
+    if(mc<2)return;
+    list.forEach(function(i){
+      var r=rows[i];if(!(r.price_opt<mode/5))return;
+      var was=r.price_opt;
+      fixes.push({name:r.product_name,was:was,now:mode,ri:i});
+      r.price_opt=mode;
+      r.article=('⚠ в прайсе '+fmt(Math.round(was))+' ₽ — похоже на опечатку, взята обычная цена '+fmt(Math.round(mode))+' ₽; уточнить у поставщика'+(r.article?' · '+r.article:'')).slice(0,500);
+    });
+  });
+  if(fixes.length){
+    var fixed={};fixes.forEach(function(f){fixed[f.ri]=f;});
+    (kits||[]).forEach(function(kc){
+      var hit=false;
+      kc.groups.forEach(function(g){g.parts.forEach(function(p){var f=fixed[p.ri];if(f){p.p=f.now;p.n='⚠ '+p.n;hit=true;}});});
+      if(!hit)return;
+      var ns=_plKitSpecStr(kc.groups);
+      for(var k=kc.start;k<kc.end;k++){var c=rows[k].compatibility||'';if(c.indexOf(kc.spec)===0)rows[k].compatibility=(ns+c.slice(kc.spec.length)).slice(0,900);}
+    });
+  }
+  try{Object.defineProperty(rows,'_typos',{value:fixes,enumerable:false});}catch(e){rows._typos=fixes;}
+}
+function _plTyposText(rows){
+  var t=rows&&rows._typos;if(!t||!t.length)return '';
+  return '⚠ исправлена опечатка в цене: '+t.map(function(f){return String(f.name).slice(0,60)+' '+fmt(Math.round(f.was))+' → '+fmt(Math.round(f.now))+' ₽';}).join('; ');
 }
 // Автоопределение строки заголовков и колонок (для «Все листы сразу»)
 // v7.21: «чистая» ценовая ячейка — только цифры (плюс пробелы/запятые и хвост «руб/₽»).
@@ -7181,7 +7225,8 @@ async function importAllSheets(){
     }
     plan.push({sheetName:sn,rows:best.rows,cfg:best.cfg,kind:best.kind,kit:!!(tpl&&tpl.kit_part)});
     var rh=_rausApply(best.rows,sn); // РАУС: корпус+фасад по коду модуля
-    report.push({sheet:sn,count:best.rows.length,note:best.src+(rh?', ➕корпус у '+rh:''),drop:_plDropText(best.rows._drop)});
+    var _ty=_plTyposText(best.rows); // v7.99
+    report.push({sheet:sn,count:best.rows.length,note:best.src+(rh?', ➕корпус у '+rh:''),drop:[_plDropText(best.rows._drop),_ty].filter(Boolean).join('; ')});
   });
   // v7.72: лист-КОПИЯ другого листа того же файла не грузим. У HANDIS первый
   // лист «ПРАЙС-ЛИСТ» содержит всё, а «Гостиные», «Спальни», «Тумбы ТВ.» и
@@ -10042,7 +10087,7 @@ function kitCompatText(c){return String(c||'').replace(/🧩[\s\S]*?¶\s*(·\s*)
 //   части есть список кроватей, модель должна в нём быть; models — часть только для
 //   этих моделей; qty — сколько штук; group/variant — выбор одного варианта;
 //   opt — 'need' (обязательно) | 'on' (включено) | 'off' (по желанию).
-var KIT_RULES_V=1;
+var KIT_RULES_V=2;
 var KIT_DEFAULTS=[
  {id:'bravo-ct',on:true,name:'Браво · кровати из массива с центральной траверсой (ЦТ)',
   when:{sup:'браво',sheet:'массив',all:['кровать','(цт)'],none:['ящиками','комплектующ','опора','матрас','защит','карниз','ножек','траверса']},
@@ -10105,14 +10150,46 @@ var KIT_DEFAULTS=[
    {label:'настил ЛДСП',find:['настил лдсп'],size:'need',group:'Настил',variant:'Настил ЛДСП'},
    {label:'реечный настил',find:['настил реечный'],size:'need',compat:true,group:'Настил',variant:'Реечный настил'},
    {label:'ортопедическое основание с подъёмным механизмом',find:['ортопедическое основание с подъемным'],size:'need',compat:true,group:'Настил',variant:'Орт. основание с подъёмным механизмом'}
+  ]},
+ // v8.0 (решение владельца 13.10.2026): комод Домино продаётся двумя пакетами —
+ // корпус + фасады (со стеклом или без). Фасады того же цвета, что корпус.
+ {id:'bravo-domino',on:true,name:'Браво · Домино комод: корпус + фасады',
+  when:{sup:'браво',all:['домино','комод','пакет корпуса']},
+  parts:[
+   {label:'фасады со стеклом',find:['домино','комод','пакет фасадов со стеклом'],match:['белый','черный'],group:'Фасады',variant:'Со стеклом'},
+   {label:'фасады без стекла',find:['домино','комод','пакет фасадов без стекла'],match:['белый','черный'],group:'Фасады',variant:'Без стекла'}
+  ]},
+ // шкафы НСМ (2280) «комплект»: пакет полок (только ШР-2) и антресоль — по желанию
+ {id:'bravo-nsm-shr2',on:true,name:'Браво · шкаф ШР-2 (2280) НСМ: полки и антресоль по желанию',
+  when:{sup:'браво',all:['(нсм)','шкаф','шр-2','2280','комплект']},
+  parts:[
+   {label:'пакет полок ШР-2',find:['пакет полок','шр-2','2280'],opt:'off'},
+   {label:'антресоль ШР-2',find:['антресоль','шр-2','{модель}'],opt:'off'}
+  ]},
+ {id:'bravo-nsm-shr3',on:true,name:'Браво · шкаф ШР-3 (2280) НСМ: антресоль по желанию',
+  when:{sup:'браво',all:['(нсм)','шкаф','шр-3','2280','комплект']},
+  parts:[
+   {label:'антресоль ШР-3',find:['антресоль','шр-3','{модель}'],opt:'off'}
   ]}
 ];
+// v8.0: правила, добавленные в программу позже. У владельца, который уже
+// сохранял свои правила, их нет — дописываем один раз (по номеру версии
+// сохранённых правил), чтобы удалённое владельцем потом не воскресало.
+var KIT_ADDED={2:['bravo-domino','bravo-nsm-shr2','bravo-nsm-shr3']};
 var _kitRules=null,_kitRulesSrc='',_kitRulesP=null;
 function _kitCopy(x){return JSON.parse(JSON.stringify(x));}
 // v7.96: сохранённые владельцем правила не знают о новых запасных поисках из
 // программы — дописываем их в ту же часть (то же правило, та же группа и слова поиска),
 // если владелец не задал свои. Остальные правки владельца не трогаем.
-function _kitMigrate(rules){
+function _kitMigrate(rules,ver){
+  ver=parseInt(ver)||1;
+  Object.keys(KIT_ADDED).forEach(function(v){
+    if(ver>=+v)return;
+    KIT_ADDED[v].forEach(function(id){
+      if((rules||[]).some(function(r){return r.id===id;}))return;
+      var d=KIT_DEFAULTS.filter(function(x){return x.id===id;})[0];if(d)rules.push(_kitCopy(d));
+    });
+  });
   (rules||[]).forEach(function(r){
     var d=KIT_DEFAULTS.filter(function(x){return x.id===r.id;})[0];if(!d)return;
     (d.parts||[]).forEach(function(dp){
@@ -10128,13 +10205,13 @@ function _kitMigrate(rules){
 function kitRulesLoad(force){
   if(_kitRulesP&&!force)return _kitRulesP.then(function(){return _kitRules;});
   var fromLocal=function(){
-    try{var v=JSON.parse(localStorage.getItem('vd_kit_rules')||'null');if(v&&Array.isArray(v.rules)){_kitRules=_kitMigrate(v.rules);_kitRulesSrc='local';return;}}catch(e){}
+    try{var v=JSON.parse(localStorage.getItem('vd_kit_rules')||'null');if(v&&Array.isArray(v.rules)){_kitRules=_kitMigrate(v.rules,v.v);_kitRulesSrc='local';return;}}catch(e){}
     _kitRules=_kitCopy(KIT_DEFAULTS);_kitRulesSrc='default';
   };
   _kitRulesP=(typeof sbGet==='function'?sbGet('app_settings','select=key,value&key=eq.kit_rules'):Promise.reject())
     .then(function(rows){
       var v=rows&&rows[0]&&rows[0].value;var o=null;try{o=v?JSON.parse(v):null;}catch(e){}
-      if(o&&Array.isArray(o.rules)){_kitRules=_kitMigrate(o.rules);_kitRulesSrc='base';}else fromLocal();
+      if(o&&Array.isArray(o.rules)){_kitRules=_kitMigrate(o.rules,o.v);_kitRulesSrc='base';}else fromLocal();
     }).catch(function(){fromLocal();});
   // всегда отдаём ТЕКУЩИЕ правила (после правки владельцем — уже новые)
   return _kitRulesP.then(function(){return _kitRules;});
@@ -10259,6 +10336,11 @@ function _kitPick(cands,part,ctx){
     if(none.some(function(w){return nm.indexOf(w)>=0;}))return;
     if(!(c.price_opt>0))return;
     if(c.id!=null&&ctx.selfId!=null&&c.id===ctx.selfId)return;
+    // v8.0: «тот же цвет, что у товара» — у Домино белый корпус только с белыми фасадами
+    if(part.match&&part.match.length){
+      var mw=part.match.map(_kN).filter(function(w){return ctx.txt.indexOf(w)>=0;})[0];
+      if(mw&&txt.indexOf(mw)<0)return;
+    }
     var score=0;
     if(part.size){
       var sc=_kitSizeScore(_kitSizeSrc(c),ctx.W,ctx.L);
@@ -10598,6 +10680,7 @@ function kitRuleSaveForm(){
     var none=_kitList(q('none'));if(none.length)p.none=none;
     var alt=_kitList(q('alt'));if(alt.length)p.alt=alt;
     var _op=_old[ri];if(alt.length&&_op&&_op.label===p.label){if(_op.altLabel)p.altLabel=_op.altLabel;if(_op.altVariant)p.altVariant=_op.altVariant;}
+    if(_op&&_op.label===p.label&&_op.match)p.match=_op.match.slice(); // v8.0
     var gv=q('gv');if(gv){var k=gv.indexOf(':');p.group=(k>=0?gv.slice(0,k):gv).trim();p.variant=(k>=0?gv.slice(k+1):p.label).trim()||p.label;}
     if(q('size'))p.size=q('size');
     if(q('opt')&&q('opt')!=='on')p.opt=q('opt');
