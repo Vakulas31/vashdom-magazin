@@ -373,7 +373,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.0</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.1</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -10757,17 +10757,67 @@ function _srLoad(force){
   }).finally(function(){_srLoadP=null;});
   return _srLoadP;
 }
+// ═══ v8.1: ПОСТАВКИ (решение владельца 14.10.2026) ═══════════════════
+// Одинаковый товар привозят по разной закупке. Учитываем каждую поставку
+// отдельно и продаём ПЕРВОЙ самую старую: в заказ идёт закупка именно той
+// поставки, из которой ушёл образец, — прибыль и «вложено» сходятся с
+// накладными. Цена продажи при этом одна на все штуки — от закупки последней
+// поставки (или своя цена товара): «сразу всё по новой цене».
+// Поставки не хранятся отдельно — они восстанавливаются из истории движений
+// (приход = новая поставка; продажа/пересчёт «−» — списание старейшей;
+// возврат по заказу — обратно в ту поставку, из которой продали).
+function _srReplay(item,excludeOrderId){
+  var id=item&&item.id;
+  var mv=_srMoves.filter(function(m){return String(m.item_id)===String(id)&&!(excludeOrderId!=null&&String(m.order_id)===String(excludeOrderId));})
+    .slice().sort(function(a,b){return (+a.id||0)-(+b.id||0);});
+  var st={qty:0,inQty:0,sold:0,firstIn:null,lastIn:null,lastSale:null,lastOpt:null,batches:[],value:0,oldestLeft:null};
+  var byOrder={};
+  var take=function(n,ord){
+    var out=[];
+    for(var i=0;i<st.batches.length&&n>0;i++){var b=st.batches[i];if(b.left<=0)continue;var t=Math.min(n,b.left);b.left-=t;n-=t;out.push({b:b,q:t});}
+    if(ord!=null){(byOrder[ord]=byOrder[ord]||[]).push.apply(byOrder[ord],out);}
+  };
+  mv.forEach(function(m){
+    var d=parseInt(m.delta)||0,day=String(m.created_at||'').slice(0,10);
+    st.qty+=d;
+    if(m.kind==='приход'&&d>0){
+      var o=(+m.opt>0)?+m.opt:(st.lastOpt||+item.opt||0);
+      st.batches.push({id:m.id,date:day,opt:o,qty:d,left:d,inv:m.invoice||''});
+      st.inQty+=d;if(!st.firstIn)st.firstIn=day;st.lastIn=day;st.lastOpt=o;
+    }else if(m.kind==='пересчёт'&&d>0){
+      st.batches.push({id:m.id,date:day,opt:st.lastOpt||+item.opt||0,qty:d,left:d,inv:'пересчёт'});
+    }else if(d<0){
+      if(m.kind==='продажа'){st.sold-=d;st.lastSale=day;}
+      take(-d,m.kind==='продажа'?m.order_id:null);
+    }else if(m.kind==='возврат'&&d>0){
+      st.sold-=d;
+      var n=d,stack=byOrder[m.order_id]||[];
+      while(n>0&&stack.length){var top=stack[stack.length-1],t=Math.min(n,top.q);top.b.left+=t;top.q-=t;n-=t;if(top.q<=0)stack.pop();}
+      if(n>0&&st.batches.length)st.batches[st.batches.length-1].left+=n;
+    }
+  });
+  st.batches.forEach(function(b){if(b.left>0){st.value+=b.left*b.opt;if(!st.oldestLeft)st.oldestLeft=b.date;}});
+  return st;
+}
 function _srCalc(){
   _srStock={};
-  _srItems.forEach(function(it){_srStock[it.id]={qty:0,inQty:0,sold:0,firstIn:null,lastIn:null,lastSale:null,lastOpt:null};});
-  _srMoves.forEach(function(m){
-    var s=_srStock[m.item_id];if(!s)return;
-    var d=parseInt(m.delta)||0;s.qty+=d;
-    var day=String(m.created_at||'').slice(0,10);
-    if(m.kind==='приход'){s.inQty+=d;if(!s.firstIn)s.firstIn=day;s.lastIn=day;if(+m.opt>0)s.lastOpt=+m.opt;}
-    if(m.kind==='продажа'){s.sold-=d;s.lastSale=day;}
-    if(m.kind==='возврат')s.sold-=d;
-  });
+  _srItems.forEach(function(it){_srStock[it.id]=_srReplay(it,null);});
+}
+// закупка за 1 шт. для продажи n штук образцом: старейшие поставки первыми.
+// excludeOrderId — при правке заказа его же прежние списания не считаются.
+function srCostFor(itemId,n,excludeOrderId){
+  var it=_srItem(itemId);if(!it)return 0;
+  var st=_srReplay(it,excludeOrderId||null),need=Math.max(1,parseInt(n)||1),sum=0,got=0;
+  st.batches.forEach(function(b){if(got>=need||b.left<=0)return;var t=Math.min(need-got,b.left);sum+=t*b.opt;got+=t;});
+  if(got<need)sum+=(need-got)*(st.lastOpt||+it.opt||0);
+  return Math.round(sum/need*100)/100;
+}
+// поставки, которые сейчас стоят на витрине: «1 шт. × 20 000 + 2 шт. × 22 000»
+function srBatchText(id){
+  var st=_srStock[id];if(!st)return '';
+  var b=st.batches.filter(function(x){return x.left>0;});
+  if(!b.length)return '';
+  return b.map(function(x){return x.left+' шт. × '+fmt(Math.round(x.opt));}).join(' + ');
 }
 function srQty(id){var s=_srStock[id];return s?s.qty:0;}
 function srOpt(it){var s=_srStock[it.id];return (s&&s.lastOpt)||(+it.opt||0);}
@@ -10796,7 +10846,7 @@ function _srRender(){
   var inStock=act.filter(function(x){return srQty(x.id)>0;});
   var sold=act.filter(function(x){return srQty(x.id)<=0;});
   var pcs=0,sumOpt=0,sumRet=0,old=0;
-  inStock.forEach(function(x){var q=srQty(x.id);pcs+=q;sumOpt+=srOpt(x)*q;sumRet+=srPrice(x)*q;if(_srDays((_srStock[x.id]||{}).lastIn)>SR_OLD_DAYS)old++;});
+  inStock.forEach(function(x){var q=srQty(x.id),st=_srStock[x.id]||{};pcs+=q;sumOpt+=st.value||0;sumRet+=srPrice(x)*q;if(_srDays(st.oldestLeft||st.lastIn)>SR_OLD_DAYS)old++;});
   var k=document.getElementById('sr-kpis');
   if(k)k.innerHTML=[
     ['На витрине',inStock.length+' поз. · '+pcs+' шт.',''],
@@ -10835,16 +10885,18 @@ function _srRender(){
   box.innerHTML=html;
 }
 function _srRowHtml(x,soldOut){
-  var s=_srStock[x.id]||{},q=s.qty||0,days=_srDays(s.lastIn);
+  var s=_srStock[x.id]||{},q=s.qty||0,since0=s.oldestLeft||s.lastIn,days=_srDays(since0);
   var price=srPrice(x),opt=srOpt(x);
+  var bt=soldOut?'':srBatchText(x.id);
+  var multi=!soldOut&&(s.batches||[]).filter(function(b){return b.left>0;}).length>1;
   var sub=[x.supplier,x.category,x.color,x.dims].filter(Boolean).map(esc).join(' · ');
   var since=soldOut
     ?(s.lastSale?'продан '+fmtDate(s.lastSale):'нет в наличии')
-    :(s.lastIn?'с '+fmtDate(s.lastIn)+' · '+days+' дн.':'');
+    :(since0?'стоит с '+fmtDate(since0)+' · '+days+' дн.':'');
   return '<div class="sr-row'+(soldOut?' sold':'')+'">'
     +'<div class="sr-main"><div class="sr-name">'+esc(x.name)+(x.note?' <span class="sr-note">'+esc(x.note)+'</span>':'')+'</div>'
       +(sub?'<div class="sr-sub">'+sub+'</div>':'')
-      +'<div class="sr-sub">'+(_isOwner?'закупка '+fmt(Math.round(opt))+' ₽ · ':'')+'цена <b>'+fmt(price)+' ₽</b>'+(+x.price>0?' <span class="sr-own">своя</span>':'')
+      +'<div class="sr-sub">'+(_isOwner?(multi?'закупка '+bt+' ₽':'закупка '+fmt(Math.round(opt))+' ₽')+' · ':'')+'цена <b>'+fmt(price)+' ₽</b>'+(+x.price>0?' <span class="sr-own">своя</span>':'')
       +(since?' · <span style="'+(!soldOut&&days>SR_OLD_DAYS?'color:#C62828;font-weight:600':'')+'">'+since+'</span>':'')
       +(s.sold?' · продано '+s.sold+' шт.':'')+'</div></div>'
     +'<div class="sr-qty'+(soldOut?' zero':'')+'">'+q+'<small>шт.</small></div>'
@@ -10939,25 +10991,56 @@ function srSaveIn(id){
   if(!(qty>0)){toast('⚠️ Сколько штук привезли?','err');return;}
   if(!(opt>0)){toast('⚠️ Впишите закупку по накладной','err');return;}
   var btn=document.getElementById('sr-save-btn');if(btn)btn.disabled=true;
+  var x=_srItem(id),was={opt:x?srOpt(x):0,price:x?srPrice(x):0,qty:srQty(id)};
   sbPost('showroom_moves',Object.assign({item_id:id,delta:qty,kind:'приход',opt:opt,invoice:_srV('sr-f-inv')||null,comment:_srV('sr-f-cmt')||null},_srMeta()))
-  .then(function(){closeModal('modal-sr');toast('🏬 Записано: +'+qty+' шт.');renderShowroom(true);})
+  .then(function(){return _srLoad(true);})
+  .then(function(){closeModal('modal-sr');toast('🏬 Записано: +'+qty+' шт.');_srRender();
+    // v8.1: закупка новой поставки другая — цена меняется на все штуки сразу
+    if(x&&was.qty>0&&was.opt>0&&Math.round(was.opt)!==Math.round(opt))_srPriceChanged(x,was);})
   .catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);if(btn)btn.disabled=false;});
+}
+function _srPriceChanged(x,was){
+  var nowP=srPrice(x),own=+x.price>0,up=srOpt(x)>was.opt;
+  _srModal('<div class="modal-title">'+(up?'📈 Закупка выросла':'📉 Закупка снизилась')+'</div>'
+    +'<div style="font-size:14px;line-height:1.5"><b>'+esc(x.name)+'</b><br>'
+    +'Закупка: '+fmt(Math.round(was.opt))+' → <b>'+fmt(Math.round(srOpt(x)))+' ₽</b><br>'
+    +(own
+      ?'У товара <b>своя цена '+fmt(nowP)+' ₽</b> — она не изменилась.'+(_isOwner?' Если нужно, поправьте её в ✏️.':'')
+      :'Цена продажи на все '+srQty(x.id)+' шт.: '+fmt(was.price)+' → <b>'+fmt(nowP)+' ₽</b>.')
+    +'<div style="font-size:12.5px;color:var(--text2);margin-top:6px">Старые штуки продаются первыми, прибыль считается по их закупке.</div></div>'
+    +'<div style="display:flex;gap:8px;margin-top:14px">'
+    +(own?'':'<button class="btn btn-primary" style="flex:1" onclick="closeModal(\'modal-sr\');srLabel('+x.id+')">🏷 Перепечатать ценник</button>')
+    +'<button class="btn btn-outline" style="flex:1" onclick="closeModal(\'modal-sr\')">Понятно</button></div>');
 }
 function srHistory(id){
   var x=_srItem(id);if(!x)return;
   var mv=_srMoves.filter(function(m){return String(m.item_id)===String(id);}).slice().reverse();
   var ICON={'приход':'📦','продажа':'🛒','возврат':'↩','пересчёт':'🔁'};
+  var st=_srStock[id]||{batches:[]};
+  var bl=st.batches.filter(function(b){return b.left>0;});
   _srModal('<div class="modal-title">📜 '+esc(x.name)+'</div>'
     +'<div style="font-size:12.5px;color:var(--text2);margin-bottom:8px">Сейчас на витрине: <b>'+srQty(id)+' шт.</b>'+(x.created_at?' · заведён '+fmtDate(String(x.created_at).slice(0,10))+(x.who_name?' ('+esc(x.who_name)+')':''):'')+'</div>'
+    +(bl.length?'<div style="background:var(--alt);border-radius:6px;padding:6px 9px;margin-bottom:8px;font-size:12.5px"><b>Поставки на витрине</b> <span style="color:var(--text2)">(продаются по порядку, первой — старая)</span>'
+      +bl.map(function(b){return '<div>📦 '+fmtDate(b.date)+(b.inv&&b.inv!=='пересчёт'?' · накл. '+esc(b.inv):'')+' — осталось <b>'+b.left+'</b> из '+b.qty+(_isOwner?' по '+fmt(Math.round(b.opt))+' ₽':'')+'</div>';}).join('')+'</div>':'')
     +(mv.length?'<div style="max-height:52vh;overflow:auto">'+mv.map(function(m){
       var d=parseInt(m.delta)||0;
       var what=m.kind+(m.invoice?' · накл. '+esc(m.invoice):'')+(m.order_number?' · заказ №'+esc(m.order_number):'')+(m.comment?' · '+esc(m.comment):'');
       return '<div class="sr-hrow"><span>'+(ICON[m.kind]||'·')+' '+fmtDate(String(m.created_at).slice(0,10))+'</span>'
         +'<b style="color:'+(d>0?'#1B5E20':'#C62828')+'">'+(d>0?'+':'')+d+'</b>'
         +'<span style="flex:1;min-width:0">'+what+(m.opt&&_isOwner?' · '+fmt(Math.round(m.opt))+' ₽/шт':'')+'<small> '+esc(m.who_name||m.who||'')+'</small></span>'
+        +(_isOwner&&m.kind==='приход'?'<button class="sr-x" title="Исправить закупку этой поставки (только владелец)" onclick="srEditMoveOpt('+m.id+','+id+')">✏️</button>':'')
         +(_isOwner?'<button class="sr-x" title="Удалить запись (только владелец)" onclick="srDelMove('+m.id+','+id+')">✕</button>':'')+'</div>';
     }).join('')+'</div>':'<div style="color:var(--text2);font-size:13px">Записей нет</div>')
     +'<div style="margin-top:12px;text-align:right"><button class="btn btn-outline" onclick="closeModal(\'modal-sr\')">Закрыть</button></div>');
+}
+function srEditMoveOpt(mid,id){
+  if(!ownerOnly('Исправлять закупку поставки'))return;
+  var m=_srMoves.find(function(x){return x.id===mid;});if(!m)return;
+  var v=prompt('Закупка за 1 шт. в поставке от '+fmtDate(String(m.created_at).slice(0,10))+(m.invoice?' (накл. '+m.invoice+')':'')+', ₽:',Math.round(+m.opt||0));
+  if(v==null)return;var n=parseFloat(String(v).replace(/\s/g,'').replace(',','.'));
+  if(!(n>0)){toast('⚠️ Закупка должна быть больше нуля','err');return;}
+  sbPatch('showroom_moves',{opt:n},'id=eq.'+mid).then(function(){return _srLoad(true);}).then(function(){toast('✅ Закупка поставки исправлена');_srRender();srHistory(id);})
+  .catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);});
 }
 function srDelMove(mid,id){
   if(!ownerOnly('Удалять записи истории витрины'))return;
@@ -10970,6 +11053,7 @@ function srEdit(id){
   if(!ownerOnly('Исправлять товары витрины'))return;
   var x=_srItem(id);if(!x)return;
   _srModal('<div class="modal-title">✏️ Исправить товар витрины</div>'+_srFormHtml(Object.assign({},x,{opt:srOpt(x)}),false)
+    +((_srStock[id]||{}).batches&&(_srStock[id].batches.length)?'<div style="font-size:11.5px;color:var(--text2);margin:-6px 0 8px">Закупка берётся из поставок. Исправить закупку поставки — в 📜 истории (✏️ у строки «приход»).</div>':'')
     +'<div class="fg" style="background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:8px 10px"><label>🔁 Пересчёт: сколько штук на витрине на самом деле</label>'
     +'<input id="sr-f-real" type="number" min="0" step="1" class="inp-gold" value="'+srQty(id)+'" style="max-width:140px"> <small style="color:var(--text2)">сейчас по учёту '+srQty(id)+' шт. — если поменять, в истории будет запись «пересчёт»</small></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-success" id="sr-save-btn" style="flex:1" onclick="srSaveEdit('+id+')">✅ Сохранить</button>'
@@ -10980,6 +11064,7 @@ function srSaveEdit(id){
   if(!ownerOnly('Исправлять товары витрины'))return;
   var d=_srFormData();if(!d.name){toast('⚠️ Впишите название','err');return;}
   var real=Math.round(_srN('sr-f-real')),cur=srQty(id),diff=real-cur;
+  if((_srStock[id]||{}).batches&&_srStock[id].batches.length)delete d.opt; // v8.1: закупка — по поставкам
   var btn=document.getElementById('sr-save-btn');if(btn)btn.disabled=true;
   sbPatch('showroom_items',d,'id=eq.'+id).then(function(){
     if(!diff||real<0)return;
@@ -11079,18 +11164,22 @@ function srPick(id,mode){
   var man=document.getElementById('fi-manual-'+id);
   if(mode==='sample'){
     if(av)av.value='Есть';
-    ib.dataset.opt=srOpt(x);
+    // v8.1: закупка — из старейшей поставки (продаётся первой)
+    var _q=parseInt((document.getElementById('fi-qty2-'+id)||{}).value)||1;
+    ib.dataset.opt=srCostFor(x.id,_q,document.getElementById('edit-order-id').value||null);
     var c=document.getElementById('fi-color-'+id);if(c&&!c.value&&x.color)c.value=x.color;
     if(x.dims&&!_itemDims(id))_setItemDims(id,x.dims);
-    if(+x.price>0){
-      if(man)man.value=Math.round(+x.price);
-      var mw=document.getElementById('manual-wrap-'+id);if(mw)mw.style.display='block';
-      onManualPrice(id);
-    }else{delete ib.dataset.manual;if(man)man.value='';calcItemPrice(id);}
+    // v8.1: цена продажи — текущая (своя или от закупки последней поставки) на все
+    // штуки, а закупка — из старейшей поставки. Поэтому цену ставим явно, а не
+    // считаем от закупки: иначе старый образец ушёл бы по старой цене.
+    if(man)man.value=srPrice(x);
+    var mw=document.getElementById('manual-wrap-'+id);if(mw)mw.style.display='block';
+    onManualPrice(id);
   }else{
     if(av)av.value='Под заказ';
     // новый — по цене наценки, а не по уценке образца
-    if(+x.price>0&&man&&Math.round(+man.value)===Math.round(+x.price)){man.value='';delete ib.dataset.manual;}
+    if(man&&Math.round(+man.value)===srPrice(x)){man.value='';delete ib.dataset.manual;var mw2=document.getElementById('manual-wrap-'+id);if(mw2)mw2.style.display='none';}
+    ib.dataset.opt=srOpt(x); // новый под заказ — по закупке последней поставки
     calcItemPrice(id);
   }
   _srBar(id);
@@ -11143,7 +11232,7 @@ function renderShowroomStats(orders){
     if(_srOn===false){el.innerHTML='<p style="color:var(--text2);font-size:13px">Витрина включится после SQL_обновление_7.23.sql</p>';return;}
     var act=_srItems.filter(function(x){return x.active!==false;});
     var pcs=0,val=0,old=[];
-    act.forEach(function(x){var q=srQty(x.id);if(q<=0)return;pcs+=q;val+=srOpt(x)*q;var dd=_srDays((_srStock[x.id]||{}).lastIn);if(dd>SR_OLD_DAYS)old.push({x:x,d:dd,q:q});});
+    act.forEach(function(x){var q=srQty(x.id),st=_srStock[x.id]||{};if(q<=0)return;pcs+=q;val+=st.value||0;var dd=_srDays(st.oldestLeft||st.lastIn);if(dd>SR_OLD_DAYS)old.push({x:x,d:dd,q:q});});
     old.sort(function(a,b){return b.d-a.d;});
     var top=Object.keys(byName).map(function(k){return{k:k,v:byName[k]};}).sort(function(a,b){return b.v.r-a.v.r;}).slice(0,5);
     el.innerHTML='<div class="stats-grid" style="margin-bottom:10px">'
@@ -13557,6 +13646,14 @@ function saveOrder(){
     if(!colorVal)softMiss.push('цвет');
     if(!dimsVal)softMiss.push('размер');
     if(softMiss.length)softWarns.push('«'+model+'» — '+softMiss.join(' и '));
+    // v8.1: образец с витрины — закупка из старейших поставок на всё количество
+    if(srSample&&typeof srCostFor==='function'){
+      // при правке заказа, если образец и количество те же, — закупка остаётся прежней
+      var _eo=document.getElementById('edit-order-id').value,_fo=_eo?allOrders.find(function(o){return String(o.id)===String(_eo);}):null;
+      var _oi=(_fo&&ib.dataset.itemId)?(_fo.order_items||[]).find(function(x){return String(x.id)===String(ib.dataset.itemId);}):null;
+      if(_oi&&String(_oi.showroom_item_id)===String(ib.dataset.srId)&&(parseInt(_oi.qty)||1)===qty&&(+_oi.price_opt>0))opt=+_oi.price_opt;
+      else{var _sc=srCostFor(+ib.dataset.srId,qty,_eo||null);if(_sc>0)opt=_sc;}
+    }
     items.push({
       product_name:model,
       supplier:supplierVal,
@@ -13936,6 +14033,8 @@ function editOrder(id){
     if(ib2){ib2.dataset.opt=opt;ib2.dataset.ret=ret;}
     // v7.98: образец с витрины — показываем, при правке можно передумать
     if(ib2&&item.showroom_item_id){ib2.dataset.srId=item.showroom_item_id;ib2.dataset.srMode='sample';
+      // v8.1: цена образца — та, по которой продали; смена количества не пересчитывает её от закупки
+      var _mn=document.getElementById('fi-manual-'+id2);if(_mn&&ret>0){_mn.value=ret;ib2.dataset.manual='1';}
       (function(k){_srLoad().then(function(){_srBar(k);});})(id2);}
     collapseItem(id2); // v6.8: загруженные позиции показываем компактно
   });
