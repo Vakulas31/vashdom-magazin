@@ -375,7 +375,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.3</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.4</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -8255,7 +8255,7 @@ function _gsRenderRows(rows,q,box,note){
       +(ret?'<div style="font-size:13px;font-weight:700;color:#BF360C">'+fmt(ret)+' ₽</div>':'<div style="font-size:12px;color:var(--text2)">нет цены</div>')
       +'</div>'
       +_webBtn('_gsLastResults',i)
-      +'<button class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSearch('+i+')">➕ В расчёт</button>'
+      +'<button id="gs-add-'+i+'" class="btn btn-primary" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="calcAddFromSearch('+i+')">➕ В расчёт</button>'
       +'</div>';
   });
   box.innerHTML=(note?'<div style="font-size:12px;color:#E65100;background:#FFF3E0;border-radius:6px;padding:6px 10px;margin-bottom:6px">'+note+'</div>':'')
@@ -8878,12 +8878,14 @@ function searchPriceItems(id,q){
           +(_expired?'<span style="font-size:10px;font-weight:700;color:#9c3b2e;display:block">⌛ акция закончилась '+p.valid_until+' — цена может быть неактуальна</span>':'')
           +(p.article?'<span style="font-size:10px;color:#333;display:block">'+p.article+'</span>':'')
           +(_retN?'<span style="font-size:12px;font-weight:700;color:#BF360C;display:block">розн.: '+fmt(_retN)+' ₽</span>':'')
-          +(_optN?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(_optN)+' ₽</span>':'');
+          +(_optN?'<span style="font-size:10px;color:var(--text2);display:block">опт: '+fmt(_optN)+' ₽</span>':'')
+          +'<span class="ac-kit"></span>'; // v7.94: кровать в сборе
         d.onmousedown=function(){
           if(it.expired&&!confirm('У этого товара акционная цена, срок которой истёк '+it.validUntil+'.\n\nВзять её в заказ всё равно?'))return;
           selectModel(id,it);
         };
         list.appendChild(d);
+        if(typeof kitDecorateAc==='function')kitDecorateAc(d.querySelector('.ac-kit'),p,it,id);
       });
       if(list.children.length>0)list.style.display='block';
     }).catch(function(){});
@@ -11319,7 +11321,13 @@ function _labelCss(s){
     +'.lbl .bd>div{min-height:0;overflow:hidden}'
     +'.lbl .sp{display:grid;grid-template-columns:auto 1fr;gap:.3em .8em;margin:0;font-size:'+kg(s.specPt)+';line-height:1.2}'
     +'.lbl .sp dt{color:#777;margin:0;white-space:nowrap}'
-    +'.lbl .sp dd{margin:0;font-weight:700;word-break:break-word}'
+    +'.lbl .sp dd{margin:0;font-weight:700;overflow-wrap:normal}'
+    // v8.4: на вертикальном ценнике подпись — мелко над значением, значение — на всю ширину
+    // (раньше «Размер» стоял слева, а число рвалось по буквам в узкой колонке)
+    +'.lbl:not(.wide) .sp{display:block;line-height:1.15}'
+    +'.lbl:not(.wide) .sp dt{font-size:.6em;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:400;margin-top:.55em;line-height:1.1}'
+    +'.lbl:not(.wide) .sp dt:first-child{margin-top:0}'
+    +'.lbl:not(.wide) .sp dd{margin-top:.08em}'
     +'.lbl .fl{font-size:'+kg(s.featPt)+';line-height:1.25}'
     +'.lbl:not(.wide) .sp+.fl{margin-top:.6em}'
     +'.lbl .fl>div{display:flex;gap:.4em;margin-bottom:.25em}'
@@ -11349,8 +11357,17 @@ function _labelFeats(d){
 }
 // Строки характеристик (подпись → значение), пустые пропускаются
 function _labelSpecRows(d){
-  return [['Размер',d.dims],['Спальное место',d.sleep],['Механизм',d.mech],['Обивка',d.mat],['Цвет',d.color]]
+  return [['Размер',_lblDims(d.dims)],['Спальное место',_lblDims(d.sleep)],['Механизм',d.mech],['Обивка',d.mat],['Цвет',d.color]]
     .filter(function(r){return String(r[1]||'').trim();});
+}
+// v8.4: «340(1780) x 750x 800 мм» → «340 (1780) × 750 × 800 мм»; неразрывные пробелы,
+// чтобы строка переносилась только перед числом, а не посреди него
+function _lblDims(t){
+  t=String(t||'').trim();
+  t=t.replace(/(\d)\s*\(/g,'$1\u00a0(');
+  t=t.replace(/([\d)])\s*[xхXХ×*]\s*(?=\d)/g,'$1 ×\u00a0');
+  t=t.replace(/(\d)\s*(мм|см|м)(?![а-яё])/gi,'$1\u00a0$2');
+  return t;
 }
 function _plVal(id){var el=document.getElementById(id);return el?String(el.value||'').trim():'';}
 // Данные текущего ценника из формы
@@ -11432,7 +11449,9 @@ function _labelHtml(s,d){
 // но не меньше половины. Цена не уменьшается.
 function _lblOver(l){
   var parts=[l].concat([].slice.call(l.querySelectorAll('.hd-t,.bd,.bd>div')));
-  return parts.some(function(e){return e.scrollHeight>e.clientHeight+1;});
+  if(parts.some(function(e){return e.scrollHeight>e.clientHeight+1;}))return true;
+  // v8.4: самое длинное слово не должно упираться в край — иначе крупный шрифт рвёт его
+  return [].slice.call(l.querySelectorAll('.sp dd,.fl>div')).some(function(e){return e.scrollWidth>e.clientWidth+1;});
 }
 function _fitLabels(root){
   [].slice.call(root.querySelectorAll('.lbl')).forEach(function(l){
