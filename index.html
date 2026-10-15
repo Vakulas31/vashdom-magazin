@@ -375,7 +375,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.4</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.5</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -2599,7 +2599,7 @@ function orderCard(o){
     '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Наряд</button>'+
     '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Договор</button>'+
     '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px">📋 Акт</button>'+
-    '<button class="btn btn-outline" onclick="openBlanks('+o.id+')" style="padding:5px 10px;font-size:12px" title="Бланк замера кухни с данными клиента">📐 Замер</button>'+
+    // v8.5: кнопка «📐 Замер» убрана по просьбе владельца (бланк — через меню «📐 Бланки»)
     payBtn+
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>')+
     // v7.59: история изменений — кто и когда что поменял
