@@ -373,7 +373,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.1</span>
+  <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
+  <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.3</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -2597,6 +2599,7 @@ function orderCard(o){
     '<button class="btn btn-outline" onclick="printOrder('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Наряд</button>'+
     '<button class="btn btn-outline" onclick="printContract('+o.id+')" style="padding:5px 10px;font-size:12px">🖨 Договор</button>'+
     '<button class="btn btn-outline" onclick="printAct('+o.id+')" style="padding:5px 10px;font-size:12px">📋 Акт</button>'+
+    '<button class="btn btn-outline" onclick="openBlanks('+o.id+')" style="padding:5px 10px;font-size:12px" title="Бланк замера кухни с данными клиента">📐 Замер</button>'+
     payBtn+
     '<button class="btn btn-outline" onclick="editOrder('+o.id+')" style="padding:5px 10px;font-size:12px">✏️ Изменить</button>')+
     // v7.59: история изменений — кто и когда что поменял
@@ -11303,7 +11306,9 @@ function _fitPt(base,min,len,comfy){
 }
 function _labelCss(s){
   var k=function(pt){return 'calc('+pt+'pt * var(--k))';};
-  return '.lbl{--k:1;width:'+s.w+'mm;height:'+s.h+'mm;border:1.5px solid #bbb;border-radius:5px;padding:'+s.pad+';box-sizing:border-box;display:flex;flex-direction:column;position:relative;background:#fff;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#111}'
+  // v8.2: --g — увеличение текста середины ценника, когда он почти пустой
+  var kg=function(pt){return 'calc('+pt+'pt * var(--k) * var(--g))';};
+  return '.lbl{--k:1;--g:1;width:'+s.w+'mm;height:'+s.h+'mm;border:1.5px solid #bbb;border-radius:5px;padding:'+s.pad+';box-sizing:border-box;display:flex;flex-direction:column;position:relative;background:#fff;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#111}'
     +'.lbl .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:'+s.gap+';border-bottom:2px solid #111;padding-bottom:'+s.gap+';flex-shrink:0}'
     +'.lbl .hd-t{min-width:0;flex:1}'
     +'.lbl .nm{font-weight:700;line-height:1.1;word-break:break-word}'
@@ -11312,14 +11317,14 @@ function _labelCss(s){
     +'.lbl .bd{flex:1;min-height:0;overflow:hidden;padding:'+s.gap+' 0}'
     +'.lbl.wide .bd{display:grid;grid-template-columns:1.15fr 1fr;grid-template-rows:minmax(0,1fr);gap:0 5mm}'
     +'.lbl .bd>div{min-height:0;overflow:hidden}'
-    +'.lbl .sp{display:grid;grid-template-columns:auto 1fr;gap:.3em .8em;margin:0;font-size:'+k(s.specPt)+';line-height:1.2}'
+    +'.lbl .sp{display:grid;grid-template-columns:auto 1fr;gap:.3em .8em;margin:0;font-size:'+kg(s.specPt)+';line-height:1.2}'
     +'.lbl .sp dt{color:#777;margin:0;white-space:nowrap}'
     +'.lbl .sp dd{margin:0;font-weight:700;word-break:break-word}'
-    +'.lbl .fl{font-size:'+k(s.featPt)+';line-height:1.25}'
+    +'.lbl .fl{font-size:'+kg(s.featPt)+';line-height:1.25}'
     +'.lbl:not(.wide) .sp+.fl{margin-top:.6em}'
     +'.lbl .fl>div{display:flex;gap:.4em;margin-bottom:.25em}'
     +'.lbl .fl .ck{color:#1B5E20;font-weight:700;flex-shrink:0}'
-    +'.lbl .inc{font-size:'+k(s.incPt)+';color:#666;margin-top:.5em;line-height:1.25}'
+    +'.lbl .inc{font-size:'+kg(s.incPt)+';color:#666;margin-top:.5em;line-height:1.25}'
     +'.lbl .pb{display:flex;align-items:flex-end;justify-content:space-between;gap:2mm;flex-shrink:0;border-top:1px solid #ddd;padding-top:'+s.gap+'}'
     +'.lbl .pr{min-width:0}'
     +'.lbl .oldl{display:flex;align-items:center;gap:.6em;flex-wrap:wrap;margin-bottom:.15em}'
@@ -11403,7 +11408,8 @@ function _labelHtml(s,d){
     // две колонки: слева характеристики, справа преимущества + «что входит»
     var right=flHtml+incHtml;
     if(!spHtml&&!right)body='<div></div><div></div>';
-    else if(!spHtml)body='<div>'+right+'</div><div></div>';
+    else if(!spHtml)body='<div style="grid-column:1/-1">'+right+'</div>';
+    else if(!right)body='<div style="grid-column:1/-1">'+spHtml+'</div>'; // v8.2: одни характеристики — на всю ширину
     else body='<div>'+spHtml+'</div><div>'+right+'</div>';
   }else{
     body='<div>'+spHtml+flHtml+incHtml+'</div>';
@@ -11430,13 +11436,33 @@ function _lblOver(l){
 }
 function _fitLabels(root){
   [].slice.call(root.querySelectorAll('.lbl')).forEach(function(l){
-    var k=1;l.style.setProperty('--k','1');
+    var k=1;l.style.setProperty('--k','1');l.style.setProperty('--g','1');
     for(var i=0;i<12&&_lblOver(l);i++){
       k=Math.round((k-0.05)*100)/100;
       if(k<0.5)break;
       l.style.setProperty('--k',String(k));
     }
+    // v8.2: места с запасом (только размер и цвет) — увеличиваем середину, пока
+    // влезает, но не крупнее названия товара
+    if(k===1)_growLabel(l);
   });
+}
+function _growLabel(l){
+  var t=l.querySelector('.sp')||l.querySelector('.fl');if(!t)return;
+  var win=(l.ownerDocument&&l.ownerDocument.defaultView)||window;
+  var nm=l.querySelector('.nm');
+  var nmPx=nm?parseFloat(win.getComputedStyle(nm).fontSize)||0:0;
+  var basePx=parseFloat(win.getComputedStyle(t).fontSize)||0;
+  if(!(basePx>0))return;
+  // не намного крупнее названия, но хотя бы в 1,8 раза, если место есть
+  var gMax=Math.min(2.6,Math.max(1.8,nmPx?nmPx*1.15/basePx:2.6));
+  var g=1;
+  while(g+0.1<=gMax+1e-9){
+    var ng=Math.round((g+0.1)*100)/100;
+    l.style.setProperty('--g',String(ng));
+    if(_lblOver(l)){l.style.setProperty('--g',String(g));break;}
+    g=ng;
+  }
 }
 // Подсказки под формой: что может пойти не так
 function _labelWarnings(d){
@@ -12675,6 +12701,59 @@ function printOrder(id){
 }
 
 // ── УДАЛЕНИЕ С PIN-КОДОМ ────────────────────────────────
+// ── v8.3: БЛАНКИ ДЛЯ ПЕЧАТИ — замер кухни ───────────────────────────────
+// Бланк (3 листа A4) зашит прямо в приложение, поэтому печатается и без
+// интернета (приложение у клиента дома открыто из кэша). Источник —
+// «Бланк_замера_кухни_исходник.html» (сентябрь 2026). Клиент, телефон,
+// адрес и дата могут подставиться из заказа, иначе — пустые строки.
+var _BLK_CSS="\n  @page { size: A4 portrait; margin: 8mm; }\n  * { box-sizing: border-box; }\n  body { margin:0; font-family:\"DejaVu Sans\",Arial,sans-serif; color:#111; font-size:8.2pt; line-height:1.15; }\n  .page { width:194mm; height:280mm; page-break-after:always; position:relative; display:flex; flex-direction:column; }\n  .page:last-child { page-break-after:auto; }\n\n  /* ── шапка ── */\n  .top { display:flex; align-items:flex-end; gap:4mm; border-bottom:1.2pt solid #111; padding-bottom:1.5mm; margin-bottom:2mm; }\n  .top h1 { font-size:13pt; margin:0; letter-spacing:.3px; }\n  .top .sub { font-size:7pt; color:#555; margin-left:auto; text-align:right; line-height:1.3; }\n\n  .row { display:flex; gap:3mm; margin-bottom:2mm; }\n  .fld { flex:1; display:flex; align-items:flex-end; gap:1.2mm; }\n  .fld > span { font-size:7pt; color:#444; white-space:nowrap; }\n  .fld > i { flex:1; border-bottom:.7pt solid #999; height:4.6mm; font-style:normal; }\n\n  /* ── блоки ── */\n  .blk { margin-bottom:1mm; }\n  .blk > h2 { font-size:8.4pt; margin:0 0 1.2mm; background:#111; color:#fff; padding:1mm 2mm; letter-spacing:.2px;\n              display:flex; justify-content:space-between; align-items:baseline; }\n  .blk > h2 em { font-style:normal; font-weight:400; font-size:6.6pt; color:#d5d5d5; }\n\n  .hint { font-size:6.6pt; color:#555; margin:.8mm 0 0; }\n  .hint b { color:#111; }\n\n  /* ── клетчатое поле ── */\n  /* клетка рисуется SVG-паттерном: тонкие линии в pt при печати пропадают,\n     векторный штрих сохраняется и на бумаге виден */\n  .grid { border:1pt solid #111; position:relative;\n    background-image:\n      url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M10 0H0V10' fill='none' stroke='%23ccd5dc' stroke-width='0.6'/></svg>\"),\n      url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M10 0H0V10' fill='none' stroke='%237e909f' stroke-width='0.28'/></svg>\");\n    background-size: 5mm 5mm, 25mm 25mm;\n    background-position: 0 0, 0 0; }\n  .grid .tag { position:absolute; top:1mm; left:1.5mm; font-size:6.4pt; color:#666; background:#fff; padding:0 1mm; }\n  .grid .tagr { position:absolute; top:1mm; right:1.5mm; font-size:6.4pt; color:#666; background:#fff; padding:0 1mm; }\n\n  /* ── таблицы ── */\n  table { width:100%; border-collapse:collapse; }\n  th, td { border:.5pt solid #8b8b8b; padding:0 1.2mm; font-size:7.2pt; }\n  th { background:#eceff2; font-weight:700; font-size:6.8pt; text-align:center; height:4.6mm; line-height:1.05; }\n  td { height:4.8mm; }\n  td.lbl { background:#f7f8f9; font-weight:600; width:31mm; font-size:7pt; }\n  td.lbl small { font-weight:400; color:#666; font-size:6.2pt; }\n  .cW td { height:7mm; }\n  .num { text-align:center; color:#bbb; font-size:6.4pt; }\n\n  .cols { display:flex; gap:3mm; }\n  .cols > * { flex:1; }\n\n  .chk { font-size:7pt; white-space:nowrap; }\n  .chk b { font-weight:400; }\n\n  .lined { background-image:url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M0 10H10' fill='none' stroke='%23d5dbe0' stroke-width='0.5'/></svg>\"); background-size:100% 6mm; }\n  .persp { border:1pt solid #111; padding:1.5mm; }\n  .persp svg { display:block; width:100%; height:114mm; }\n  .pline { display:flex; gap:4mm; font-size:7pt; color:#333; padding:1.2mm .5mm 0; }\n  .pline span { white-space:nowrap; }\n  .foot { margin-top:auto; display:flex; justify-content:space-between; font-size:6.4pt; color:#777;\n          border-top:.6pt solid #ccc; padding-top:1mm; }\n\n  .fld > i { font-size:9.5pt; color:#123; padding-left:1mm; white-space:nowrap; overflow:hidden; }\n  .sub u { text-decoration:none; border-bottom:.7pt solid #999; padding:0 1mm; font-weight:600; }\n";
+var _BLK_PAGES=["<div class=\"page\">\n  <div class=\"top\">\n    <h1>ЗАМЕР КУХНИ · лист 1 — помещение</h1>\n    <div class=\"sub\">Все размеры в миллиметрах.<br>Замерять по месту установки, не «на глаз».</div>\n  </div>\n\n  <div class=\"row\">\n    <div class=\"fld\"><span>Клиент</span><i>{{client}}</i></div>\n    <div class=\"fld\" style=\"flex:.7\"><span>Телефон</span><i>{{phone}}</i></div>\n    <div class=\"fld\" style=\"flex:.45\"><span>Дата</span><i>{{date}}</i></div>\n  </div>\n  <div class=\"row\">\n    <div class=\"fld\"><span>Адрес</span><i>{{address}}</i></div>\n    <div class=\"fld\" style=\"flex:.45\"><span>Замер делал</span><i>{{who}}</i></div>\n  </div>\n\n  <div class=\"blk\">\n    <h2>1 · ПЛАН ПОМЕЩЕНИЯ, ВИД СВЕРХУ <em>1 клетка = 100 мм · крупная клетка = 500 мм</em></h2>\n    <div class=\"grid\" style=\"height:88mm\">\n      <span class=\"tag\">Стены подписать по часовой стрелке: А, Б, В, Г — от входа</span>\n    </div>\n    <p class=\"hint\">На плане отметить: <b>дверь</b> (и куда открывается), <b>окно</b>, <b>вентканал</b>, <b>трубы</b>, <b>выступы и ниши</b>, <b>батарею</b>. Стрелкой показать, где будет мойка.</p>\n  </div>\n\n  <div class=\"blk\">\n    <h2>2 · ДЛИНА СТЕН НА ТРЁХ ВЫСОТАХ <em>стена внизу и вверху почти всегда разной длины</em></h2>\n    <table>\n      <tr>\n        <th style=\"width:26mm\">Стена</th>\n        <th>у пола<br>150 мм</th>\n        <th>под столешницей<br>850 мм</th>\n        <th>у верхних шкафов<br>2000 мм</th>\n        <th style=\"width:52mm\">Что мешает / примечание</th>\n      </tr>\n      <tr><td class=\"lbl\">А</td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Б</td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">В</td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Г</td><td></td><td></td><td></td><td></td></tr>\n    </table>\n    <p class=\"hint\">В работу идёт <b>наименьшая</b> из трёх цифр — кухня встаёт по самому узкому месту.</p>\n  </div>\n\n  <div class=\"blk\">\n    <h2>3 · ПОТОЛОК, ПОЛ, УГЛЫ</h2>\n    <table>\n      <tr>\n        <th style=\"width:31mm\">Высота потолка</th>\n        <th>угол А-Б</th><th>угол Б-В</th><th>угол В-Г</th><th>угол Г-А</th>\n        <th style=\"width:26mm\">Натяжной?</th><th style=\"width:30mm\">Высота до натяжного</th>\n      </tr>\n      <tr><td class=\"lbl\">от чистого пола</td><td></td><td></td><td></td><td></td>\n          <td class=\"chk\">ДА &nbsp;/&nbsp; НЕТ</td><td></td></tr>\n    </table>\n    <table style=\"margin-top:1.2mm\">\n      <tr>\n        <th style=\"width:31mm\">Диагонали комнаты</th><th>А–В</th><th>Б–Г</th>\n        <th style=\"width:34mm\">Углы 90°?</th>\n        <th style=\"width:34mm\">Перепад пола, мм</th>\n        <th>Плинтус снимаем?</th>\n      </tr>\n      <tr><td class=\"lbl\">измерить по полу</td><td></td><td></td>\n          <td class=\"chk\">ДА / НЕТ — какие: </td><td></td><td class=\"chk\">ДА &nbsp;/&nbsp; НЕТ</td></tr>\n    </table>\n  </div>\n\n  <div class=\"blk\" style=\"margin-bottom:0\">\n    <h2>4 · РАЗВЁРТКИ СТЕН <em>вид на стену прямо · нанести розетки, трубы, окно, выступы с двумя привязками</em></h2>\n    <div class=\"cols\">\n      <div><div class=\"grid\" style=\"height:38mm\"><span class=\"tag\">СТЕНА ___</span></div></div>\n      <div><div class=\"grid\" style=\"height:38mm\"><span class=\"tag\">СТЕНА ___</span></div></div>\n    </div>\n    <div class=\"cols\" style=\"margin-top:2mm\">\n      <div><div class=\"grid\" style=\"height:38mm\"><span class=\"tag\">СТЕНА ___</span></div></div>\n      <div><div class=\"grid\" style=\"height:38mm\"><span class=\"tag\">СТЕНА ___</span></div></div>\n    </div>\n  </div>\n\n  <div class=\"foot\"><span>Бланк замера кухни · лист 1 из 3</span><span>Фото: общий вид · каждый угол · розетки · трубы · счётчики · вентканал · окно</span></div>\n</div>", "<div class=\"page\">\n  <div class=\"top\">\n    <h1>ЗАМЕР КУХНИ · лист 2</h1>\n    <div class=\"sub\" style=\"font-size:7.6pt;color:#111\">{{sub}}</div>\n  </div>\n\n  <div class=\"blk\">\n    <h2>5 · КОММУНИКАЦИИ И ПРИВЯЗКИ <em>X — по стене от угла · Y — от чистого пола</em></h2>\n    <table>\n      <tr>\n        <th style=\"width:37mm\">Что</th><th style=\"width:16mm\">Стена</th>\n        <th style=\"width:22mm\">X от угла</th><th style=\"width:22mm\">Y от пола</th>\n        <th style=\"width:20mm\">Размер</th><th>Примечание</th>\n      </tr>\n      <tr><td class=\"lbl\">Розетка 1</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Розетка 2</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Розетка 3</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Розетка 4</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Выключатель</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Вода: холодная / горячая</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Канализация <small>(центр трубы)</small></td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Газовая труба</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Газовый кран / гибкая подводка</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Вентканал <small>(решётка Ш×В)</small></td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Счётчики, короб, стояк</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Радиатор <small>(Ш×В, вылет от стены)</small></td><td></td><td></td><td></td><td></td><td></td></tr>\n    </table>\n  </div>\n\n  <div class=\"blk\">\n    <h2>6 · ОКНО, ДВЕРЬ, НИША, ВЫСТУП</h2>\n    <table>\n      <tr>\n        <th style=\"width:34mm\">Объект</th><th>Ширина</th><th>Высота</th>\n        <th style=\"width:30mm\">От пола / от угла</th><th style=\"width:26mm\">Вылет, глубина</th><th>Примечание</th>\n      </tr>\n      <tr><td class=\"lbl\">Окно + подоконник</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Дверной проём</td><td></td><td></td><td></td><td></td><td class=\"chk\">открывается: В КУХНЮ / ИЗ КУХНИ</td></tr>\n      <tr><td class=\"lbl\">Ниша / выступ 1</td><td></td><td></td><td></td><td></td><td></td></tr>\n      <tr><td class=\"lbl\">Ниша / выступ 2</td><td></td><td></td><td></td><td></td><td></td></tr>\n    </table>\n    <p class=\"hint\">Материал стен: <b>кирпич / бетон / гипсокартон / дерево</b> — нужное подчеркнуть (от него зависит крепёж верхних шкафов).</p>\n  </div>\n\n  <div class=\"blk\">\n    <h2>7 · ТЕХНИКА <em>без модели и габаритов кухню не рассчитать</em></h2>\n    <table>\n      <tr>\n        <th style=\"width:34mm\">Вид</th><th style=\"width:24mm\">Есть?</th>\n        <th>Марка и модель</th><th style=\"width:34mm\">Ш × Г × В, мм</th><th style=\"width:26mm\">Куплена?</th>\n      </tr>\n      <tr><td class=\"lbl\">Холодильник</td><td class=\"chk\">встр. / отдельно</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Варочная панель</td><td class=\"chk\">газ / электро</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Духовой шкаф</td><td class=\"chk\">ДА / НЕТ</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">СВЧ встраиваемая</td><td class=\"chk\">ДА / НЕТ</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Вытяжка</td><td class=\"chk\">встр. / купол</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Посудомоечная машина</td><td class=\"chk\">45 / 60 см</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Стиральная машина</td><td class=\"chk\">ДА / НЕТ</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Мойка</td><td class=\"chk\">врезная / под столешн.</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Смеситель / фильтр</td><td class=\"chk\">ДА / НЕТ</td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Ещё</td><td></td><td></td><td></td><td class=\"chk\">ДА / НЕТ</td></tr>\n    </table>\n  </div>\n\n  <div class=\"blk\" style=\"margin-bottom:1mm\">\n    <h2>8 · КОМПЛЕКТАЦИЯ КУХНИ</h2>\n    <table>\n      <tr><td class=\"lbl\">Столешница</td><td colspan=\"2\"><span style=\"font-size:6pt;color:#888\">материал, толщина:</span></td><td class=\"lbl\" style=\"width:26mm\">Глубина</td><td></td><td class=\"lbl\" style=\"width:24mm\">Кромка</td><td></td></tr>\n      <tr><td class=\"lbl\">Фартук</td><td colspan=\"2\"><span style=\"font-size:6pt;color:#888\">материал:</span></td><td class=\"lbl\">Высота</td><td></td><td class=\"lbl\">Плинтус</td><td class=\"chk\">ДА / НЕТ</td></tr>\n      <tr><td class=\"lbl\">Нижние шкафы</td><td colspan=\"2\"><span style=\"font-size:6pt;color:#888\">глубина:</span></td><td class=\"lbl\">Цоколь, мм</td><td></td><td class=\"lbl\">Ножки</td><td></td></tr>\n      <tr><td class=\"lbl\">Верхние шкафы</td><td colspan=\"2\"><span style=\"font-size:6pt;color:#888\">высота:</span></td><td class=\"lbl\">До потолка</td><td class=\"chk\">ДА / НЕТ</td><td class=\"lbl\">Глубина</td><td></td></tr>\n      <tr><td class=\"lbl\">Фасады</td><td colspan=\"2\"><span style=\"font-size:6pt;color:#888\">материал, цвет:</span></td><td class=\"lbl\">Ручки</td><td></td><td class=\"lbl\">Петли</td><td class=\"chk\">с доводч. / без</td></tr>\n      <tr><td class=\"lbl\">Подсветка</td><td colspan=\"2\" class=\"chk\">ДА / НЕТ <span style=\"font-size:6pt;color:#888\">какая:</span></td><td class=\"lbl\">Сушилка</td><td></td><td class=\"lbl\">Мусорка</td><td class=\"chk\">ДА / НЕТ</td></tr>\n    </table>\n  </div>\n\n  <div class=\"blk\" style=\"margin-bottom:0\">\n    <h2>9 · ПРИМЕЧАНИЯ И ПОЖЕЛАНИЯ КЛИЕНТА</h2>\n    <div class=\"lined\" style=\"border:1pt solid #111;height:42mm\"></div>\n  </div>\n\n  <div class=\"foot\"><span>Бланк замера кухни · лист 2 из 3</span><span>Перед уходом сверить с клиентом: техника · мойка · розетки · сроки</span></div>\n</div>", "<div class=\"page\">\n  <div class=\"top\">\n    <h1>ЗАМЕР КУХНИ · лист 3 — перспектива</h1>\n    <div class=\"sub\" style=\"font-size:7.6pt;color:#111\">{{sub}}</div>\n  </div>\n\n  <div class=\"blk\">\n    <h2>10 · РАКУРС 1 — вид от входа <em>рисовать мебель по клеткам · размеры выносить за габарит комнаты</em></h2>\n    <div class=\"persp\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-4 -4 1008.0 608.0\" width=\"100%\" height=\"100%\" preserveAspectRatio=\"none\"><g stroke=\"#cbd5dd\" stroke-width=\"1\" fill=\"none\" stroke-linecap=\"square\"><path d=\"M125.0 600.0L312.5 438.0\"/><path d=\"M125.0 0.0L312.5 138.0\"/><path d=\"M250.0 600.0L375.0 438.0\"/><path d=\"M250.0 0.0L375.0 138.0\"/><path d=\"M375.0 600.0L437.5 438.0\"/><path d=\"M375.0 0.0L437.5 138.0\"/><path d=\"M500.0 600.0L500.0 438.0\"/><path d=\"M500.0 0.0L500.0 138.0\"/><path d=\"M625.0 600.0L562.5 438.0\"/><path d=\"M625.0 0.0L562.5 138.0\"/><path d=\"M750.0 600.0L625.0 438.0\"/><path d=\"M750.0 0.0L625.0 138.0\"/><path d=\"M875.0 600.0L687.5 438.0\"/><path d=\"M875.0 0.0L687.5 138.0\"/><path d=\"M0.0 120.0L250.0 198.0\"/><path d=\"M1000.0 120.0L750.0 198.0\"/><path d=\"M0.0 240.0L250.0 258.0\"/><path d=\"M1000.0 240.0L750.0 258.0\"/><path d=\"M0.0 360.0L250.0 318.0\"/><path d=\"M1000.0 360.0L750.0 318.0\"/><path d=\"M0.0 480.0L250.0 378.0\"/><path d=\"M1000.0 480.0L750.0 378.0\"/><path d=\"M312.5 138.0L312.5 438.0\"/><path d=\"M375.0 138.0L375.0 438.0\"/><path d=\"M437.5 138.0L437.5 438.0\"/><path d=\"M500.0 138.0L500.0 438.0\"/><path d=\"M562.5 138.0L562.5 438.0\"/><path d=\"M625.0 138.0L625.0 438.0\"/><path d=\"M687.5 138.0L687.5 438.0\"/><path d=\"M250.0 198.0L750.0 198.0\"/><path d=\"M250.0 258.0L750.0 258.0\"/><path d=\"M250.0 318.0L750.0 318.0\"/><path d=\"M250.0 378.0L750.0 378.0\"/></g><g stroke=\"#b3c0cb\" stroke-width=\"1.1\" fill=\"none\" stroke-linecap=\"square\"><path d=\"M83.3 546.0L916.7 546.0\"/><path d=\"M83.3 46.0L916.7 46.0\"/><path d=\"M83.3 46.0L83.3 546.0\"/><path d=\"M916.7 46.0L916.7 546.0\"/><path d=\"M142.9 507.4L857.1 507.4\"/><path d=\"M142.9 78.9L857.1 78.9\"/><path d=\"M142.9 78.9L142.9 507.4\"/><path d=\"M857.1 78.9L857.1 507.4\"/><path d=\"M187.5 478.5L812.5 478.5\"/><path d=\"M187.5 103.5L812.5 103.5\"/><path d=\"M187.5 103.5L187.5 478.5\"/><path d=\"M812.5 103.5L812.5 478.5\"/><path d=\"M222.2 456.0L777.8 456.0\"/><path d=\"M222.2 122.7L777.8 122.7\"/><path d=\"M222.2 122.7L222.2 456.0\"/><path d=\"M777.8 122.7L777.8 456.0\"/></g><g stroke=\"#33424f\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"square\"><path d=\"M0.0 0.0L1000.0 0.0\"/><path d=\"M250.0 138.0L750.0 138.0\"/><path d=\"M0.0 0.0L250.0 138.0\"/><path d=\"M1000.0 0.0L1000.0 600.0\"/><path d=\"M750.0 138.0L750.0 438.0\"/><path d=\"M1000.0 0.0L750.0 138.0\"/><path d=\"M1000.0 600.0L0.0 600.0\"/><path d=\"M750.0 438.0L250.0 438.0\"/><path d=\"M1000.0 600.0L750.0 438.0\"/><path d=\"M0.0 600.0L0.0 0.0\"/><path d=\"M250.0 438.0L250.0 138.0\"/><path d=\"M0.0 600.0L250.0 438.0\"/></g></svg></div>\n    <div class=\"pline\">\n      <span>Стена слева: ______</span><span>Стена напротив: ______</span><span>Стена справа: ______</span>\n      <span>Высота потолка: ____________</span>\n    </div>\n  </div>\n\n  <div class=\"blk\" style=\"margin-bottom:0\">\n    <h2>11 · РАКУРС 2 — вид от _______________ <em>второй угол зрения: окно, вход, обеденная зона</em></h2>\n    <div class=\"persp\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-4 -4 1008.0 608.0\" width=\"100%\" height=\"100%\" preserveAspectRatio=\"none\"><g stroke=\"#cbd5dd\" stroke-width=\"1\" fill=\"none\" stroke-linecap=\"square\"><path d=\"M125.0 600.0L312.5 438.0\"/><path d=\"M125.0 0.0L312.5 138.0\"/><path d=\"M250.0 600.0L375.0 438.0\"/><path d=\"M250.0 0.0L375.0 138.0\"/><path d=\"M375.0 600.0L437.5 438.0\"/><path d=\"M375.0 0.0L437.5 138.0\"/><path d=\"M500.0 600.0L500.0 438.0\"/><path d=\"M500.0 0.0L500.0 138.0\"/><path d=\"M625.0 600.0L562.5 438.0\"/><path d=\"M625.0 0.0L562.5 138.0\"/><path d=\"M750.0 600.0L625.0 438.0\"/><path d=\"M750.0 0.0L625.0 138.0\"/><path d=\"M875.0 600.0L687.5 438.0\"/><path d=\"M875.0 0.0L687.5 138.0\"/><path d=\"M0.0 120.0L250.0 198.0\"/><path d=\"M1000.0 120.0L750.0 198.0\"/><path d=\"M0.0 240.0L250.0 258.0\"/><path d=\"M1000.0 240.0L750.0 258.0\"/><path d=\"M0.0 360.0L250.0 318.0\"/><path d=\"M1000.0 360.0L750.0 318.0\"/><path d=\"M0.0 480.0L250.0 378.0\"/><path d=\"M1000.0 480.0L750.0 378.0\"/><path d=\"M312.5 138.0L312.5 438.0\"/><path d=\"M375.0 138.0L375.0 438.0\"/><path d=\"M437.5 138.0L437.5 438.0\"/><path d=\"M500.0 138.0L500.0 438.0\"/><path d=\"M562.5 138.0L562.5 438.0\"/><path d=\"M625.0 138.0L625.0 438.0\"/><path d=\"M687.5 138.0L687.5 438.0\"/><path d=\"M250.0 198.0L750.0 198.0\"/><path d=\"M250.0 258.0L750.0 258.0\"/><path d=\"M250.0 318.0L750.0 318.0\"/><path d=\"M250.0 378.0L750.0 378.0\"/></g><g stroke=\"#b3c0cb\" stroke-width=\"1.1\" fill=\"none\" stroke-linecap=\"square\"><path d=\"M83.3 546.0L916.7 546.0\"/><path d=\"M83.3 46.0L916.7 46.0\"/><path d=\"M83.3 46.0L83.3 546.0\"/><path d=\"M916.7 46.0L916.7 546.0\"/><path d=\"M142.9 507.4L857.1 507.4\"/><path d=\"M142.9 78.9L857.1 78.9\"/><path d=\"M142.9 78.9L142.9 507.4\"/><path d=\"M857.1 78.9L857.1 507.4\"/><path d=\"M187.5 478.5L812.5 478.5\"/><path d=\"M187.5 103.5L812.5 103.5\"/><path d=\"M187.5 103.5L187.5 478.5\"/><path d=\"M812.5 103.5L812.5 478.5\"/><path d=\"M222.2 456.0L777.8 456.0\"/><path d=\"M222.2 122.7L777.8 122.7\"/><path d=\"M222.2 122.7L222.2 456.0\"/><path d=\"M777.8 122.7L777.8 456.0\"/></g><g stroke=\"#33424f\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"square\"><path d=\"M0.0 0.0L1000.0 0.0\"/><path d=\"M250.0 138.0L750.0 138.0\"/><path d=\"M0.0 0.0L250.0 138.0\"/><path d=\"M1000.0 0.0L1000.0 600.0\"/><path d=\"M750.0 138.0L750.0 438.0\"/><path d=\"M1000.0 0.0L750.0 138.0\"/><path d=\"M1000.0 600.0L0.0 600.0\"/><path d=\"M750.0 438.0L250.0 438.0\"/><path d=\"M1000.0 600.0L750.0 438.0\"/><path d=\"M0.0 600.0L0.0 0.0\"/><path d=\"M250.0 438.0L250.0 138.0\"/><path d=\"M0.0 600.0L250.0 438.0\"/></g></svg></div>\n    <div class=\"pline\">\n      <span>Стена слева: ______</span><span>Стена напротив: ______</span><span>Стена справа: ______</span>\n      <span>Высота потолка: ____________</span>\n    </div>\n  </div>\n\n  <div class=\"foot\"><span>Бланк замера кухни · лист 3 из 3 — печатать по необходимости</span><span>Размеры проверять по листу 1: там они главные</span></div>\n</div>"];
+function _blkFill(tpl,d){
+  var sub='Клиент: '+(d.client?'<u>'+esc(d.client)+'</u>':'______________________________')
+    +' &nbsp; Дата: '+(d.date?'<u>'+esc(d.date)+'</u>':'______________');
+  return tpl.replace(/\{\{(\w+)\}\}/g,function(m,k){return k==='sub'?sub:esc(d[k]||'');});
+}
+function measureBlankHtml(d,sheets){
+  d=d||{};sheets=(sheets&&sheets.length)?sheets:[1,2,3];
+  var pages=sheets.map(function(n){return _blkFill(_BLK_PAGES[n-1],d);}).join('\n');
+  return '<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Бланк замера кухни</title><style>'
+    +_BLK_CSS+'</style></head><body>'+pages+'</body></html>';
+}
+// Окно «📐 Бланки»: из меню (пустой бланк) или из заказа (с данными клиента)
+var _blkLastOrder=null;
+function openBlanks(orderId){
+  var o=orderId!=null&&typeof allOrders!=='undefined'?allOrders.find(function(x){return String(x.id)===String(orderId);}):null;
+  _blkLastOrder=o?o.id:null;
+  var m=document.getElementById('modal-blanks');
+  if(!m){m=document.createElement('div');m.id='modal-blanks';m.className='modal-bg';
+    m.onclick=function(e){if(e.target===m)closeModal('modal-blanks');};document.body.appendChild(m);}
+  var who='';try{who=_whoName()||'';}catch(e){}
+  var ph=o?[o.client_phone,o.client_phone2].filter(Boolean).join(', '):'';
+  function inp(id,lbl,val,ph2){return '<label style="display:block;font-size:12px;color:#666;margin:6px 0 2px">'+lbl+'</label>'
+    +'<input id="'+id+'" class="input" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px" value="'+esc(val||'')+'" placeholder="'+(ph2||'пусто — впишут от руки')+'">';}
+  function chk(n,t,on){return '<label style="display:block;margin:5px 0;font-size:14px;cursor:pointer"><input type="checkbox" id="blk-s'+n+'"'+(on?' checked':'')+'> '+t+'</label>';}
+  m.innerHTML='<div class="modal" style="max-width:460px"><div class="modal-title">📐 Бланк замера кухни'+(o?' · заказ №'+esc(o.order_number||o.id):'')+'</div>'
+    +'<div style="font-size:12.5px;color:#555;margin-bottom:6px">3 листа A4. Работает и без интернета. Поля ниже можно оставить пустыми.</div>'
+    +inp('blk-client','Клиент',o?o.client_name:'')
+    +inp('blk-phone','Телефон',ph)
+    +inp('blk-address','Адрес',o?o.client_address:'')
+    +'<div style="display:flex;gap:8px"><div style="flex:1">'+inp('blk-date','Дата замера','')+'</div><div style="flex:1">'+inp('blk-who','Замер делал',who)+'</div></div>'
+    +'<div style="margin:10px 0 4px;font-size:12px;color:#666">Какие листы печатать</div>'
+    +chk(1,'Лист 1 — план помещения, стены, развёртки',true)
+    +chk(2,'Лист 2 — коммуникации, окно/дверь, техника, комплектация',true)
+    +chk(3,'Лист 3 — перспектива (по необходимости)',true)
+    +'<div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-primary" style="flex:1" onclick="printBlanks()">🖨 Печать</button>'
+    +'<button class="btn btn-outline" onclick="closeModal(\'modal-blanks\')">Отмена</button></div></div>';
+  m.classList.add('open');
+}
+function printBlanks(){
+  function v(id){var e=document.getElementById(id);return e?e.value.trim():'';}
+  var sheets=[1,2,3].filter(function(n){var e=document.getElementById('blk-s'+n);return e&&e.checked;});
+  if(!sheets.length){toast('Отметьте хотя бы один лист','err');return;}
+  var d={client:v('blk-client'),phone:v('blk-phone'),address:v('blk-address'),date:v('blk-date'),who:v('blk-who')};
+  closeModal('modal-blanks');
+  _vdOpenPrint(measureBlankHtml(d,sheets));
+}
 function askDelete(id){
   if(!ownerOnly('Удаление заказов'))return; // v7.60: база тоже не даст (SQL 7.16)
   var order=allOrders.find(function(o){return o.id===id;});
@@ -12885,6 +12964,7 @@ function _draftSave(){
       qty:parseInt(qtyEl&&qtyEl.value)||1,avail:(avEl&&avEl.value)||'Есть',
       opt:(ib&&ib.dataset.opt)||'',ret:(ib&&ib.dataset.ret)||'',
       manual:(ib&&ib.dataset.manual==='1')?((document.getElementById('fi-manual-'+i)||{}).value||''):'',
+      manopt:(document.getElementById('fi-manopt-'+i)||{}).value||'',
       price:itemPrices[i]||0});
   }
   var any=(d.f['f-client']||'').trim()||(d.f['f-notes']||'').trim()||d.items.length;
@@ -12944,6 +13024,7 @@ function restoreDraft(){
     if(it.manual){
       if(ib)ib.dataset.manual='1';
       document.getElementById('fi-manual-'+id2).value=it.manual;
+      if(it.manopt){var _mo2=document.getElementById('fi-manopt-'+id2);if(_mo2)_mo2.value=it.manopt;}
       var mw=document.getElementById('manual-wrap-'+id2);if(mw)mw.style.display='block';
     }
     itemPrices[id2]=it.price||0;
@@ -13053,8 +13134,18 @@ function addFormItem(){
       '<a href="#" style="font-size:12px;color:var(--text2)" onclick="collapseItem('+id+');return false">⌃ свернуть</a>'+
     '</div>'+
     '<div id="manual-wrap-'+id+'" style="display:none;margin-top:8px;padding:8px 10px;background:#FFF8E1;border:1.5px solid #FFB74D;border-radius:6px">'+
-      '<div style="font-size:11px;color:#E65100;font-weight:500;margin-bottom:4px">✏️ Ввести розничную цену вручную:</div>'+
-      '<input type="number" id="fi-manual-'+id+'" placeholder="Цена за 1 шт (₽)" min="0" style="padding:6px 10px;font-size:13px;border:1px solid #FFB74D;border-radius:5px;background:#fff;width:200px" oninput="onManualPrice('+id+')">'+
+      '<div style="font-size:11px;color:#E65100;font-weight:500;margin-bottom:4px">✏️ Цена вручную — за 1 шт.:</div>'+
+      // v8.2: рядом — закупка (опт). Раньше её не было, и приложение выдумывало опт
+      // из розницы (цена ÷ наценку) — прибыль по таким позициям всегда выходила ровно
+      // «наценкой», а не настоящей.
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'+
+        '<div><div style="font-size:10.5px;color:var(--text2)">Цена продажи, ₽</div>'+
+        '<input type="number" id="fi-manual-'+id+'" placeholder="Цена за 1 шт (₽)" min="0" style="padding:6px 10px;font-size:13px;border:1px solid #FFB74D;border-radius:5px;background:#fff;width:160px" oninput="onManualPrice('+id+')"></div>'+
+        '<div><div style="font-size:10.5px;color:var(--text2)">Закупка (опт), ₽ <b style="color:#c62828">*</b></div>'+
+        '<input type="number" id="fi-manopt-'+id+'" placeholder="по накладной / счёту" min="0" style="padding:6px 10px;font-size:13px;border:1px solid #FFB74D;border-radius:5px;background:#fff;width:160px" oninput="onManualOpt('+id+')"></div>'+
+        '<a href="#" style="font-size:12px;color:#1565C0;padding-bottom:7px" onclick="manualFromOpt('+id+');return false" title="Посчитать цену продажи от закупки по вашей наценке">= цена по наценке</a>'+
+      '</div>'+
+      '<div id="fi-man-hint-'+id+'" style="font-size:11px;color:var(--text2);margin-top:4px"></div>'+
     '</div>'+
     '</div>';
   document.getElementById('form-items').appendChild(div);
@@ -13208,7 +13299,7 @@ function duplicateFormItem(id){
     supLabel:((document.getElementById('sup-lbl-'+id)||{}).textContent||''),
     qty:isFabric?v('fi-qty-'):v('fi-qty2-'),
     avail:isFabric?v('fi-avail-cat-'):v('fi-avail-'),
-    manual:v('fi-manual-'),
+    manual:v('fi-manual-'),manopt:v('fi-manopt-'),
     catOptions:srcCat?srcCat.innerHTML:'',catValue:srcCat?srcCat.value:'',
     catPrices:srcCat?srcCat.dataset.prices:'',catCats:srcCat?srcCat.dataset.cats:'',
     optData:src.dataset.opt,retData:src.dataset.ret,manualFlag:src.dataset.manual,
@@ -13250,6 +13341,7 @@ function duplicateFormItem(id){
   if(data.manual){
     var mw=document.getElementById('manual-wrap-'+n);if(mw)mw.style.display='block';
     set('fi-manual-',data.manual);
+    if(data.manopt)set('fi-manopt-',data.manopt);
   }
   itemPrices[n]=data.price;
   var retEl=document.getElementById('fi-ret-'+n);
@@ -13495,6 +13587,7 @@ function calcItemPrice(id){
 }
 
 function onManualPrice(id){
+  setTimeout(function(){if(typeof _manHint==='function')_manHint(id);},0); // v8.2
   // v6.9.1: цена за штуку × количество; обновляется прямо при вводе
   var val=parseFloat(document.getElementById('fi-manual-'+id).value)||0;
   var ib=document.getElementById('ib-'+id);
@@ -13606,7 +13699,7 @@ function saveOrder(){
     var isManual=(ib&&ib.dataset.manual==='1')
       ||(manualVal>0&&!(catSel&&catSel.value)&&!(parseFloat(ib&&ib.dataset.opt)||0));
     var qty=catSel&&catSel.value?(parseInt(document.getElementById('fi-qty-'+i).value)||1):(parseInt(document.getElementById('fi-qty2-'+i).value)||1);
-    var ret,opt;
+    var ret,opt,_needOpt=false;
     var isFabric=catSel&&catSel.value;
     // v7.98: образец с витрины — закупка по накладной, даже при своей цене
     var srSample=!!(ib&&ib.dataset.srId&&ib.dataset.srMode==='sample');
@@ -13615,8 +13708,13 @@ function saveOrder(){
     }
     if(isManual&&manualVal>0){
       // v6.9.1: ручная цена за штуку → итог строки = цена × кол-во
-      ret=Math.round(manualVal*qty);opt=optFromRetail(manualVal);
-      if(srSample&&(parseFloat(ib.dataset.opt)||0)>0)opt=parseFloat(ib.dataset.opt);
+      ret=Math.round(manualVal*qty);
+      // v8.2: закупка — вписанная продавцом; иначе известная (из прайса, витрины,
+      // комплекта); выдумывать её из розницы больше нельзя — прибыль врала
+      var _mo=parseFloat((document.getElementById('fi-manopt-'+i)||{}).value)||0;
+      var _ko=parseFloat(ib&&ib.dataset.opt)||0;
+      opt=_mo>0?_mo:(_ko>0?_ko:0);
+      var _needOpt=!(opt>0)&&!srSample;
     }else if(isFabric){
       ret=itemPrices[i]||0;opt=optFromRetail(ret/qty);
     }else{
@@ -13638,6 +13736,7 @@ function saveOrder(){
     // недосчитанным. Обычно это значит, что модель вписали руками и не выбрали
     // из прайса, а ручную цену не поставили.
     if(!(ret>0))itemMissing.push('Цена (выберите товар из прайса или впишите цену вручную)');
+    if(isManual&&manualVal>0&&_needOpt)itemMissing.push('Закупка (опт) — впишите рядом с ценой, иначе прибыль посчитается неверно');
     if(itemMissing.length){
       itemErrors.push('Товар '+i+' ('+model+'): не заполнено — '+itemMissing.join(', '));
       expandItem(i);
@@ -14224,6 +14323,25 @@ function _delivPaidShow(prepay,delivery,paid){
       +'Всего взять сейчас: <b>'+fmt(gotNow)+' ₽</b>'+(prepay>0?' (предоплата за товар '+fmt(prepay)+' + '+fmt(delivery)+')':'')+'. '
       +'В «Учёте» это будет отдельная строка «доставка при оформлении», в договоре — «оплачена при оформлении».</span>'
     :'<span style="color:#8a5a18">⏳ Стоимость '+lbl+' — '+fmt(delivery)+' ₽ — клиент платит при получении, она входит в «Долг клиента».</span>';
+}
+
+// ═══ v8.2: ЗАКУПКА У ПОЗИЦИИ С РУЧНОЙ ЦЕНОЙ ═══════════════════════════
+function _manHint(id){
+  var h=document.getElementById('fi-man-hint-'+id);if(!h)return;
+  var p=parseFloat((document.getElementById('fi-manual-'+id)||{}).value)||0;
+  var o=parseFloat((document.getElementById('fi-manopt-'+id)||{}).value)||0;
+  var ib=document.getElementById('ib-'+id),ko=parseFloat(ib&&ib.dataset.opt)||0;
+  if(p>0&&o>0)h.innerHTML='наценка <b>'+Math.round((p/o-1)*100)+'%</b> · прибыль с 1 шт. <b>'+fmt(Math.round(p-o))+' ₽</b>';
+  else if(p>0&&!o&&ko>0)h.textContent='закупка из прайса: '+fmt(Math.round(ko))+' ₽ (можно вписать свою)';
+  else if(p>0&&!o)h.innerHTML='<span style="color:#c62828">впишите закупку — без неё заказ не сохранится</span>';
+  else h.textContent='';
+}
+function onManualOpt(id){_manHint(id);if(typeof _draftArm==='function')_draftArm(700);}
+function manualFromOpt(id){
+  var o=parseFloat((document.getElementById('fi-manopt-'+id)||{}).value)||0;
+  if(!(o>0)){toast('Сначала впишите закупку (опт)','err');return;}
+  var m=document.getElementById('fi-manual-'+id);if(m)m.value=retailFromOpt(o);
+  onManualPrice(id);
 }
 // v7.57: грузим ПОРЦИЯМИ. Раньше просили 2500 одним запросом, а сервер отдаёт
 // максимум 1000 и об обрезке не сообщает: в базе 2106 клиентов, список обрывался
@@ -15538,6 +15656,11 @@ function runDataCheck(){
     {key:'total',   title:'Итог заказа не сходится с суммой позиций',
      why:'Обычно это след старого расчёта «по строке»: цена за штуку сохранялась округлённой, и произведение переставало совпадать с итогом. Расхождение почти всегда в рубли, но именно из-за него аналитика и печать могли показывать разные суммы.',
      rows:[]},
+    // v8.2: цена вписана вручную, а опт приложение посчитало из неё по наценке —
+    // настоящей закупки нет, прибыль по позиции выдуманная
+    {key:'estopt',  title:'Закупка не настоящая — посчитана от цены (цена вписана вручную)',
+     why:'До версии 8.2 у позиций с ручной ценой приложение само выводило опт из розницы по наценке — прибыль по ним всегда равна наценке. Впишите настоящую закупку: цена для клиента и договор не изменятся, поправится только прибыль.',
+     rows:[]},
     {key:'noopt',   title:'Не записана оптовая цена',
      why:'Прибыль и маржа по этим заказам в аналитике занижены: приложение считает, что товар достался бесплатно.',
      rows:[]},
@@ -15570,6 +15693,8 @@ function runDataCheck(){
       var pr=+it.price_retail||0, pd=(it.price_discounted!=null?+it.price_discounted:pr);
       sumRet+=pr*q;sumDisc+=pd*q;
       if(pr>0&&!(+it.price_opt>0))G.noopt.rows.push({num:num,note:(it.product_name||'позиция')+' · '+fmt(pr)+' ₽'});
+      else if(!isCancelled(o)&&_optLooksEstimated(it))G.estopt.rows.push({num:num,itemId:it.id,askOpt:true,cur:+it.price_opt,name:it.product_name||'',
+        note:(it.product_name||'позиция')+' · цена '+fmt(pr)+' ₽ · опт «по наценке» '+fmt(Math.round(+it.price_opt))+' ₽'});
       else if(+it.price_opt>0&&+it.price_opt>=pr&&pr>0){
         // v7.58: узнаём почерк старой ошибки — опт посчитан от ВСЕЙ СТРОКИ, а не
         // за штуку. Признак: опт ÷ количество даёт ровно ту оптовую цену, которую
@@ -15604,6 +15729,7 @@ function runDataCheck(){
       G.overpay.rows.push({num:num,note:'предоплата '+fmt(o.prepayment)+' ₽ при товарах '+fmt(_g)+' ₽'
         +(_dl>0?' и доставке '+fmt(_dl)+' ₽':'')+' — лишних '+fmt(_ov)+' ₽'});
   });
+  var finish=function(){
   var bad=groups.reduce(function(s,g){return s+g.rows.length;},0);
   // v7.58: сверка «Учёт против Аналитики». Обе цифры считаются разными путями и
   // сегодня сходятся — но если разойдутся, владелец узнает об этом случайно.
@@ -15623,16 +15749,19 @@ function runDataCheck(){
         +'<div style="font-weight:700;font-size:13px">⚠️ '+esc(g.title)+' — '+g.rows.length+' в '+nOrders+' заказ'+_dcWord(nOrders)+'</div>'
         +'<div style="font-size:11.5px;color:var(--text2);margin:4px 0 7px;line-height:1.5">'+esc(g.why)+'</div>'
         +'<div style="font-size:12px;line-height:1.7">'
-        +g.rows.slice(0,25).map(function(r){
+        +g.rows.slice(0,g.key==='estopt'?200:25).map(function(r){
           // v7.58: если приложение точно знает, каким должен быть опт, — даёт кнопку.
           // Раньше отчёт только показывал беду, а править нужно было руками в карточке.
+          if(r.askOpt&&r.itemId)return '<div style="padding:2px 0"><span style="color:#1565C0;cursor:pointer;text-decoration:underline" onclick="openOrderByNumber(\''+String(r.num).replace(/'/g,"\\'")+'\')">№ '+esc(r.num)+'</span> — '+esc(r.note)
+            +' <input type="number" min="0" placeholder="настоящий опт" id="eo-'+r.itemId+'" style="width:110px;padding:2px 6px;font-size:12px">'
+            +' <button class="pl pl-warn" onclick="var v=parseFloat(document.getElementById(\'eo-'+r.itemId+'\').value);if(!(v>0)){toast(\'Впишите закупку\',\'err\');return;}fixItemOpt('+r.itemId+',v,this)">✔ записать</button></div>';
           var _btn=(r.fixOpt&&r.itemId)
             ?' <button class="pl pl-warn" style="margin-left:4px" title="Записать оптовую цену за штуку. Цена для клиента не изменится" '
               +'onclick="fixItemOpt('+r.itemId+','+r.fixOpt+',this)">✔ поправить опт на '+fmt(r.fixOpt)+' ₽</button>'
             :'';
           return '<div style="padding:2px 0"><span style="color:#1565C0;cursor:pointer;text-decoration:underline" onclick="openOrderByNumber(\''+String(r.num).replace(/'/g,"\\'")+'\')">№ '+esc(r.num)+'</span> — '+esc(r.note)+_btn+'</div>';
         }).join('')
-        +(g.rows.length>25?'<div style="color:var(--text2)">…и ещё '+(g.rows.length-25)+'</div>':'')
+        +(g.rows.length>(g.key==='estopt'?200:25)?'<div style="color:var(--text2)">…и ещё '+(g.rows.length-(g.key==='estopt'?200:25))+'</div>':'')
         +'</div></div>';
     });
     html+='<div style="font-size:11.5px;color:var(--text2);line-height:1.5;padding-top:6px;border-top:1px solid var(--border)">'
@@ -15641,6 +15770,25 @@ function runDataCheck(){
   }
   box.innerHTML=html;
   if(btn){btn.disabled=false;btn.innerHTML='🔍 Проверить заказы';}
+  };
+  // v8.2: «опт по наценке» бывает и у настоящего товара из прайса (круглая
+  // закупка). Сверяем с загруженными прайсами: есть товар с тем же названием и
+  // той же закупкой — значит, опт настоящий, не спрашиваем.
+  if(G.estopt.rows.length)_estoptFilter(G.estopt.rows).then(function(r){G.estopt.rows=r;finish();},function(){finish();});
+  else finish();
+}
+function _estoptFilter(rows){
+  var names=[],seen={};
+  rows.forEach(function(r){var n=String(r.name||'');if(n&&!seen[n]){seen[n]=1;names.push(n);}});
+  var chunks=[];for(var i=0;i<names.length;i+=25)chunks.push(names.slice(i,i+25));
+  return Promise.all(chunks.map(function(c){
+    var list=c.map(function(n){return '"'+n.replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'"';}).join(',');
+    return sbGet('price_items','select=product_name,price_opt&product_name=in.('+encodeURIComponent(list)+')&limit=1000').catch(function(){return [];});
+  })).then(function(res){
+    var known={};
+    res.forEach(function(arr){(arr||[]).forEach(function(p){(known[p.product_name]=known[p.product_name]||[]).push(+p.price_opt||0);});});
+    return rows.filter(function(r){var k=known[r.name]||[];return !k.some(function(x){return Math.abs(x-r.cur)<=1;});});
+  });
 }
 function _dcWord(n){
   var n1=n%10,n2=n%100;
@@ -15780,6 +15928,14 @@ function _crossCheckMoney(){
   if(!строк.length)return {html:''};
   return {html:'<div style="background:#fbf0e2;border:1px solid #e6c284;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.55;color:#8a5a18">'
     +'<strong>⚖️ Сверка денег</strong><br>'+строк.join('<br>')+'</div>', долг:долгПоЗаказам};
+}
+
+// v8.2: опт у позиции «посчитан от цены»: ровно цена ÷ наценку (так приложение
+// делало до 8.2 для ручной цены). Образцы с витрины не трогаем — у них закупка своя.
+function _optLooksEstimated(it){
+  var pr=+it.price_retail||0,op=+it.price_opt||0;
+  if(!(pr>0)||!(op>0)||it.showroom_item_id)return false;
+  return Math.abs(op-optFromRetail(pr))<=1;
 }
 // ═══ v7.48: СПРАВОЧНИК ДОСТАВКИ ПО НАСЕЛЁННЫМ ПУНКТАМ ═══════════════════
 // До этого прейскурант был бумажным листом на прилавке: печатные цены и
