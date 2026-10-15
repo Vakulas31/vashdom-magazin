@@ -372,10 +372,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <!-- v7.50: справочник доставки — отдельный пункт меню, а не поле в заказе.
        Стоит последним: showPage подсвечивает кнопки по порядку страниц. -->
   <button class="nav-btn" onclick="openShipList()">🚚 Кому отвезти</button>
+  <button class="nav-btn" id="nav-factory" onclick="openFactoryList()">🏭 Фабрики</button>
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.5</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.6</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -398,6 +399,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <!-- v7.29: просрочка = срок доставки прошёл, а заказ не выполнен. По ст. 23.1
          закона о защите прав потребителей это пеня 0,5 % предоплаты за каждый день -->
     <span class="chip" id="chip-late" style="background:#f8eae7;color:#9c3b2e;display:none" data-chip="late" onclick="setChip('late')">⏰ Просрочено</span>
+    <!-- v8.6: товар, не заказанный на фабрике, и задержки фабрик — открывают список, а не фильтр -->
+    <span class="chip" id="chip-notordered" style="background:#f8eae7;color:#9c3b2e;display:none" onclick="openFactoryList('need')" title="Товар по действующим заказам ещё не заказан на фабрике">🏭 Не заказано</span>
+    <span class="chip" id="chip-factlate" style="background:#f8eae7;color:#9c3b2e;display:none" onclick="openFactoryList('late')" title="Срок, который назвала фабрика, прошёл">⏰ Фабрика задерживает</span>
     <span class="chip" style="background:#eef1f5;color:#5b6270" data-chip="done" onclick="setChip('done')">🏁 Архив</span>
     <!-- v7.75: отменённые заказы — отдельно от архива выполненных -->
     <span class="chip" id="chip-cancelled" style="background:#eef1f5;color:#6b7280;display:none" data-chip="cancelled" onclick="setChip('cancelled')">❌ Отменённые</span>
@@ -2488,7 +2492,8 @@ function orderCard(o){
       '<div class="item-avail">'+paidTag+dlvBtn+
       '<span class="item-price" style="margin-right:8px">'+price+' ₽</span>'+
       // v7.20: наличие переключается кликом прямо в карточке, без редактирования заказа
-      (_cancel?'':'<button class="badge '+availClass+'" onclick="event.stopPropagation();toggleItemAvail('+it.id+','+o.id+')" title="Нажмите, чтобы переключить: «Под заказ» ⇄ «Есть»" style="cursor:pointer;border:none;font-family:inherit;font-size:inherit;font-weight:inherit">'+it.availability+'</button>')+
+      // v8.6: «Под заказ» делится на «Не заказано» / «Заказано · ждём» (21b_factory.js)
+      (_cancel?'':factoryPill(it,o))+
       supTag+'</div></div>';
   }
 
@@ -3145,6 +3150,7 @@ function _paintOrders(){
   document.getElementById('orders-count').textContent=orders.length+' заказ(ов)'
     +(_lateN?' · ⏰ просрочено: '+_lateN:'');
   if(typeof _updateLateChip==='function')_updateLateChip(); // и при первой загрузке тоже
+  if(typeof _updateFactoryChips==='function')_updateFactoryChips(); // v8.6
   // v7.75: чип «❌ Отменённые» виден, только когда такие заказы есть
   var _cc=document.getElementById('chip-cancelled');
   if(_cc){var _cn=(allOrders||[]).filter(isCancelled).length;_cc.style.display=_cn?'inline-flex':'none';_cc.textContent='❌ Отменённые: '+_cn;}
@@ -4620,6 +4626,357 @@ async function reopenDone(id){
   filterOrders();
   var cashPage=document.getElementById('page-cash');
   if(cashPage&&cashPage.classList.contains('active')&&window.renderCash)renderCash();
+}
+// ═══ v8.6: ЗАКАЗ НА ФАБРИКЕ ══════════════════════════════════════════
+// Раньше у позиции было только «Под заказ» / «Есть». «Под заказ» значило и
+// «ещё не заказали», и «заказали, ждём» — различить нельзя, забытый заказ
+// всплывал только когда клиент звонил узнать, где диван.
+// Теперь у позиции «Под заказ» три поля (SQL 7.24):
+//   ordered_at  — когда заказали на фабрике (пусто = НЕ ЗАКАЗАНО);
+//   ordered_eta — ориентир фабрики («примерно через 3 недели» → дата);
+//   ordered_note — заметка: письмом/звонком, номер у фабрики, кто принял.
+// Решения владельца 15.10.2026: заказывают письмом или звонком; в будни —
+// сразу, за выходные копится и уходит в понедельник; фабрики точной даты не
+// дают, только «недели через три»; все действующие заказы уже заказаны
+// (SQL 7.24 при первом запуске ставит им дату заказа = дату оформления);
+// отмечать может любой продавец.
+
+// Колонки есть, если в загруженных позициях встречается поле ordered_at
+// (select=* отдаёт его даже пустым). Нет SQL 7.24 — всё работает по-старому.
+function _fOn(){
+  var all=allOrders||[];
+  for(var i=0;i<all.length;i++){
+    var its=all[i].order_items||[];
+    for(var j=0;j<its.length;j++)if(Object.prototype.hasOwnProperty.call(its[j],'ordered_at'))return true;
+  }
+  return false;
+}
+function _fToday(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function _fAddDays(iso,n){var p=String(iso).split('-');var d=new Date(+p[0],+p[1]-1,+p[2]+n);
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function _fShort(iso){if(!iso)return '';var p=String(iso).slice(0,10).split('-');return p[2]+'.'+p[1];}
+// Позиция, которую надо (было) заказывать: не «Есть», не образец с витрины,
+// заказ не закрыт и что-то ещё не у клиента
+function _fTracked(it,o){
+  return !isClosed(o)&&it.availability!=='Есть'&&!it.showroom_item_id&&remainQty(it)>0;
+}
+function factoryNotOrdered(it,o){return _fTracked(it,o)&&!it.ordered_at;}
+function factoryLate(it,o){return _fTracked(it,o)&&!!it.ordered_at&&!!it.ordered_eta&&String(it.ordered_eta)<_fToday();}
+function _fSup(it){return String(it.supplier_manual||it.supplier||'').trim();}
+function _fItemLine(it){
+  var parts=[it.product_name];
+  if(it.color)parts.push(it.color);
+  if(it.fabric_category)parts.push('кат.'+it.fabric_category);
+  if(it.dims)parts.push(it.dims);
+  return parts.filter(Boolean).join(' · ');
+}
+function factoryCounts(){
+  var n=0,late=0,wait=0;
+  if(!_fOn())return{n:0,late:0,wait:0};
+  (allOrders||[]).forEach(function(o){(o.order_items||[]).forEach(function(it){
+    if(factoryNotOrdered(it,o))n++;
+    else if(_fTracked(it,o)){wait++;if(factoryLate(it,o))late++;}
+  });});
+  return{n:n,late:late,wait:wait};
+}
+
+// ── Пилюля в карточке заказа (вместо «Под заказ» / «Есть») ─────────────
+function factoryPill(it,o){
+  var oc='event.stopPropagation();';
+  if(it.availability==='Есть'||!_fOn()||it.showroom_item_id){
+    var cls=it.availability==='Есть'?'badge-yes':'badge-order';
+    return '<button class="badge '+cls+'" onclick="'+oc+'toggleItemAvail('+it.id+','+o.id+')" title="Нажмите, чтобы переключить: «Под заказ» ⇄ «Есть»" style="cursor:pointer;border:none;font-family:inherit;font-size:inherit;font-weight:inherit">'+esc(it.availability||'')+'</button>';
+  }
+  var click=' onclick="'+oc+'openFactoryMark('+it.id+','+o.id+')"';
+  if(!it.ordered_at){
+    if(isClosed(o)||remainQty(it)<=0)return '<span class="badge badge-order">Под заказ</span>';
+    return '<button class="pl pl-bad"'+click+' title="Товар ещё не заказан на фабрике. Нажмите, когда закажете" style="margin-right:0">🏭 Не заказано</button>';
+  }
+  var t='Заказано '+_fShort(it.ordered_at);
+  var title='Заказано на фабрике '+fmtDate(it.ordered_at)+(it.ordered_eta?', фабрика обещала примерно к '+fmtDate(it.ordered_eta):'')+(it.ordered_note?' · '+it.ordered_note:'')+'. Нажмите, чтобы изменить или отметить «пришло»';
+  if(factoryLate(it,o))
+    return '<button class="pl pl-bad"'+click+' title="'+esc(title)+'">⏰ Ждём с '+_fShort(it.ordered_eta)+'</button>';
+  if(it.ordered_eta&&_fTracked(it,o))t+=' · ждём ~'+_fShort(it.ordered_eta);
+  return '<button class="pl pl-mut"'+click+' title="'+esc(title)+'">🏭 '+t+'</button>';
+}
+
+// ── Окно одной позиции ─────────────────────────────────────────────────
+var _fm={itemId:null,orderId:null,weeks:null};
+function _fModal(id,maxw){
+  var m=document.getElementById(id);
+  if(!m){
+    m=document.createElement('div');m.className='modal-bg';m.id=id;
+    m.innerHTML='<div class="modal" style="max-width:'+maxw+'px"></div>';
+    m.addEventListener('click',function(e){if(e.target===m)closeModal(id);});
+    document.body.appendChild(m);
+  }
+  return m;
+}
+var _F_WEEKS=[1,2,3,4,5,6,8];
+function _fWeeksChips(sel,fn){
+  return _F_WEEKS.map(function(w){
+    return '<button type="button" class="chip'+(sel===w?' chip-active':'')+'" onclick="'+fn+'('+w+')">'+w+' нед.</button>';
+  }).join(' ')+' <button type="button" class="chip'+(sel===0?' chip-active':'')+'" onclick="'+fn+'(0)">не сказали</button>';
+}
+function _fFind(itemId,orderId){
+  var o=(allOrders||[]).find(function(x){return x.id===orderId;});
+  var it=o&&(o.order_items||[]).find(function(x){return x.id===itemId;});
+  return{o:o,it:it};
+}
+function openFactoryMark(itemId,orderId){
+  var f=_fFind(itemId,orderId);if(!f.it)return;
+  if(!_fOn()){toast('⚙️ Сначала выполните SQL_обновление_7.24.sql','err',5000);return;}
+  _fm={itemId:itemId,orderId:orderId,weeks:null};
+  var it=f.it;
+  // если ориентир уже был — восстановим, сколько это недель
+  if(it.ordered_at&&it.ordered_eta){
+    var p1=new Date(it.ordered_at),p2=new Date(it.ordered_eta);
+    var w=Math.round((p2-p1)/864e5/7);if(_F_WEEKS.indexOf(w)>=0)_fm.weeks=w;
+  }else if(it.ordered_at)_fm.weeks=0;
+  var m=_fModal('modal-factory',480);
+  _renderFactoryMark();
+  m.classList.add('open');
+}
+function _renderFactoryMark(){
+  var f=_fFind(_fm.itemId,_fm.orderId);if(!f.it)return;
+  var it=f.it,o=f.o,was=!!it.ordered_at;
+  var sup=_fSup(it);
+  var h='<div class="modal-title">🏭 Заказ на фабрике</div>'
+    +'<div style="background:var(--alt);border-radius:8px;padding:9px 11px;margin:-6px 0 12px;font-size:13px;line-height:1.45">'
+    +'<strong>'+esc(it.product_name||'')+'</strong>'+(_fItemLine(it)!==it.product_name?'<span style="color:var(--text2)"> · '+esc(_fItemLine(it).split(' · ').slice(1).join(' · '))+'</span>':'')
+    +(itemQty(it)>1?' <span class="tag-qty">'+itemQty(it)+' шт.</span>':'')
+    +'<div style="font-size:11.5px;color:var(--text2);margin-top:3px">'+(sup?'Фабрика: <b>'+esc(sup)+'</b> · ':'')+'заказ №'+esc(o.order_number)+' · '+esc(o.client_name||'')
+    +(o.delivery_date?' · доставка клиенту '+fmtDate(o.delivery_date):'')+'</div></div>'
+    +'<div class="fg" style="margin-bottom:10px"><label>Когда заказали на фабрике</label>'
+    +'<input type="date" id="fm-date" value="'+esc(it.ordered_at||_fToday())+'" onchange="_fmUpd()" style="max-width:180px"></div>'
+    +'<div class="fg" style="margin-bottom:6px"><label>Фабрика обещала примерно через</label>'
+    +'<div id="fm-weeks" style="display:flex;gap:6px;flex-wrap:wrap">'+_fWeeksChips(_fm.weeks,'_fmWeeks')+'</div></div>'
+    +'<div id="fm-eta" style="font-size:12px;color:var(--text2);min-height:18px;margin-bottom:8px"></div>'
+    +'<div class="fg" style="margin-bottom:12px"><label>Заметка (необязательно)</label>'
+    +'<input type="text" id="fm-note" value="'+esc(it.ordered_note||'')+'" placeholder="письмом / звонком, № заказа у фабрики, кто принял"></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button class="btn btn-primary" onclick="saveFactoryMark()">🏭 '+(was?'Сохранить':'Заказано')+'</button>'
+    +(was?'<button class="btn btn-outline" onclick="factoryArrived()" title="Товар пришёл от фабрики — пометить «Есть»">✅ Пришло — «Есть»</button>'
+         :'<button class="btn btn-outline" onclick="factoryArrived()" title="Товар уже есть, заказывать не нужно">✅ Уже есть</button>')
+    +(was?'<button class="btn btn-outline" onclick="factoryUnmark()" title="Отметку поставили по ошибке">↩ Не заказано</button>':'')
+    +'<button class="btn btn-outline" onclick="closeModal(\'modal-factory\')" style="margin-left:auto">Закрыть</button></div>';
+  document.querySelector('#modal-factory .modal').innerHTML=h;
+  _fmUpd();
+}
+function _fmWeeks(w){_fm.weeks=w;document.getElementById('fm-weeks').innerHTML=_fWeeksChips(w,'_fmWeeks');_fmUpd();}
+function _fEtaFrom(date,weeks){return (date&&weeks)?_fAddDays(date,weeks*7):null;}
+// Подсказка под неделями + предупреждение, если клиенту обещали раньше
+function _fmUpd(){
+  var el=document.getElementById('fm-eta');if(!el)return;
+  var f=_fFind(_fm.itemId,_fm.orderId);
+  var d=(document.getElementById('fm-date')||{}).value;
+  var eta=_fEtaFrom(d,_fm.weeks);
+  var s=eta?'Ждём примерно к <b>'+fmtDate(eta)+'</b>':(_fm.weeks===0?'Срок не назван':'');
+  if(eta&&f.o&&f.o.delivery_date&&eta>String(f.o.delivery_date).slice(0,10))
+    s+='<div style="color:#9c3b2e;margin-top:3px">⚠ Клиенту обещана доставка <b>'+fmtDate(f.o.delivery_date)+'</b> — фабрика, похоже, не успеет. Предупредите клиента или перенесите дату.</div>';
+  el.innerHTML=s;
+}
+// Запись в базу: одна или несколько позиций сразу (одинаковые значения)
+function _fPatch(ids,fields){
+  return sbPatch('order_items',fields,'id=in.('+ids.join(',')+')');
+}
+function _fApplyLocal(ids,fields){
+  var set={};ids.forEach(function(i){set[String(i)]=1;});
+  var touched=[];
+  (allOrders||[]).forEach(function(o){
+    var hit=false;
+    (o.order_items||[]).forEach(function(it){if(set[String(it.id)]){Object.assign(it,fields);hit=true;}});
+    if(hit)touched.push(o);
+  });
+  return touched;
+}
+function _fLog(o,its,text){
+  try{logOrder(o,'edit',its.map(function(it){return{field:'Заказ на фабрике',old:null,new:text,note:it.product_name};}));}catch(e){}
+}
+function _fErr(e){
+  var m=String((e&&e.message)||e||'');
+  if(/ordered_/.test(m))toast('⚙️ В базе нет новых полей — выполните SQL_обновление_7.24.sql','err',7000);
+  else toast('❌ Не сохранилось: '+m,'err',6000);
+}
+function _fRefresh(){
+  _paintOrders();_updateFactoryChips();
+  if(document.getElementById('modal-factlist')&&document.getElementById('modal-factlist').classList.contains('open'))renderFactoryList();
+}
+function saveFactoryMark(){
+  var f=_fFind(_fm.itemId,_fm.orderId);if(!f.it)return;
+  var d=document.getElementById('fm-date').value||_fToday();
+  var fields={ordered_at:d,ordered_eta:_fEtaFrom(d,_fm.weeks),ordered_note:(document.getElementById('fm-note').value||'').trim()||null};
+  var prev={ordered_at:f.it.ordered_at,ordered_eta:f.it.ordered_eta,ordered_note:f.it.ordered_note};
+  _fApplyLocal([f.it.id],fields);_fRefresh();closeModal('modal-factory');
+  _fPatch([f.it.id],fields).then(function(){
+    toast('🏭 «'+(f.it.product_name||'товар')+'» — заказано'+(fields.ordered_eta?', ждём ~'+fmtDate(fields.ordered_eta):''));
+    _fLog(f.o,[f.it],'заказано '+fmtDate(d)+(fields.ordered_eta?', ждём ~'+fmtDate(fields.ordered_eta):'')+(fields.ordered_note?' ('+fields.ordered_note+')':''));
+  }).catch(function(e){_fApplyLocal([f.it.id],prev);_fRefresh();_fErr(e);});
+}
+function factoryUnmark(){
+  var f=_fFind(_fm.itemId,_fm.orderId);if(!f.it)return;
+  var fields={ordered_at:null,ordered_eta:null,ordered_note:null};
+  var prev={ordered_at:f.it.ordered_at,ordered_eta:f.it.ordered_eta,ordered_note:f.it.ordered_note};
+  _fApplyLocal([f.it.id],fields);_fRefresh();closeModal('modal-factory');
+  _fPatch([f.it.id],fields).then(function(){
+    toast('↩ «'+(f.it.product_name||'товар')+'» — снова «не заказано»');
+    _fLog(f.o,[f.it],'отметка «заказано» снята');
+  }).catch(function(e){_fApplyLocal([f.it.id],prev);_fRefresh();_fErr(e);});
+}
+// «Пришло» = обычное «Есть» (то же поле availability, что и раньше)
+function factoryArrived(itemId,orderId){
+  var f=_fFind(itemId||_fm.itemId,orderId||_fm.orderId);if(!f.it)return;
+  closeModal('modal-factory');
+  var prev=f.it.availability;
+  f.it.availability='Есть';_fRefresh();
+  sbPatch('order_items',{availability:'Есть'},'id=eq.'+f.it.id).then(function(){
+    toast('✅ «'+(f.it.product_name||'товар')+'» — есть');
+  }).catch(function(e){f.it.availability=prev;_fRefresh();_fErr(e);});
+}
+
+// ── Список «Заказать у фабрик» ─────────────────────────────────────────
+var _flTab='need',_flSel={},_flWeeks={},_flText={};
+function openFactoryList(tab){
+  if(!_fOn()){
+    var m0=_fModal('modal-factlist',640);
+    m0.querySelector('.modal').innerHTML='<div class="modal-title">🏭 Заказы на фабриках</div>'
+      +'<p style="font-size:13px;line-height:1.5">Чтобы отмечать, что товар заказан на фабрике, в базу нужно добавить три поля.</p>'
+      +'<p style="font-size:13px;line-height:1.5">Откройте <b>Supabase → SQL Editor</b>, вставьте и выполните файл <b>«SQL_обновление_7.24.sql»</b>, затем обновите страницу.</p>'
+      +'<button class="btn btn-outline" style="width:100%;justify-content:center" onclick="closeModal(\'modal-factlist\')">Закрыть</button>';
+    m0.classList.add('open');return;
+  }
+  _flTab=tab||(factoryCounts().n?'need':'wait');_flSel={};
+  _fModal('modal-factlist',680).classList.add('open');
+  renderFactoryList();
+}
+function setFactoryTab(t){_flTab=t;renderFactoryList();}
+function _flGroups(pred){
+  var by={},order=[];
+  (allOrders||[]).slice().sort(function(a,b){return String(a.order_date||'').localeCompare(String(b.order_date||''));})
+  .forEach(function(o){(o.order_items||[]).forEach(function(it){
+    if(!pred(it,o))return;
+    var s=_fSup(it)||'Поставщик не указан',k=_supNorm(s)||'—';
+    if(!by[k]){by[k]={name:s,rows:[]};order.push(k);}
+    by[k].rows.push({it:it,o:o});
+  });});
+  return order.map(function(k){return by[k];}).sort(function(a,b){return b.rows.length-a.rows.length||a.name.localeCompare(b.name,'ru');});
+}
+function renderFactoryList(){
+  var box=document.querySelector('#modal-factlist .modal');if(!box)return;
+  var c=factoryCounts();
+  var tabs=[['need','🏭 Не заказано: '+c.n],['wait','⏳ Ждём: '+c.wait],['late','⏰ Задерживаются: '+c.late]];
+  var h='<div class="modal-title">🏭 Заказы на фабриках</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 10px">'
+    +tabs.map(function(t){return '<button class="chip'+(_flTab===t[0]?' chip-active':'')+'" onclick="setFactoryTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join('')+'</div>';
+  var groups,today=_fToday();
+  if(_flTab==='need'){
+    groups=_flGroups(factoryNotOrdered);
+    h+='<div style="font-size:11.5px;color:var(--text2);background:var(--alt);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5">'
+      +'Товар по действующим заказам, который ещё <b>не заказан</b> на фабрике. Скопируйте текст письма для фабрики, отправьте и нажмите «Отметить заказанным».</div>';
+  }else{
+    groups=_flGroups(function(it,o){return _fTracked(it,o)&&!!it.ordered_at&&(_flTab==='wait'||factoryLate(it,o));});
+    h+='<div style="font-size:11.5px;color:var(--text2);background:var(--alt);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5">'
+      +(_flTab==='late'?'Срок, который назвала фабрика, прошёл, а товара ещё нет. Стоит позвонить на фабрику.'
+        :'Заказано на фабрике, ждём. Когда товар придёт — «✅ Пришло».')+'</div>';
+  }
+  h+='<div id="fl-list" style="max-height:56vh;overflow-y:auto;margin-bottom:12px">';
+  if(!groups.length){
+    h+='<div style="padding:18px;text-align:center;font-size:14px;color:var(--text2);background:var(--alt);border-radius:8px">'
+      +(_flTab==='need'?'✅ Всё заказано — по действующим заказам незаказанного товара нет.':_flTab==='late'?'✅ Задержек нет.':'Сейчас ничего не ждём.')+'</div>';
+  }
+  _flText={};
+  groups.forEach(function(g,gi){
+    var key='g'+gi;
+    h+='<div style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;padding:9px 11px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="font-size:14px;font-weight:700;flex:1">'+esc(g.name)+'</div>'
+      +'<span style="font-size:11.5px;color:var(--text2)">позиций: '+g.rows.length+'</span></div>';
+    g.rows.forEach(function(r){
+      var it=r.it,o=r.o,id=it.id;
+      if(_flTab==='need'&&_flSel[id]===undefined)_flSel[id]=true;
+      var q=remainQty(it);
+      var meta='№'+esc(o.order_number)+' · '+esc(o.client_name||'')+' · от '+fmtDate(o.order_date)
+        +(o.delivery_date?' · клиенту к '+fmtDate(o.delivery_date):'');
+      h+='<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-top:1px dashed var(--border)">';
+      if(_flTab==='need')
+        h+='<input type="checkbox" '+(_flSel[id]?'checked':'')+' onchange="_flSel['+id+']=this.checked" style="margin-top:3px;flex-shrink:0;width:16px;height:16px">';
+      h+='<div style="flex:1;font-size:13px;line-height:1.45;min-width:0"><strong>'+esc(it.product_name||'')+'</strong>'
+        +(_fItemLine(it)!==it.product_name?'<span style="color:var(--text2)"> · '+esc(_fItemLine(it).split(' · ').slice(1).join(' · '))+'</span>':'')
+        +(q>1?' <span class="tag-qty">'+q+' шт.</span>':'')
+        +'<div style="font-size:11px;color:var(--text2)">'+meta+'</div>';
+      if(_flTab!=='need'){
+        var late=factoryLate(it,o);
+        h+='<div style="font-size:11.5px;margin-top:2px;color:'+(late?'#9c3b2e':'var(--text2)')+'">заказано '+fmtDate(it.ordered_at)
+          +(it.ordered_eta?(late?' · <b>обещали к '+fmtDate(it.ordered_eta)+'</b>':' · ждём ~'+fmtDate(it.ordered_eta)):'')
+          +(it.ordered_note?' · '+esc(it.ordered_note):'')+'</div>';
+      }
+      h+='</div>';
+      if(_flTab!=='need')
+        h+='<div style="display:flex;gap:4px;flex-shrink:0"><button class="btn btn-outline" style="padding:4px 8px;font-size:12px" onclick="factoryArrived('+id+','+o.id+')">✅ Пришло</button>'
+          +'<button class="btn btn-outline" style="padding:4px 8px;font-size:12px" onclick="openFactoryMark('+id+','+o.id+')" title="Изменить даты">✏️</button></div>';
+      h+='</div>';
+    });
+    if(_flTab==='need'){
+      _flText[key]=g;
+      var w=_flWeeks[key]===undefined?3:_flWeeks[key];_flWeeks[key]=w;
+      h+='<div style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px">'
+        +'<div style="font-size:11.5px;color:var(--text2);margin-bottom:5px">Фабрика обещала примерно через:</div>'
+        +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">'+_fWeeksChips(w,'_flSetWeeks.bind(null,\''+key+'\')')+'</div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        +'<button class="btn btn-outline" onclick="copyFactoryLetter(\''+key+'\')">📋 Текст письма</button>'
+        +'<button class="btn btn-primary" onclick="markFactoryGroup(\''+key+'\')">🏭 Отметить заказанным</button></div></div>';
+    }
+    h+='</div>';
+  });
+  h+='</div><button class="btn btn-outline" style="width:100%;justify-content:center" onclick="closeModal(\'modal-factlist\')">Закрыть</button>';
+  box.innerHTML=h;
+}
+function _flSetWeeks(key,w){
+  var st=document.getElementById('fl-list'),top=st?st.scrollTop:0;
+  _flWeeks[key]=w;renderFactoryList();
+  st=document.getElementById('fl-list');if(st)st.scrollTop=top;
+}
+function _flChecked(key){
+  var g=_flText[key];if(!g)return[];
+  return g.rows.filter(function(r){return _flSel[r.it.id];});
+}
+// Текст письма на фабрику: только отмеченные позиции
+function factoryLetter(name,rows){
+  var t='Здравствуйте!\n\nМагазин «Ваш Дом» (г. Короча) просит принять заказ:\n\n';
+  rows.forEach(function(r,i){
+    var it=r.it,q=remainQty(it);
+    t+=(i+1)+'. '+_fItemLine(it)+' — '+q+' шт.'+' (наш заказ №'+r.o.order_number+')\n';
+  });
+  t+='\nПросим подтвердить заказ и сообщить срок готовности.\n\nСпасибо!';
+  return t;
+}
+function copyFactoryLetter(key){
+  var rows=_flChecked(key);if(!rows.length){toast('Отметьте галочками, что заказываете','err');return;}
+  var t=factoryLetter(_flText[key].name,rows);
+  function done(){toast('📋 Текст письма скопирован — вставьте его в письмо фабрике');}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done).catch(function(){_copyFallback(t,done);});
+  else _copyFallback(t,done);
+}
+function markFactoryGroup(key){
+  var rows=_flChecked(key);if(!rows.length){toast('Отметьте галочками, что заказали','err');return;}
+  var d=_fToday(),w=_flWeeks[key],supName=_flText[key].name; // список перерисуется — имя берём заранее
+  var fields={ordered_at:d,ordered_eta:_fEtaFrom(d,w),ordered_note:null};
+  var ids=rows.map(function(r){return r.it.id;});
+  var prev=rows.map(function(r){return{id:r.it.id,f:{ordered_at:r.it.ordered_at,ordered_eta:r.it.ordered_eta,ordered_note:r.it.ordered_note}};});
+  _fApplyLocal(ids,fields);_fRefresh();
+  _fPatch(ids,fields).then(function(){
+    toast('🏭 Заказано у «'+supName+'»: '+ids.length+' поз.'+(fields.ordered_eta?', ждём ~'+fmtDate(fields.ordered_eta):''));
+    var byO={};rows.forEach(function(r){(byO[r.o.id]=byO[r.o.id]||{o:r.o,its:[]}).its.push(r.it);});
+    Object.keys(byO).forEach(function(k){_fLog(byO[k].o,byO[k].its,'заказано '+fmtDate(d)+(fields.ordered_eta?', ждём ~'+fmtDate(fields.ordered_eta):''));});
+  }).catch(function(e){prev.forEach(function(p){_fApplyLocal([p.id],p.f);});_fRefresh();_fErr(e);});
+}
+
+// ── Счётчики в журнале и в меню ────────────────────────────────────────
+function _updateFactoryChips(){
+  var c=factoryCounts();
+  var a=document.getElementById('chip-notordered'),b=document.getElementById('chip-factlate'),nb=document.getElementById('nav-factory');
+  if(a){a.style.display=c.n?'inline-flex':'none';a.textContent='🏭 Не заказано: '+c.n;}
+  if(b){b.style.display=c.late?'inline-flex':'none';b.textContent='⏰ Фабрика задерживает: '+c.late;}
+  if(nb)nb.textContent='🏭 Фабрики'+(c.n?' ('+c.n+')':'');
 }
 function onPriceFile(input){
   var file=input.files[0]; if(!file)return;
