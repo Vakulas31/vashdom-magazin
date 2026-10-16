@@ -376,7 +376,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.6</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.7</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -11213,7 +11213,7 @@ function _srRender(){
   if(k)k.innerHTML=[
     ['На витрине',inStock.length+' поз. · '+pcs+' шт.',''],
     _isOwner?['Вложено (по закупке)',fmt(Math.round(sumOpt))+' ₽','']:null,
-    ['По ценам продажи',fmt(Math.round(sumRet))+' ₽','#1B5E20'],
+    _isOwner?['По ценам продажи',fmt(Math.round(sumRet))+' ₽','#1B5E20']:null, // v8.7: сумму витрины видит только владелец
     ['Стоят дольше '+SR_OLD_DAYS+' дней',''+old,old?'#C62828':'']
   ].filter(Boolean).map(function(a){return '<div class="stat-card"><div class="stat-label">'+a[0]+'</div><div class="stat-val" style="font-size:17px;'+(a[2]?'color:'+a[2]:'')+'">'+a[1]+'</div></div>';}).join('');
   // фильтр по разделу — только разделы, где что-то есть
@@ -11681,10 +11681,12 @@ function _labelCss(s){
     +'.lbl .sp dd{margin:0;font-weight:700;overflow-wrap:normal}'
     // v8.4: на вертикальном ценнике подпись — мелко над значением, значение — на всю ширину
     // (раньше «Размер» стоял слева, а число рвалось по буквам в узкой колонке)
-    +'.lbl:not(.wide) .sp{display:block;line-height:1.15}'
-    +'.lbl:not(.wide) .sp dt{font-size:.6em;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:400;margin-top:.55em;line-height:1.1}'
-    +'.lbl:not(.wide) .sp dt:first-child{margin-top:0}'
-    +'.lbl:not(.wide) .sp dd{margin-top:.08em}'
+    // v8.7: и на большом, когда справа преимущества (.two) — иначе колонка подписей
+    // «Спальное место» съедала половину ширины и размер обрезался
+    +'.lbl:not(.wide) .sp,.lbl .bd.two .sp{display:block;line-height:1.15}'
+    +'.lbl:not(.wide) .sp dt,.lbl .bd.two .sp dt{font-size:.6em;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:400;margin-top:.55em;line-height:1.1}'
+    +'.lbl:not(.wide) .sp dt:first-child,.lbl .bd.two .sp dt:first-child{margin-top:0}'
+    +'.lbl:not(.wide) .sp dd,.lbl .bd.two .sp dd{margin-top:.08em}'
     +'.lbl .fl{font-size:'+kg(s.featPt)+';line-height:1.25}'
     +'.lbl:not(.wide) .sp+.fl{margin-top:.6em}'
     +'.lbl .fl>div{display:flex;gap:.4em;margin-bottom:.25em}'
@@ -11777,14 +11779,14 @@ function _labelHtml(s,d){
   var spHtml=rows.length?'<dl class="sp">'+rows.map(function(r){return '<dt>'+esc(r[0])+'</dt><dd>'+esc(r[1])+'</dd>';}).join('')+'</dl>':'';
   var flHtml=feats.length?'<div class="fl">'+feats.map(function(f){return '<div><span class="ck">✓</span><span>'+esc(f)+'</span></div>';}).join('')+'</div>':'';
   var incHtml=d.incl?'<div class="inc">В цену входит: '+esc(d.incl)+'</div>':'';
-  var body;
+  var body,bdCls='';
   if(s.wide){
     // две колонки: слева характеристики, справа преимущества + «что входит»
     var right=flHtml+incHtml;
     if(!spHtml&&!right)body='<div></div><div></div>';
     else if(!spHtml)body='<div style="grid-column:1/-1">'+right+'</div>';
     else if(!right)body='<div style="grid-column:1/-1">'+spHtml+'</div>'; // v8.2: одни характеристики — на всю ширину
-    else body='<div>'+spHtml+'</div><div>'+right+'</div>';
+    else{body='<div>'+spHtml+'</div><div>'+right+'</div>';bdCls=' two';}
   }else{
     body='<div>'+spHtml+flHtml+incHtml+'</div>';
   }
@@ -11795,7 +11797,7 @@ function _labelHtml(s,d){
     +'<div class="hd"><div class="hd-t"><div class="nm" style="font-size:calc('+nameSize+'pt * var(--k))">'+esc(shown)+'</div>'
     +(d.kind?'<div class="sub">'+esc(d.kind)+'</div>':'')+'</div>'
     +'<img src="'+LOGO+'" class="logo" alt=""></div>'
-    +'<div class="bd">'+body+'</div>'
+    +'<div class="bd'+bdCls+'">'+body+'</div>'
     +'<div class="pb"><div class="pr">'+oldHtml
     +'<div class="np'+(price?'':' nodata')+(sale?' sale':'')+'" style="font-size:'+priceSize+'pt">'+priceStr+'</div>'
     +bankHtml+'</div>'+qrHtml+'</div>'
@@ -11808,7 +11810,9 @@ function _lblOver(l){
   var parts=[l].concat([].slice.call(l.querySelectorAll('.hd-t,.bd,.bd>div')));
   if(parts.some(function(e){return e.scrollHeight>e.clientHeight+1;}))return true;
   // v8.4: самое длинное слово не должно упираться в край — иначе крупный шрифт рвёт его
-  return [].slice.call(l.querySelectorAll('.sp dd,.fl>div')).some(function(e){return e.scrollWidth>e.clientWidth+1;});
+  // v8.7: проверяем и сами колонки — значение в сетке растягивает свою ячейку,
+  // а обрезает его уже колонка (overflow:hidden), поэтому одной проверки dd мало
+  return [].slice.call(l.querySelectorAll('.sp dd,.fl>div,.bd>div,.hd-t')).some(function(e){return e.scrollWidth>e.clientWidth+1;});
 }
 function _fitLabels(root){
   [].slice.call(root.querySelectorAll('.lbl')).forEach(function(l){
