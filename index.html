@@ -376,7 +376,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.7</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.8</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -12763,6 +12763,8 @@ function printOrdersJournal(mode,look){
       var note=_part
         ?' <span style="color:#E65100;font-size:7px">(везём ещё '+_left+' из '+itemQty(it)+', отв. '+fmtDate(it.delivered_at)+')</span>'
         :(_left<=0&&it.delivered_at?' <span style="color:#1B5E20;font-size:7px">(отв. '+fmtDate(it.delivered_at)+')</span>':'');
+      var _f=_jlItemInfo(it,o);
+      note+=' <span style="font-size:7px;color:#555">['+(_f.sup?esc(_f.sup)+'; ':'')+(_f.avBad?'<b style="color:#c62828">'+_f.av+'</b>':_f.av)+']</span>';
       return mark+parts.join(', ')+note+(Math.round(it.paid_amount||0)>0?' <span style="color:#1B5E20;font-size:7px;font-weight:700">💰'+fmt(it.paid_amount)+'₽</span>':'');
     }).join('<br>');
 
@@ -12859,6 +12861,32 @@ function _jlAsk(mode){
     +'<button class="btn btn-outline" style="width:100%" onclick="closeModal(\'modal-jlook\')">Отмена</button></div>';
   m.classList.add('open');
 }
+// v8.8: по каждому товару словами — откуда (фабрика), есть ли / заказан ли, отвезли ли.
+// Значки ✅ ◧ ⏳ на бумаге непонятны (особенно тому, кто их не придумывал) — пишем слова.
+function _jlItemInfo(it,o){
+  var sup=String(it.supplier_manual||it.supplier||'').trim();
+  var av,avBad=false;
+  if(it.showroom_item_id)av='с витрины';
+  else if(it.availability==='Есть')av='есть в наличии';
+  else if(Object.prototype.hasOwnProperty.call(it,'ordered_at')){ // SQL 7.24
+    if(!it.ordered_at){av='под заказ — НЕ ЗАКАЗАНО';avBad=!isClosed(o);}
+    else if(typeof factoryLate==='function'&&factoryLate(it,o)){av='заказано '+_fShort(it.ordered_at)+' — ЗАДЕРЖКА, обещали к '+_fShort(it.ordered_eta);avBad=true;}
+    else av='заказано '+_fShort(it.ordered_at)+(it.ordered_eta&&remainQty(it)>0?', ждём ~'+_fShort(it.ordered_eta):'');
+  }else av='под заказ';
+  var pickup=/самовыв/i.test(o.delivery_type||'');
+  var q=itemQty(it),left=remainQty(it),dv,dvDone=false;
+  if(isPartlyDelivered(it))dv=(pickup?'забрали ':'отвезли ')+deliveredQty(it)+' из '+q+(it.delivered_at?' ('+_fShort(it.delivered_at)+')':'')+', осталось '+left;
+  else if(left<=0&&it.delivered_at){dv=(pickup?'забрали ':'отвезено ')+_fShort(it.delivered_at);dvDone=true;}
+  else if(isDone(o)){dv=pickup?'забрали':'отвезено';dvDone=true;}
+  else dv=pickup?'не забрали':'не отвезено';
+  var paid=Math.round(it.paid_amount||0);
+  return{sup:sup,av:av,avBad:avBad,dv:dv,dvDone:dvDone,paid:paid>0?'оплачено '+fmt(paid)+' ₽':''};
+}
+function _jlInfoLine(f){ // одна строка для табличных видов
+  return '<div class="inf">'+(f.sup?'Фабрика: <b>'+esc(f.sup)+'</b> · ':'')
+    +(f.avBad?'<b class="red">'+f.av+'</b>':f.av)+' · '+(f.dvDone?f.dv:'<b>'+f.dv+'</b>')
+    +(f.paid?' · <b class="green">'+f.paid+'</b>':'')+'</div>';
+}
 // данные заказа для крупных видов — те же правила, что и в обычной таблице
 function _jlData(o){
   var items=o.order_items||[];
@@ -12872,13 +12900,14 @@ function _jlData(o){
     var _left=remainQty(it),_part=isPartlyDelivered(it);
     var mark=_left<=0?'✅ ':(_part?'◧ ':(anyDlv?'⏳ ':''));
     var note=_part?' <i>(везём ещё '+_left+' из '+q+')</i>':(_left<=0&&it.delivered_at?' <i>(отвезено '+fmtDate(it.delivered_at)+')</i>':'');
-    return{t:mark+parts.join(', '),q:q,note:note};
+    return{t:mark+parts.join(', '),name:parts.join(', '),q:q,note:note,f:_jlItemInfo(it,o)};
   });
   var deliv=[];
   if(o.delivery_cost>0)deliv.push('доставка '+fmt(o.delivery_cost)+' ₽');
   if(o.lifting_cost>0)deliv.push('занос '+fmt(o.lifting_cost)+' ₽');
   var dState=!deliv.length?'':(o.delivery_our===false?'сторонняя':(o.delivery_paid==='yes'?'оплачена':'не оплачена'));
   return{goods:goods,deliv:deliv.join(', '),dState:dState,total:orderGoods(o),pre:o.prepayment||0,debt:orderDebt(o),
+    pay:String(o.payment_method||'').replace(/[^\wа-яё\s-]/gi,'').trim().toLowerCase(),
     pickup:/самовыв/i.test(o.delivery_type||'')};
 }
 function _jlHead(title,n){
@@ -12889,11 +12918,12 @@ function _jlBigHtml(list,title){
   var rows=list.map(function(o,idx){
     var d=_jlData(o);
     return '<tr'+(idx%2?' class="alt"':'')+'>'
-      +'<td class="date">'+fmtDate(o.order_date)+(o.manager?'<div class="sm">'+esc(o.manager)+'</div>':'')+'</td>'
+      +'<td class="date">'+fmtDate(o.order_date)+'<div class="sm">№'+esc(o.order_number||'')+'</div>'+(o.manager?'<div class="sm">'+esc(o.manager)+'</div>':'')
+        +(o.delivery_date?'<div class="sm">клиенту к<br><b>'+fmtDate(o.delivery_date)+'</b></div>':'')+'</td>'
       +'<td class="client"><b>'+esc(o.client_name||'—')+'</b>'
         +(o.client_phone?'<div class="ph">'+esc(o.client_phone)+(o.client_phone2?', '+esc(o.client_phone2):'')+'</div>':'')
         +(d.pickup?'<div class="sm">самовывоз</div>':(o.client_address?'<div class="sm">'+esc(o.client_address)+'</div>':''))+'</td>'
-      +'<td class="goods">'+d.goods.map(function(g){return '<div class="gi">'+g.t+(g.q>1?' — <b>'+g.q+' шт.</b>':'')+g.note+'</div>';}).join('')+'</td>'
+      +'<td class="goods">'+d.goods.map(function(g){return '<div class="gi">'+g.name+(g.q>1?' — <b>'+g.q+' шт.</b>':'')+_jlInfoLine(g.f)+'</div>';}).join('')+'</td>'
       +'<td class="money"><div>Сумма: <b>'+fmt(d.total)+'</b></div><div>Внесено: '+(d.pre?fmt(d.pre):'—')+'</div>'
         +(d.deliv?'<div class="sm">'+d.deliv+' — '+d.dState+'</div>':'')+'</td>'
       +'<td class="debt">'+(d.debt>0?'<b class="red">'+fmt(d.debt)+' ₽</b>':'<b class="green">✅ 0</b>')+'</td>'
@@ -12910,7 +12940,7 @@ function _jlBigHtml(list,title){
     +'tr{page-break-inside:avoid}.alt td{background:#f2f2f2}'
     +'.date{width:78px;white-space:nowrap}.client{width:190px}.client b{font-size:14px}'
     +'.ph{font-size:14px;font-weight:700;margin-top:2px}.sm{font-size:12.5px;color:#222;margin-top:2px}'
-    +'.gi{margin-bottom:3px}.gi i{font-size:11.5px}'
+    +'.gi{margin-bottom:5px}.gi i{font-size:11.5px}.inf{font-size:12px;color:#222;margin-top:1px}'
     +'.money{width:150px;white-space:nowrap}.debt{width:95px;text-align:right;font-size:16px;white-space:nowrap}'
     +'.note{width:150px;font-style:italic}'
     +'.red{color:#b71c1c}.green{color:#1B5E20}'
@@ -12922,19 +12952,27 @@ function _jlCardsHtml(list,title){
   var cards=list.map(function(o){
     var d=_jlData(o);
     return '<div class="card">'
-      +'<div class="top"><span class="dt2">'+fmtDate(o.order_date)+'</span>'
+      +'<div class="top"><span class="dt2">'+fmtDate(o.order_date)+'</span><span class="num">№'+esc(o.order_number||'')+'</span>'
         +'<span class="nm">'+esc(o.client_name||'—')+'</span>'
         +(o.client_phone?'<span class="ph">☎ '+esc(o.client_phone)+(o.client_phone2?', '+esc(o.client_phone2):'')+'</span>':'')+'</div>'
-      +'<div class="addr">'+(d.pickup?'Самовывоз':esc(o.client_address||''))+(o.manager?' <span class="mgr">· менеджер: '+esc(o.manager)+'</span>':'')+'</div>'
-      +'<ol class="goods">'+d.goods.map(function(g){return '<li>'+g.t+(g.q>1?' — <b>'+g.q+' шт.</b>':'')+g.note+'</li>';}).join('')+'</ol>'
-      +'<div class="money"><span>Сумма: <b>'+fmt(d.total)+' ₽</b></span><span>Внесено: <b>'+(d.pre?fmt(d.pre)+' ₽':'—')+'</b></span>'
+      +'<div class="addr">'+(d.pickup?'Самовывоз':esc(o.client_address||''))
+        +(o.delivery_date?' <span class="mgr">· '+(d.pickup?'забрать':'доставка клиенту')+' к <b>'+fmtDate(o.delivery_date)+'</b></span>':'')
+        +(o.manager?' <span class="mgr">· менеджер: '+esc(o.manager)+'</span>':'')+'</div>'
+      +'<table class="gt"><thead><tr><th class="n">№</th><th>Товар</th><th class="c-sup">Фабрика</th><th class="c-av">Наличие</th><th class="c-dv">'+(d.pickup?'Выдача':'Доставка')+'</th></tr></thead><tbody>'
+      +d.goods.map(function(g,i){var f=g.f;
+        return '<tr><td class="n">'+(i+1)+'</td><td>'+g.name+(g.q>1?' — <b>'+g.q+' шт.</b>':'')+(f.paid?'<div class="pd">'+f.paid+'</div>':'')+'</td>'
+          +'<td class="c-sup">'+(f.sup?esc(f.sup):'—')+'</td>'
+          +'<td class="c-av">'+(f.avBad?'<b class="red">'+f.av+'</b>':f.av)+'</td>'
+          +'<td class="c-dv">'+(f.dvDone?f.dv:'<b>'+f.dv+'</b>')+'</td></tr>';}).join('')
+      +'</tbody></table>'
+      +'<div class="money"><span>Сумма: <b>'+fmt(d.total)+' ₽</b></span><span>Внесено: <b>'+(d.pre?fmt(d.pre)+' ₽':'—')+'</b>'+(d.pay&&d.pre?' ('+esc(d.pay)+')':'')+'</span>'
         +(d.deliv?'<span>'+d.deliv.charAt(0).toUpperCase()+d.deliv.slice(1)+' — '+d.dState+'</span>':'')
         +'<span class="debt">'+(d.debt>0?'ДОЛГ: <b class="red">'+fmt(d.debt)+' ₽</b>':'<b class="green">✅ Оплачено</b>')+'</span></div>'
       +(o.notes?'<div class="note">📝 '+esc(o.notes)+'</div>':'')
       +'</div>';
   }).join('');
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+title.replace('📋 ','')+'</title><style>'
-    +'@page{size:A4 portrait;margin:9mm}'
+    +'@page{size:A4 landscape;margin:9mm}' /* v8.8: товары с колонками фабрика/наличие/доставка — в книжную не влезают */
     +'body{font-family:Arial,sans-serif;font-size:15px;color:#000;margin:0;line-height:1.35}'
     +'.hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2.5px solid #000;padding-bottom:4px;margin-bottom:8px}'
     +'.hd h1{font-size:22px;margin:0}.dt{font-size:14px}'
@@ -12943,7 +12981,14 @@ function _jlCardsHtml(list,title){
     +'.dt2{font-size:15px;font-weight:700;background:#000;color:#fff;padding:1px 7px;border-radius:4px}'
     +'.nm{font-size:19px;font-weight:700}.ph{font-size:19px;font-weight:700;margin-left:auto}'
     +'.addr{font-size:14.5px;margin-top:3px}.mgr{color:#444}'
-    +'.goods{margin:6px 0 6px 22px;padding:0}.goods li{margin-bottom:3px}.goods i{font-size:13px}'
+    +'.num{font-size:15px;font-weight:700}'
+    +'.gt{width:100%;border-collapse:collapse;margin:6px 0}'
+    +'.gt th{font-size:12.5px;text-align:left;font-weight:700;color:#333;border-bottom:1.5px solid #000;padding:2px 6px}'
+    +'.gt td{font-size:14.5px;vertical-align:top;padding:4px 6px;border-bottom:1px solid #bbb}'
+    +'.gt tr:last-child td{border-bottom:none}'
+    +'.gt .n{width:22px;text-align:right;padding-left:0}'
+    +'.gt .c-sup{width:15%}.gt .c-av{width:21%}.gt .c-dv{width:19%}'
+    +'.pd{font-size:13px;color:#1B5E20;font-weight:700}'
     +'.money{display:flex;flex-wrap:wrap;gap:4px 22px;align-items:baseline;border-top:1.5px dashed #777;padding-top:5px}'
     +'.debt{margin-left:auto;font-size:19px}'
     +'.note{margin-top:5px;font-style:italic;font-size:14.5px;background:#f2f2f2;padding:3px 7px;border-radius:4px}'
