@@ -376,7 +376,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.9</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.9.1</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -11798,19 +11798,31 @@ function _labelHtml(s,d){
 }
 // Если текст не влезает — уменьшаем шрифт названия/характеристик/преимуществ шагами,
 // но не меньше половины. Цена не уменьшается.
-function _lblOver(l){
-  var parts=[l].concat([].slice.call(l.querySelectorAll('.hd-t,.bd,.fl')));
-  if(parts.some(function(e){return e.scrollHeight>e.clientHeight+1;}))return true;
+// Насколько текст не влезает (в пикселях; 0 — всё влезает).
+// v8.9.1: погрешность 2 px не считаем. На компьютере владельца (Windows, другие шрифты)
+// какой-то элемент стабильно «вылезал» на 1–3 px, проверка решала «текст не влезает»
+// и сжимала весь ценник до половины — хотя места было с избытком.
+var LBL_TOL=2;
+function _lblExcess(l){
+  var m=0,f=function(a,b){var d=a-b-LBL_TOL;if(d>m)m=d;};
+  [l].concat([].slice.call(l.querySelectorAll('.hd-t,.bd'))).forEach(function(e){f(e.scrollHeight,e.clientHeight);});
   // по ширине: значение в ячейке или строка с галочкой не должны упираться в край
-  return [].slice.call(l.querySelectorAll('.sp .cell,.fl>div,.bd,.hd-t')).some(function(e){return e.scrollWidth>e.clientWidth+1;});
+  [].slice.call(l.querySelectorAll('.sp .cell,.fl>div,.bd,.hd-t')).forEach(function(e){f(e.scrollWidth,e.clientWidth);});
+  return m;
 }
+function _lblOver(l){return _lblExcess(l)>0;}
 function _fitLabels(root){
   [].slice.call(root.querySelectorAll('.lbl')).forEach(function(l){
     var k=1;l.style.setProperty('--k','1');l.style.setProperty('--g','1');
-    for(var i=0;i<12&&_lblOver(l);i++){
-      k=Math.round((k-0.05)*100)/100;
-      if(k<0.5)break;
-      l.style.setProperty('--k',String(k));
+    var ex=_lblExcess(l);
+    for(var i=0;i<12&&ex>0;i++){
+      var nk=Math.round((k-0.05)*100)/100;
+      if(nk<0.5)break;
+      l.style.setProperty('--k',String(nk));
+      var ne=_lblExcess(l);
+      // уменьшение шрифта не помогает — значит, вылезает не текст; оставляем как было
+      if(ne>=ex){l.style.setProperty('--k',String(k));break;}
+      k=nk;ex=ne;
     }
     // v8.2: места с запасом (только размер и цвет) — увеличиваем середину, пока
     // влезает, но не крупнее названия товара
@@ -11835,11 +11847,12 @@ function _growLabel(l){
   // строки с галочкой не переносим сверх того, что было
   var wraps=function(){return rows.some(function(e,i){
     var lim=e.classList.contains('v')?Math.max(base[i],2):base[i];return nLines(e)>lim;});};
+  var ex0=_lblExcess(l); // постоянная мелкая «вылезающая» погрешность не мешает расти
   var g=1;
   while(g+0.1<=gMax+1e-9){
     var ng=Math.round((g+0.1)*100)/100;
     l.style.setProperty('--g',String(ng));
-    if(_lblOver(l)||wraps()){l.style.setProperty('--g',String(g));break;}
+    if(_lblExcess(l)>ex0||wraps()){l.style.setProperty('--g',String(g));break;}
     g=ng;
   }
 }
