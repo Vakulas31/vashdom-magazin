@@ -376,7 +376,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.8</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.9</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -11641,67 +11641,63 @@ function _labelSpec(){
   var half=document.getElementById('pl-format').value==='half';
   return half?_labelSpec2():_labelSpecSmall();
 }
-// Крупный: 2 на листе A4 (19×13 см, горизонтальный — середина в две колонки)
+// Крупный: 2 на листе A4 (19×13 см)
 function _labelSpec2(){
-  return{half:true,wide:true,pw:'210mm',ph:'297mm',w:190,h:130,pad:'7mm',logoH:'12mm',gap:'2.5mm',
-    nameBase:30,nameMin:15,nameComfy:22, subPt:12, specPt:13, featPt:13, incPt:9.5,
-    priceBase:52,priceMin:30, oldPt:18, badgePt:13, bankPt:9.5, qrMm:'26mm',qrPx:150};
+  return{half:true,wide:true,pw:'210mm',ph:'297mm',w:190,h:130,pad:'8mm',logoH:'14mm',gap:'3mm',
+    nameBase:26,nameMin:14,nameComfy:22, subPt:12, cellPt:22, capPt:12, featPt:17, incPt:11,
+    priceBase:40,priceMin:26, oldPt:17, badgePt:13, bankPt:10, qrMm:'24mm',qrPx:150};
 }
-// Средний: 4 на листе A4 (сетка 2×2, вертикальный — середина столбиком)
+// Средний: 4 на листе A4 (сетка 2×2)
 function _labelSpec4(){
-  return{half:true,wide:false,pw:'210mm',ph:'297mm',w:92,h:128,pad:'5mm',logoH:'8mm',gap:'2mm',
-    nameBase:20,nameMin:11,nameComfy:18, subPt:9, specPt:10, featPt:10, incPt:7.5,
-    priceBase:32,priceMin:18, oldPt:12, badgePt:9, bankPt:7, qrMm:'18mm',qrPx:110};
+  return{half:true,wide:false,pw:'210mm',ph:'297mm',w:92,h:128,pad:'5mm',logoH:'9mm',gap:'2mm',
+    nameBase:18,nameMin:10,nameComfy:18, subPt:9, cellPt:15, capPt:9, featPt:11.5, incPt:8,
+    priceBase:28,priceMin:17, oldPt:12, badgePt:9, bankPt:7, qrMm:'17mm',qrPx:110};
 }
 // Маленький 6×8 см
 function _labelSpecSmall(){
-  return{half:false,wide:false,pw:'60mm',ph:'80mm',w:52,h:72,pad:'3mm',logoH:'5mm',gap:'1.2mm',
-    nameBase:13,nameMin:7,nameComfy:16, subPt:6.5, specPt:7, featPt:7, incPt:5.5,
-    priceBase:20,priceMin:12, oldPt:8, badgePt:6.5, bankPt:5.5, qrMm:'12mm',qrPx:64};
+  return{half:false,wide:false,pw:'60mm',ph:'80mm',w:52,h:72,pad:'3mm',logoH:'5.5mm',gap:'1.3mm',
+    nameBase:12,nameMin:7,nameComfy:16, subPt:6.5, cellPt:10, capPt:6, featPt:7.5, incPt:5.5,
+    priceBase:19,priceMin:12, oldPt:8, badgePt:6.5, bankPt:5.5, qrMm:'11mm',qrPx:64};
 }
 function _fitPt(base,min,len,comfy){
   if(!len||len<=comfy)return base;
   return Math.max(min,Math.round(base*Math.sqrt(comfy/len)*10)/10);
 }
+// v8.9: макет «Премиум-карточка» (как был в августе 2026, владелец выбрал его снова):
+//   шапка — название жирно + логотип, тёмная черта;
+//   крупно размер (и цвет), под значением мелко серым — что это («размер», «цвет / ткань»);
+//   ниже галочками: «Спальное место - 1400 × 2000», «Механизм - еврокнижка», преимущества;
+//   внизу цена на светлой плашке; скидка — зачёркнутая старая цена и «Выгода N ₽».
 function _labelCss(s){
   var k=function(pt){return 'calc('+pt+'pt * var(--k))';};
-  // v8.2: --g — увеличение текста середины ценника, когда он почти пустой
   var kg=function(pt){return 'calc('+pt+'pt * var(--k) * var(--g))';};
   return '.lbl{--k:1;--g:1;width:'+s.w+'mm;height:'+s.h+'mm;border:1.5px solid #bbb;border-radius:5px;padding:'+s.pad+';box-sizing:border-box;display:flex;flex-direction:column;position:relative;background:#fff;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#111}'
-    +'.lbl .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:'+s.gap+';border-bottom:2px solid #111;padding-bottom:'+s.gap+';flex-shrink:0}'
+    +'.lbl .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:'+s.gap+';border-bottom:2px solid #1B5E20;padding-bottom:'+s.gap+';flex-shrink:0}'
     +'.lbl .hd-t{min-width:0;flex:1}'
-    +'.lbl .nm{font-weight:700;line-height:1.1;word-break:break-word}'
-    +'.lbl .sub{color:#555;margin-top:.2em;font-size:'+k(s.subPt)+';line-height:1.2}'
+    +'.lbl .nm{font-weight:800;line-height:1.12;word-break:break-word}'
+    +'.lbl .sub{color:#666;margin-top:.2em;font-size:'+k(s.subPt)+';line-height:1.2}'
     +'.lbl .logo{height:'+s.logoH+';object-fit:contain;flex-shrink:0}'
-    +'.lbl .bd{flex:1;min-height:0;overflow:hidden;padding:'+s.gap+' 0}'
-    +'.lbl.wide .bd{display:grid;grid-template-columns:1.15fr 1fr;grid-template-rows:minmax(0,1fr);gap:0 5mm}'
-    +'.lbl .bd>div{min-height:0;overflow:hidden}'
-    +'.lbl .sp{display:grid;grid-template-columns:auto 1fr;gap:.3em .8em;margin:0;font-size:'+kg(s.specPt)+';line-height:1.2}'
-    +'.lbl .sp dt{color:#777;margin:0;white-space:nowrap}'
-    +'.lbl .sp dd{margin:0;font-weight:700;overflow-wrap:normal}'
-    // v8.4: на вертикальном ценнике подпись — мелко над значением, значение — на всю ширину
-    // (раньше «Размер» стоял слева, а число рвалось по буквам в узкой колонке)
-    // v8.7: и на большом, когда справа преимущества (.two) — иначе колонка подписей
-    // «Спальное место» съедала половину ширины и размер обрезался
-    +'.lbl:not(.wide) .sp,.lbl .bd.two .sp{display:block;line-height:1.15}'
-    +'.lbl:not(.wide) .sp dt,.lbl .bd.two .sp dt{font-size:.6em;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:400;margin-top:.55em;line-height:1.1}'
-    +'.lbl:not(.wide) .sp dt:first-child,.lbl .bd.two .sp dt:first-child{margin-top:0}'
-    +'.lbl:not(.wide) .sp dd,.lbl .bd.two .sp dd{margin-top:.08em}'
-    +'.lbl .fl{font-size:'+kg(s.featPt)+';line-height:1.25}'
-    +'.lbl:not(.wide) .sp+.fl{margin-top:.6em}'
-    +'.lbl .fl>div{display:flex;gap:.4em;margin-bottom:.25em}'
-    +'.lbl .fl .ck{color:#1B5E20;font-weight:700;flex-shrink:0}'
-    +'.lbl .inc{font-size:'+kg(s.incPt)+';color:#666;margin-top:.5em;line-height:1.25}'
-    +'.lbl .pb{display:flex;align-items:flex-end;justify-content:space-between;gap:2mm;flex-shrink:0;border-top:1px solid #ddd;padding-top:'+s.gap+'}'
+    +'.lbl .bd{flex:1;min-height:0;overflow:hidden;padding:'+s.gap+' 0;display:flex;flex-direction:column;justify-content:center}'
+    +'.lbl .sp{display:grid;grid-template-columns:'+(s.wide?'1fr 1fr':'1fr')+';gap:'+s.gap+' 4mm;font-size:'+kg(s.cellPt)+';flex-shrink:0}'
+    +'.lbl .sp.one{grid-template-columns:1fr}'
+    +'.lbl .sp .cell{min-width:0;overflow:hidden;line-height:1.2}'
+    +'.lbl .sp .v{font-weight:700;color:#111}'
+    +'.lbl .sp .c{color:#777;font-size:'+(s.capPt/s.cellPt).toFixed(3)+'em;margin-top:.1em}'
+    +'.lbl .fl{font-size:'+kg(s.featPt)+';line-height:1.3;color:#1B5E20;font-weight:600;flex-shrink:0;overflow:hidden}'
+    +'.lbl .sp+.fl{margin-top:'+s.gap+'}'
+    +'.lbl .fl>div{display:flex;gap:.3em;align-items:flex-start}'
+    +'.lbl .fl>div>span:last-child{min-width:0}'
+    +'.lbl .inc{font-size:'+kg(s.incPt)+';color:#666;margin-top:.5em;line-height:1.25;flex-shrink:0}'
+    +'.lbl .pb{display:flex;align-items:center;justify-content:space-between;gap:2mm;flex-shrink:0;background:#EAF4EC;border-radius:4px;padding:'+s.gap+' '+s.pad+'}'
     +'.lbl .pr{min-width:0}'
     +'.lbl .oldl{display:flex;align-items:center;gap:.6em;flex-wrap:wrap;margin-bottom:.15em}'
     +'.lbl .old{font-size:'+s.oldPt+'pt;color:#777;font-weight:700;text-decoration:line-through;text-decoration-color:#c62828;text-decoration-thickness:2px;white-space:nowrap}'
     +'.lbl .bdg{background:#c62828;color:#fff;font-weight:700;font-size:'+s.badgePt+'pt;padding:.15em .5em;border-radius:.3em;white-space:nowrap}'
-    +'.lbl .np{font-weight:800;line-height:1;white-space:nowrap;color:#111}'
+    +'.lbl .np{font-weight:800;line-height:1;white-space:nowrap;color:#1B5E20}'
     +'.lbl .np.sale{color:#c62828}'
-    +'.lbl .np.nodata{color:#ccc}'
-    +'.lbl .bank{font-size:'+s.bankPt+'pt;color:#555;margin-top:.35em;line-height:1.2}'
-    +'.lbl .qrimg{width:'+s.qrMm+';height:'+s.qrMm+';flex-shrink:0}'
+    +'.lbl .np.nodata{color:#bbb}'
+    +'.lbl .bank{font-size:'+s.bankPt+'pt;color:#555;margin-top:.3em;line-height:1.2;flex-shrink:0}'
+    +'.lbl .qrimg{width:'+s.qrMm+';height:'+s.qrMm+';flex-shrink:0;background:#fff}'
     +'.lbl .lbl-date{position:absolute;right:'+s.pad+';bottom:1.2mm;font-size:5.5pt;color:#b0b0b0;line-height:1;letter-spacing:.2px}';
 }
 // Преимущества: каждое с новой строки. «;» тоже делит.
@@ -11771,25 +11767,20 @@ function _labelHtml(s,d){
   var feats=_labelFeats(d);
   if(!d.v&&d.promo)feats=feats.concat(String(d.promo).split(/[·;]+/).map(function(x){return x.trim();}).filter(Boolean));
   feats=feats.slice(0,LABEL_MAX_FEATS);
-  var rows=_labelSpecRows(d);
-  // авторазмер названия: длинное — пропорционально мельче
   var nameSize=_fitPt(s.nameBase,s.nameMin,shown.length,s.nameComfy);
   var priceStr=price?fmt(price)+' ₽':'— ₽';
   var priceSize=_fitPt(s.priceBase,s.priceMin,priceStr.length,qr?9:12);
-  var spHtml=rows.length?'<dl class="sp">'+rows.map(function(r){return '<dt>'+esc(r[0])+'</dt><dd>'+esc(r[1])+'</dd>';}).join('')+'</dl>':'';
-  var flHtml=feats.length?'<div class="fl">'+feats.map(function(f){return '<div><span class="ck">✓</span><span>'+esc(f)+'</span></div>';}).join('')+'</div>':'';
+  // крупные ячейки: размер и цвет; остальные характеристики — строками с галочкой
+  var cells=[];
+  if(String(d.dims||'').trim())cells.push([_lblDims(d.dims),'размер']);
+  if(String(d.color||'').trim())cells.push([d.color,'цвет / ткань']);
+  var lines=[['Спальное место',_lblDims(d.sleep)],['Механизм',d.mech],['Обивка',d.mat]]
+    .filter(function(r){return String(r[1]||'').trim();})
+    .map(function(r){return r[0]+' - '+r[1];})
+    .concat(feats);
+  var spHtml=cells.length?'<div class="sp'+(cells.length===1?' one':'')+'">'+cells.map(function(c){return '<div class="cell"><div class="v">'+esc(c[0])+'</div><div class="c">'+c[1]+'</div></div>';}).join('')+'</div>':'';
+  var flHtml=lines.length?'<div class="fl">'+lines.map(function(f){return '<div><span>✓</span><span>'+esc(f)+'</span></div>';}).join('')+'</div>':'';
   var incHtml=d.incl?'<div class="inc">В цену входит: '+esc(d.incl)+'</div>':'';
-  var body,bdCls='';
-  if(s.wide){
-    // две колонки: слева характеристики, справа преимущества + «что входит»
-    var right=flHtml+incHtml;
-    if(!spHtml&&!right)body='<div></div><div></div>';
-    else if(!spHtml)body='<div style="grid-column:1/-1">'+right+'</div>';
-    else if(!right)body='<div style="grid-column:1/-1">'+spHtml+'</div>'; // v8.2: одни характеристики — на всю ширину
-    else{body='<div>'+spHtml+'</div><div>'+right+'</div>';bdCls=' two';}
-  }else{
-    body='<div>'+spHtml+flHtml+incHtml+'</div>';
-  }
   var oldHtml=sale?'<div class="oldl"><span class="old">'+fmt(old)+' ₽</span><span class="bdg">Выгода '+fmt(old-price)+' ₽</span></div>':'';
   var bankHtml=d.bank?'<div class="bank">Рассрочка: '+esc(d.bank)+'. Условия — у продавца</div>':'';
   var qrHtml=qr?'<img src="'+qrDataUrl(qr,s.qrPx)+'" class="qrimg" alt="QR">':'';
@@ -11797,22 +11788,21 @@ function _labelHtml(s,d){
     +'<div class="hd"><div class="hd-t"><div class="nm" style="font-size:calc('+nameSize+'pt * var(--k))">'+esc(shown)+'</div>'
     +(d.kind?'<div class="sub">'+esc(d.kind)+'</div>':'')+'</div>'
     +'<img src="'+LOGO+'" class="logo" alt=""></div>'
-    +'<div class="bd'+bdCls+'">'+body+'</div>'
+    +'<div class="bd">'+spHtml+flHtml+incHtml+'</div>'
     +'<div class="pb"><div class="pr">'+oldHtml
     +'<div class="np'+(price?'':' nodata')+(sale?' sale':'')+'" style="font-size:'+priceSize+'pt">'+priceStr+'</div>'
-    +bankHtml+'</div>'+qrHtml+'</div>'
+    +'</div>'+qrHtml+'</div>'
+    +bankHtml
     +_printedStamp()
     +'</div>';
 }
 // Если текст не влезает — уменьшаем шрифт названия/характеристик/преимуществ шагами,
 // но не меньше половины. Цена не уменьшается.
 function _lblOver(l){
-  var parts=[l].concat([].slice.call(l.querySelectorAll('.hd-t,.bd,.bd>div')));
+  var parts=[l].concat([].slice.call(l.querySelectorAll('.hd-t,.bd,.fl')));
   if(parts.some(function(e){return e.scrollHeight>e.clientHeight+1;}))return true;
-  // v8.4: самое длинное слово не должно упираться в край — иначе крупный шрифт рвёт его
-  // v8.7: проверяем и сами колонки — значение в сетке растягивает свою ячейку,
-  // а обрезает его уже колонка (overflow:hidden), поэтому одной проверки dd мало
-  return [].slice.call(l.querySelectorAll('.sp dd,.fl>div,.bd>div,.hd-t')).some(function(e){return e.scrollWidth>e.clientWidth+1;});
+  // по ширине: значение в ячейке или строка с галочкой не должны упираться в край
+  return [].slice.call(l.querySelectorAll('.sp .cell,.fl>div,.bd,.hd-t')).some(function(e){return e.scrollWidth>e.clientWidth+1;});
 }
 function _fitLabels(root){
   [].slice.call(root.querySelectorAll('.lbl')).forEach(function(l){
@@ -11836,11 +11826,20 @@ function _growLabel(l){
   if(!(basePx>0))return;
   // не намного крупнее названия, но хотя бы в 1,8 раза, если место есть
   var gMax=Math.min(2.6,Math.max(1.8,nmPx?nmPx*1.15/basePx:2.6));
+  // v8.9: растём, только пока строки не начинают переноситься: «2550 × 1450 × 950 мм»
+  // в одну строку читается лучше, чем то же самое крупнее, но в три
+  var rows=[].slice.call(l.querySelectorAll('.sp .v,.fl>div>span:last-child'));
+  var nLines=function(e){var lh=parseFloat(win.getComputedStyle(e).lineHeight)||1;return Math.round(e.offsetHeight/lh);};
+  var base=rows.map(nLines);
+  // размер/цвет (.v) может уйти на вторую строку — так он всё равно крупнее и читается;
+  // строки с галочкой не переносим сверх того, что было
+  var wraps=function(){return rows.some(function(e,i){
+    var lim=e.classList.contains('v')?Math.max(base[i],2):base[i];return nLines(e)>lim;});};
   var g=1;
   while(g+0.1<=gMax+1e-9){
     var ng=Math.round((g+0.1)*100)/100;
     l.style.setProperty('--g',String(ng));
-    if(_lblOver(l)){l.style.setProperty('--g',String(g));break;}
+    if(_lblOver(l)||wraps()){l.style.setProperty('--g',String(g));break;}
     g=ng;
   }
 }
@@ -12733,16 +12732,23 @@ var _JL_LOOKS=[
   {k:'cards',t:'Очень крупно — карточками',d:'каждый заказ отдельным блоком, долг крупно'}
 ];
 function _jlLook(){try{var v=localStorage.getItem('vd_journal_look');if(_JL_LOOKS.some(function(x){return x.k===v;}))return v;}catch(e){}return 'normal';}
-function printOrdersJournal(mode,look){
+// v8.9: ids — печатать только отмеченные заказы (окно выбора в _jlAsk)
+function _jlBase(mode){
+  return allOrders.filter(function(o){
+    if(mode==='all')return true;
+    return !isClosed(o); // v7.75: отменённые — не в работе
+  });
+}
+function printOrdersJournal(mode,look,ids){
   if(!look){_jlAsk(mode);return;}
   try{localStorage.setItem('vd_journal_look',look);}catch(e){}
   mode=mode||'active';
-  var list=allOrders.filter(function(o){
-    if(mode==='all')return true;
-    return !isClosed(o); // v7.75: отменённые — не в работе
-  }).slice().reverse(); // от самого давнего к свежему
+  var pick=null;
+  if(ids&&ids.length){pick={};ids.forEach(function(i){pick[String(i)]=1;});}
+  var list=_jlBase(mode).filter(function(o){return !pick||pick[String(o.id)];})
+    .slice().reverse(); // от самого давнего к свежему
   if(!list.length){toast(mode==='all'?'Заказов нет':'Нет заказов в работе','err');return;}
-  var title=mode==='all'?'📋 Все заказы':'📋 Заказы в работе';
+  var title=pick?'📋 Выбранные заказы':(mode==='all'?'📋 Все заказы':'📋 Заказы в работе');
   if(look==='big'||look==='cards'){_jlOpen(look==='cards'?_jlCardsHtml(list,title):_jlBigHtml(list,title));return;}
 
   var rows='';
@@ -12847,19 +12853,73 @@ function _jlOpen(html){
   w.document.write(html);w.document.close();
   setTimeout(function(){w.print();},400);
 }
-// выбор вида перед печатью
+// выбор перед печатью: какие заказы (все или отмеченные) и какой шрифт
+var _jlSel=null,_jlMode='active',_jlQ='';
 function _jlAsk(mode){
+  _jlMode=mode||'active';_jlSel=null;_jlQ='';
   var m=document.getElementById('modal-jlook');
   if(!m){m=document.createElement('div');m.id='modal-jlook';m.className='modal-bg';
     m.onclick=function(e){if(e.target===m)closeModal('modal-jlook');};document.body.appendChild(m);}
+  _jlRender();
+  m.classList.add('open');
+}
+function _jlRender(){
+  var m=document.getElementById('modal-jlook');if(!m)return;
+  var base=_jlBase(_jlMode).slice().sort(function(a,b){return String(b.order_date||'').localeCompare(String(a.order_date||''));});
   var cur=_jlLook();
-  m.innerHTML='<div class="modal" style="max-width:420px"><div class="modal-title">🖨 '+(mode==='all'?'Все заказы':'Заказы в работе')+' — какой шрифт?</div>'
-    +_JL_LOOKS.map(function(x){return '<button class="btn '+(x.k===cur?'btn-primary':'btn-outline')+'" style="display:block;width:100%;text-align:left;margin-bottom:8px;padding:10px 12px" '
-      +'onclick="closeModal(\'modal-jlook\');printOrdersJournal(\''+(mode||'active')+'\',\''+x.k+'\')">'
+  var nSel=_jlSel?Object.keys(_jlSel).filter(function(k){return _jlSel[k];}).length:0;
+  var h='<div class="modal" style="max-width:520px"><div class="modal-title">🖨 '+(_jlMode==='all'?'Все заказы':'Заказы в работе')+' — печать</div>'
+    +'<div style="font-size:12.5px;font-weight:700;margin:-4px 0 6px">Какие заказы</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'
+    +'<button class="chip'+(_jlSel?'':' chip-active')+'" onclick="_jlPickAll()">Все ('+base.length+')</button>'
+    +'<button class="chip'+(_jlSel?' chip-active':'')+'" onclick="_jlPickSome()">Выбрать'+(_jlSel?' — отмечено '+nSel:'')+'</button></div>';
+  if(_jlSel){
+    var q=_jlQ.toLowerCase().replace(/ё/g,'е');
+    var vis=base.filter(function(o){
+      if(!q)return true;
+      return (String(o.client_name||'')+' '+(o.order_number||'')+' '+(o.client_phone||'')+' '+(o.client_address||'')).toLowerCase().replace(/ё/g,'е').indexOf(q)>=0;
+    });
+    h+='<div style="display:flex;gap:6px;margin-bottom:6px">'
+      +'<input type="text" id="jl-q" placeholder="Поиск: фамилия, №, телефон" value="'+esc(_jlQ)+'" oninput="_jlQ=this.value;_jlRender();var e=document.getElementById(\'jl-q\');e.focus();e.setSelectionRange(e.value.length,e.value.length)" style="flex:1">'
+      +'<button class="btn btn-outline" style="padding:4px 9px;font-size:12px" onclick="_jlMark(true)">✔ все</button>'
+      +'<button class="btn btn-outline" style="padding:4px 9px;font-size:12px" onclick="_jlMark(false)">✖ снять</button></div>'
+      +'<div style="max-height:38vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px">'
+      +(vis.length?vis.map(function(o){
+        var on=!!_jlSel[o.id];
+        return '<label style="display:flex;gap:9px;align-items:flex-start;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;'+(on?'background:#eef4fb':'')+'">'
+          +'<input type="checkbox" '+(on?'checked':'')+' onchange="_jlSel['+o.id+']=this.checked;_jlRender()" style="width:17px;height:17px;margin-top:2px;flex-shrink:0">'
+          +'<span style="flex:1;min-width:0;font-size:13px;line-height:1.35"><b>'+esc(o.client_name||'—')+'</b>'
+          +'<span style="display:block;font-size:11.5px;color:var(--text2)">№'+esc(o.order_number||'')+' · '+fmtDate(o.order_date)
+          +((o.order_items||[]).length?' · '+esc((o.order_items[0].product_name||'')+((o.order_items.length>1)?' и ещё '+(o.order_items.length-1):'')):'')+'</span></span>'
+          +'<span style="font-size:12px;white-space:nowrap;color:var(--text2)">'+fmt(orderGoods(o))+' ₽</span></label>';
+      }).join(''):'<div style="padding:12px;text-align:center;color:var(--text2);font-size:13px">Ничего не найдено</div>')
+      +'</div>';
+  }
+  var can=!_jlSel||nSel>0;
+  h+='<div style="font-size:12.5px;font-weight:700;margin-bottom:6px">Какой шрифт</div>'
+    +_JL_LOOKS.map(function(x){return '<button class="btn '+(x.k===cur?'btn-primary':'btn-outline')+'" '+(can?'':'disabled ')+'style="display:block;width:100%;text-align:left;margin-bottom:8px;padding:10px 12px;'+(can?'':'opacity:.45')+'" '
+      +'onclick="_jlGo(\''+x.k+'\')">'
       +'<b style="font-size:'+(x.k==='normal'?13:(x.k==='big'?15:17))+'px">'+x.t+'</b>'+(x.k===cur?' <span style="font-size:11px">· в прошлый раз</span>':'')
       +'<br><span style="font-size:11.5px;opacity:.85">'+x.d+'</span></button>';}).join('')
+    +(can?'':'<div style="font-size:12px;color:#9c3b2e;margin:-2px 0 8px">Отметьте хотя бы один заказ</div>')
     +'<button class="btn btn-outline" style="width:100%" onclick="closeModal(\'modal-jlook\')">Отмена</button></div>';
-  m.classList.add('open');
+  m.innerHTML=h;
+}
+function _jlPickAll(){_jlSel=null;_jlRender();}
+function _jlPickSome(){if(!_jlSel)_jlSel={};_jlRender();var e=document.getElementById('jl-q');if(e)e.focus();}
+function _jlMark(on){
+  var q=_jlQ.toLowerCase().replace(/ё/g,'е');
+  _jlBase(_jlMode).forEach(function(o){
+    if(q&&(String(o.client_name||'')+' '+(o.order_number||'')+' '+(o.client_phone||'')+' '+(o.client_address||'')).toLowerCase().replace(/ё/g,'е').indexOf(q)<0)return;
+    _jlSel[o.id]=on;
+  });
+  _jlRender();
+}
+function _jlGo(look){
+  var ids=_jlSel?Object.keys(_jlSel).filter(function(k){return _jlSel[k];}):null;
+  if(ids&&!ids.length){toast('Отметьте хотя бы один заказ','err');return;}
+  closeModal('modal-jlook');
+  printOrdersJournal(_jlMode,look,ids);
 }
 // v8.8: по каждому товару словами — откуда (фабрика), есть ли / заказан ли, отвезли ли.
 // Значки ✅ ◧ ⏳ на бумаге непонятны (особенно тому, кто их не придумывал) — пишем слова.
