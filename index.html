@@ -376,7 +376,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.9.1</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.10</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -12783,6 +12783,8 @@ function printOrdersJournal(mode,look,ids){
         ?' <span style="color:#E65100;font-size:7px">(везём ещё '+_left+' из '+itemQty(it)+', отв. '+fmtDate(it.delivered_at)+')</span>'
         :(_left<=0&&it.delivered_at?' <span style="color:#1B5E20;font-size:7px">(отв. '+fmtDate(it.delivered_at)+')</span>':'');
       var _f=_jlItemInfo(it,o);
+      var _sum=Math.round(it.price_discounted||it.price_retail||0)*itemQty(it);
+      if(_sum)parts.push('<b>'+fmt(_sum)+' ₽</b>');
       note+=' <span style="font-size:7px;color:#555">['+(_f.sup?esc(_f.sup)+'; ':'')+(_f.avBad?'<b style="color:#c62828">'+_f.av+'</b>':_f.av)+']</span>';
       return mark+parts.join(', ')+note+(Math.round(it.paid_amount||0)>0?' <span style="color:#1B5E20;font-size:7px;font-weight:700">💰'+fmt(it.paid_amount)+'₽</span>':'');
     }).join('<br>');
@@ -12973,7 +12975,8 @@ function _jlData(o){
     var _left=remainQty(it),_part=isPartlyDelivered(it);
     var mark=_left<=0?'✅ ':(_part?'◧ ':(anyDlv?'⏳ ':''));
     var note=_part?' <i>(везём ещё '+_left+' из '+q+')</i>':(_left<=0&&it.delivered_at?' <i>(отвезено '+fmtDate(it.delivered_at)+')</i>':'');
-    return{t:mark+parts.join(', '),name:parts.join(', '),q:q,note:note,f:_jlItemInfo(it,o)};
+    var unit=Math.round(it.price_discounted||it.price_retail||0); // v8.10: цена позиции
+    return{t:mark+parts.join(', '),name:parts.join(', '),q:q,note:note,f:_jlItemInfo(it,o),unit:unit,sum:unit*q};
   });
   var deliv=[];
   if(o.delivery_cost>0)deliv.push('доставка '+fmt(o.delivery_cost)+' ₽');
@@ -12996,7 +12999,8 @@ function _jlBigHtml(list,title){
       +'<td class="client"><b>'+esc(o.client_name||'—')+'</b>'
         +(o.client_phone?'<div class="ph">'+esc(o.client_phone)+(o.client_phone2?', '+esc(o.client_phone2):'')+'</div>':'')
         +(d.pickup?'<div class="sm">самовывоз</div>':(o.client_address?'<div class="sm">'+esc(o.client_address)+'</div>':''))+'</td>'
-      +'<td class="goods">'+d.goods.map(function(g){return '<div class="gi">'+g.name+(g.q>1?' — <b>'+g.q+' шт.</b>':'')+_jlInfoLine(g.f)+'</div>';}).join('')+'</td>'
+      +'<td class="goods">'+d.goods.map(function(g){return '<div class="gi">'+g.name+(g.q>1?' — <b>'+g.q+' шт.</b>':'')
+        +(g.sum?' — <b>'+fmt(g.sum)+' ₽</b>'+(g.q>1&&g.unit?' <span class="sm">('+g.q+' × '+fmt(g.unit)+')</span>':''):'')+_jlInfoLine(g.f)+'</div>';}).join('')+'</td>'
       +'<td class="money"><div>Сумма: <b>'+fmt(d.total)+'</b></div><div>Внесено: '+(d.pre?fmt(d.pre):'—')+'</div>'
         +(d.deliv?'<div class="sm">'+d.deliv+' — '+d.dState+'</div>':'')+'</td>'
       +'<td class="debt">'+(d.debt>0?'<b class="red">'+fmt(d.debt)+' ₽</b>':'<b class="green">✅ 0</b>')+'</td>'
@@ -13031,9 +13035,10 @@ function _jlCardsHtml(list,title){
       +'<div class="addr">'+(d.pickup?'Самовывоз':esc(o.client_address||''))
         +(o.delivery_date?' <span class="mgr">· '+(d.pickup?'забрать':'доставка клиенту')+' к <b>'+fmtDate(o.delivery_date)+'</b></span>':'')
         +(o.manager?' <span class="mgr">· менеджер: '+esc(o.manager)+'</span>':'')+'</div>'
-      +'<table class="gt"><thead><tr><th class="n">№</th><th>Товар</th><th class="c-sup">Фабрика</th><th class="c-av">Наличие</th><th class="c-dv">'+(d.pickup?'Выдача':'Доставка')+'</th></tr></thead><tbody>'
+      +'<table class="gt"><thead><tr><th class="n">№</th><th>Товар</th><th class="c-pr">Стоимость</th><th class="c-sup">Фабрика</th><th class="c-av">Наличие</th><th class="c-dv">'+(d.pickup?'Выдача':'Доставка')+'</th></tr></thead><tbody>'
       +d.goods.map(function(g,i){var f=g.f;
         return '<tr><td class="n">'+(i+1)+'</td><td>'+g.name+(g.q>1?' — <b>'+g.q+' шт.</b>':'')+(f.paid?'<div class="pd">'+f.paid+'</div>':'')+'</td>'
+          +'<td class="c-pr"><b>'+(g.sum?fmt(g.sum)+' ₽':'—')+'</b>'+(g.q>1&&g.unit?'<div class="pu">'+g.q+' × '+fmt(g.unit)+'</div>':'')+'</td>'
           +'<td class="c-sup">'+(f.sup?esc(f.sup):'—')+'</td>'
           +'<td class="c-av">'+(f.avBad?'<b class="red">'+f.av+'</b>':f.av)+'</td>'
           +'<td class="c-dv">'+(f.dvDone?f.dv:'<b>'+f.dv+'</b>')+'</td></tr>';}).join('')
@@ -13060,7 +13065,8 @@ function _jlCardsHtml(list,title){
     +'.gt td{font-size:14.5px;vertical-align:top;padding:4px 6px;border-bottom:1px solid #bbb}'
     +'.gt tr:last-child td{border-bottom:none}'
     +'.gt .n{width:22px;text-align:right;padding-left:0}'
-    +'.gt .c-sup{width:15%}.gt .c-av{width:21%}.gt .c-dv{width:19%}'
+    +'.gt .c-pr{width:11%;text-align:right;white-space:nowrap;padding-right:14px}.gt .pu{font-size:12px;color:#444;font-weight:400}'
+    +'.gt .c-sup{width:13%}.gt .c-av{width:19%}.gt .c-dv{width:17%}'
     +'.pd{font-size:13px;color:#1B5E20;font-weight:700}'
     +'.money{display:flex;flex-wrap:wrap;gap:4px 22px;align-items:baseline;border-top:1.5px dashed #777;padding-top:5px}'
     +'.debt{margin-left:auto;font-size:19px}'
