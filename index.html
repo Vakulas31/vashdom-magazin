@@ -313,6 +313,14 @@ button.pl:hover,a:hover > .pl{filter:brightness(.97)}
 .sr-x{background:none;border:none;color:#999;cursor:pointer;font-size:14px}
 .sr-ac{display:block;font-size:11px;color:#1B5E20;font-weight:600}
 .sr-ac-col{font-size:13px;color:#111;font-weight:700}
+.sr-to-b{font-size:12px;margin-top:4px;color:#4E342E;background:#FFF8E1;border-radius:6px;padding:2px 8px;display:inline-block}
+.sr-to-ok{color:#1B5E20;font-weight:600}.sr-to-no{color:#C62828;font-weight:600}
+.sr-to-on{background:#FFF8E1!important;border-color:#F9A825!important}
+.sr-to-banner{cursor:pointer;background:#FFF8E1;border:1.5px solid #F9A825;border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:13.5px}
+.sr-to-g{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+.sr-to-gh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-size:15px}.sr-to-gh small{color:var(--text2)}
+.sr-to-gb{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}.sr-to-gb .btn{padding:4px 9px;font-size:12px}
+.sr-to-r{display:flex;gap:8px;align-items:center;border-top:1px solid var(--border);padding:7px 0;font-size:13.5px}
 .sr-bar{background:#E8F5E9;border:1.5px solid #66BB6A;border-radius:8px;padding:8px 10px;margin:-2px 0 10px}
 .sr-bar-t{font-size:12.5px;margin-bottom:6px}.sr-bar-b{display:flex;gap:8px;flex-wrap:wrap}
 .sr-bar-b button{flex:1;min-width:150px;border:1.5px solid #66BB6A;background:#fff;border-radius:7px;padding:7px 9px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-align:left}
@@ -377,7 +385,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.11</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.12</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1167,6 +1175,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <p style="font-size:12px;color:var(--text2)">Привезли — «＋». Продаём — обычным заказом: выберите товар в «Новом заказе», он спишется сам.</p></div>
     <div id="sr-tools" style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="srNew()">＋ Новый товар</button>
+      <button class="btn btn-outline" id="sr-to-btn" onclick="srToList()">🛒 Заказать</button>
       <button class="btn btn-outline" onclick="srPrintCheck()">🖨 Список для сверки</button>
     </div>
   </div>
@@ -11108,7 +11117,8 @@ function _srLoad(force){
   if(!force&&_srLoadedAt&&Date.now()-_srLoadedAt<60000)return Promise.resolve(_srItems);
   _srLoadP=Promise.all([
     sbGetAll('showroom_items','select=*&order=id.asc'),
-    sbGetAll('showroom_moves','select=*&order=id.asc')
+    sbGetAll('showroom_moves','select=*&order=id.asc'),
+    _srWLoad()  // v8.12: список «Заказать» — без SQL 7.25 просто пустой
   ]).then(function(r){
     _srOn=true;_srItems=r[0]||[];_srMoves=r[1]||[];_srLoadedAt=Date.now();_srCalc();
     return _srItems;
@@ -11245,7 +11255,8 @@ function _srRender(){
       html+='<div class="sr-sec">Проданы — нет на витрине <span>(можно заказать снова)</span></div>'+S.map(function(x){return _srRowHtml(x,true);}).join('');
     }
   }
-  box.innerHTML=html;
+  box.innerHTML=(act.length?_srToBanner():'')+html;
+  _srToBtn();
 }
 function _srRowHtml(x,soldOut){
   var s=_srStock[x.id]||{},q=s.qty||0,since0=s.oldestLeft||s.lastIn,days=_srDays(since0);
@@ -11261,10 +11272,11 @@ function _srRowHtml(x,soldOut){
       +(sub?'<div class="sr-sub">'+sub+'</div>':'')
       +'<div class="sr-sub">'+(_isOwner?(multi?'закупка '+bt+' ₽':'закупка '+fmt(Math.round(opt))+' ₽')+' · ':'')+'цена <b>'+fmt(price)+' ₽</b>'+(+x.price>0?' <span class="sr-own">своя</span>':'')
       +(since?' · <span style="'+(!soldOut&&days>SR_OLD_DAYS?'color:#C62828;font-weight:600':'')+'">'+since+'</span>':'')
-      +(s.sold?' · продано '+s.sold+' шт.':'')+'</div></div>'
+      +(s.sold?' · продано '+s.sold+' шт.':'')+'</div>'+_srToBadge(x.id)+'</div>'
     +'<div class="sr-qty'+(soldOut?' zero':'')+'">'+q+'<small>шт.</small></div>'
     +'<div class="sr-btns">'
       +'<button class="btn btn-primary" onclick="srIn('+x.id+')" title="Привезли ещё на витрину">＋ Привезли</button>'
+      +(_srWOn===false?'':'<button class="btn btn-outline'+(_srToOpen(x.id).length?' sr-to-on':'')+'" onclick="srToAdd('+x.id+')" title="В список «Заказать на витрину»">🛒</button>')
       +(soldOut?'':'<button class="btn btn-outline" onclick="srLabel('+x.id+')" title="Ценник на этот товар">🏷</button>')
       +'<button class="btn btn-outline" onclick="srHistory('+x.id+')" title="История: привезли, продали, вернули">📜</button>'
       +(_isOwner?'<button class="btn btn-outline" onclick="srEdit('+x.id+')" title="Исправить (только владелец)">✏️</button>'
@@ -11356,6 +11368,7 @@ function srSaveIn(id){
   var btn=document.getElementById('sr-save-btn');if(btn)btn.disabled=true;
   var x=_srItem(id),was={opt:x?srOpt(x):0,price:x?srPrice(x):0,qty:srQty(id)};
   sbPost('showroom_moves',Object.assign({item_id:id,delta:qty,kind:'приход',opt:opt,invoice:_srV('sr-f-inv')||null,comment:_srV('sr-f-cmt')||null},_srMeta()))
+  .then(function(){return _srToOpen(id).length?_srToArrived(id,qty).catch(function(e){toast('⚠️ Приход записан, но список «Заказать» не обновился: '+((e&&e.message)||'').slice(0,90),'err',6000);}):0;})
   .then(function(){return _srLoad(true);})
   .then(function(){closeModal('modal-sr');toast('🏬 Записано: +'+qty+' шт.');_srRender();
     // v8.1: закупка новой поставки другая — цена меняется на все штуки сразу
@@ -11471,6 +11484,184 @@ function srPrintCheck(){
     +'</style></head><body><h1>🏬 Витрина — сверка</h1><div class="d">'+new Date().toLocaleDateString('ru-RU')+' · позиций: '+n+' · впишите в последнюю колонку, сколько стоит на самом деле</div>'
     +'<table><thead><tr><th>№</th><th>Товар</th><th style="text-align:right">Цена</th><th style="text-align:center">По учёту</th><th>По факту</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>';
   if(typeof _jlOpen==='function')_jlOpen(html);
+}
+
+// ═══ v8.12: СПИСОК «ЗАКАЗАТЬ НА ВИТРИНУ» (SQL 7.25) ═══════════════════
+// Решения владельца 23.10.2026:
+//  • список ОБЩИЙ: продавец отмечает — владелец видит на телефоне;
+//  • в список можно поставить любой товар витрины — и проданный до нуля,
+//    и тот, которого осталось мало;
+//  • готовый список: текст по каждой фабрике (скопировать в письмо или
+//    мессенджер), крупная печать, отметка «заказано», чтобы не заказать дважды;
+//  • «＋ Привезли» сам закрывает строку списка (или уменьшает количество).
+// Строки не стираются: «убрать» = закрыть с пометкой, кто убрал.
+var _srW=[],_srWOn=null;   // _srWOn: null — не проверяли; false — нет SQL 7.25
+function _srWLoad(){
+  return _sbOnce('GET','showroom_wants',null,'select=*&done_at=is.null&order=id.asc&limit=2000')
+    .then(function(r){_srWOn=true;_srW=r||[];})
+    .catch(function(e){
+      var m=(e&&e.message)||'';
+      if(/showroom_wants|does not exist|relation|schema cache|PGRST2|404/i.test(m))_srWOn=false;
+      _srW=[];
+    });
+}
+function _srToOpen(id){return _srW.filter(function(w){return String(w.item_id)===String(id);});}
+function _srToQty(id){return _srToOpen(id).reduce(function(s,w){return s+(parseInt(w.qty)||0);},0);}
+// строки списка с живым товаром (товар, убранный владельцем, из списка выпадает)
+function _srToRows(){
+  return _srW.map(function(w){return{w:w,x:_srItem(w.item_id)};}).filter(function(r){return r.x&&r.x.active!==false;});
+}
+function _srToNeedSql(){
+  _srModal('<div class="modal-title">🛒 Нужно разовое обновление базы</div>'
+    +'<p style="font-size:13px">Чтобы список «Заказать на витрину» был общим для всех, откройте <b>Supabase → SQL Editor</b>, вставьте и выполните файл <b>«SQL_обновление_7.25.sql»</b>, затем обновите страницу.</p>'
+    +'<div style="text-align:right;margin-top:10px"><button class="btn btn-outline" onclick="closeModal(\'modal-sr\')">Понятно</button></div>');
+}
+function _srToDesc(x){return [x.color&&x.color!=='-'?x.color:'',x.dims||''].filter(Boolean).join(' · ');}
+function _srToStatus(w){
+  return w.ordered_at
+    ?'<span class="sr-to-ok">✔ заказано '+fmtDate(String(w.ordered_at).slice(0,10))+(w.ordered_name?' ('+esc(w.ordered_name)+')':'')+'</span>'
+    :'<span class="sr-to-no">ещё не заказано</span>';
+}
+// бейдж в строке витрины
+function _srToBadge(id){
+  var ws=_srToOpen(id);if(!ws.length)return '';
+  var q=ws.reduce(function(s,w){return s+(parseInt(w.qty)||0);},0);
+  var all=ws.every(function(w){return w.ordered_at;}),none=ws.every(function(w){return !w.ordered_at;});
+  return '<div class="sr-to-b">🛒 в списке на заказ: <b>'+q+' шт.</b> · '
+    +(all?'<span class="sr-to-ok">заказано</span>':none?'<span class="sr-to-no">ещё не заказано</span>':'частично заказано')+'</div>';
+}
+// плашка над списком витрины
+function _srToBanner(){
+  if(_srWOn!==true)return '';
+  var rows=_srToRows();if(!rows.length)return '';
+  var not=rows.filter(function(r){return !r.w.ordered_at;}).length;
+  return '<div class="sr-to-banner" onclick="srToList()"><b>🛒 Заказать на витрину: '+rows.length+' поз.</b>'
+    +(not?' · <span class="sr-to-no">не заказано: '+not+'</span>':' · <span class="sr-to-ok">всё заказано</span>')
+    +' <span style="float:right;text-decoration:underline">открыть список</span></div>';
+}
+function _srToBtn(){
+  var b=document.getElementById('sr-to-btn');if(!b)return;
+  var n=_srWOn===true?_srToRows().length:0;
+  b.textContent='🛒 Заказать'+(n?' ('+n+')':'');
+}
+// ── добавить в список ─────────────────────────────────────────────────
+function srToAdd(id){
+  if(_srWOn===false){_srToNeedSql();return;}
+  var x=_srItem(id);if(!x)return;
+  var ws=_srToOpen(id),open=ws.filter(function(w){return !w.ordered_at;})[0];
+  var inList=ws.length?'<div class="sr-to-b" style="margin-bottom:8px">Уже в списке: '+ws.map(function(w){return w.qty+' шт. — '+(w.ordered_at?'заказано '+fmtDate(String(w.ordered_at).slice(0,10)):'ещё не заказано');}).join('; ')+'</div>':'';
+  _srModal('<div class="modal-title">🛒 Заказать на витрину</div>'
+    +'<div style="font-weight:700">'+esc(x.name)+'</div>'
+    +'<div style="font-size:12.5px;color:var(--text2);margin-bottom:8px">'+esc([x.supplier,_srToDesc(x)].filter(Boolean).join(' · '))+' · сейчас на витрине '+srQty(id)+' шт.</div>'
+    +inList
+    +'<div class="form-row"><div class="fg"><label>'+(open?'Сколько заказать (исправить), шт.':'Сколько заказать, шт.')+' *</label><input id="sr-to-qty" type="number" min="1" step="1" class="inp-gold" value="'+(open?open.qty:1)+'"></div>'
+    +'<div class="fg"><label>Примечание для фабрики</label><input id="sr-to-note" class="inp-gold" value="'+esc(open&&open.note||'')+'" placeholder="например: ткань как у образца"></div></div>'
+    +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-success" id="sr-save-btn" style="flex:1" onclick="srToSave('+id+','+(open?open.id:0)+')">🛒 '+(open?'Сохранить':'Добавить в список')+'</button>'
+    +'<button class="btn btn-outline" onclick="closeModal(\'modal-sr\')">Отмена</button></div>');
+}
+function srToSave(id,wid){
+  var qty=Math.round(_srN('sr-to-qty'));
+  if(!(qty>0)){toast('⚠️ Сколько штук заказать?','err');return;}
+  var btn=document.getElementById('sr-save-btn');if(btn)btn.disabled=true;
+  var note=_srV('sr-to-note')||null;
+  var p=wid?sbPatch('showroom_wants',{qty:qty,note:note},'id=eq.'+wid)
+           :sbPost('showroom_wants',Object.assign({item_id:id,qty:qty,note:note},_srMeta()));
+  p.then(function(){return _srWLoad();})
+   .then(function(){closeModal('modal-sr');toast('🛒 В списке на заказ: '+qty+' шт.');_srRender();})
+   .catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);if(btn)btn.disabled=false;});
+}
+// ── сам список ────────────────────────────────────────────────────────
+function _srToBySup(){
+  var g={};
+  _srToRows().forEach(function(r){var s=r.x.supplier||'Без поставщика';(g[s]=g[s]||[]).push(r);});
+  return Object.keys(g).sort(function(a,b){return a.localeCompare(b,'ru');}).map(function(s){
+    return{sup:s,rows:g[s].sort(function(a,b){return String(a.x.name).localeCompare(String(b.x.name),'ru')||(a.w.id-b.w.id);})};
+  });
+}
+function srToList(){
+  if(_srWOn===false){_srToNeedSql();return;}
+  var groups=_srToBySup();
+  var body=groups.length?groups.map(function(g,gi){
+    var not=g.rows.filter(function(r){return !r.w.ordered_at;});
+    return '<div class="sr-to-g"><div class="sr-to-gh"><b>'+esc(g.sup)+'</b> <small>'+g.rows.length+' поз.</small>'
+      +'<span class="sr-to-gb"><button class="btn btn-outline" onclick="srToCopy('+gi+')">📋 Текст для фабрики</button>'
+      +(not.length?'<button class="btn btn-success" onclick="srToOrdered(['+not.map(function(r){return r.w.id;}).join(',')+'])">✔ Заказано всё</button>':'')+'</span></div>'
+      +g.rows.map(function(r){
+        return '<div class="sr-to-r"><div style="flex:1;min-width:0"><b>'+esc(r.x.name)+'</b> — <b>'+r.w.qty+' шт.</b>'
+          +'<div class="sr-sub">'+esc(_srToDesc(r.x))+(r.w.note?' · <i>'+esc(r.w.note)+'</i>':'')+'</div>'
+          +'<div class="sr-sub">'+_srToStatus(r.w)+(r.w.who_name?' · добавил(а) '+esc(r.w.who_name)+' '+fmtDate(String(r.w.created_at).slice(0,10)):'')+'</div></div>'
+          +'<div class="sr-btns">'+(r.w.ordered_at?'':'<button class="btn btn-outline" title="Отметить: заказали у фабрики" onclick="srToOrdered(['+r.w.id+'])">✔</button>')
+          +'<button class="btn btn-outline" title="Исправить количество" onclick="srToAdd('+r.x.id+')">✏️</button>'
+          +'<button class="btn btn-outline" title="Убрать из списка" onclick="srToRemove('+r.w.id+')">✖</button></div></div>';
+      }).join('')+'</div>';
+  }).join(''):'<div style="font-size:13px;color:var(--text2);padding:10px 0">Список пуст. Нажмите 🛒 у товара на витрине — он попадёт сюда.</div>';
+  _srModal('<div class="modal-title">🛒 Заказать на витрину</div>'+body
+    +'<div style="display:flex;gap:8px;margin-top:12px">'+(groups.length?'<button class="btn btn-primary" onclick="srToPrint()">🖨 Печать</button>':'')
+    +'<button class="btn btn-outline" style="margin-left:auto" onclick="closeModal(\'modal-sr\')">Закрыть</button></div>');
+  var m=document.querySelector('#modal-sr .modal');if(m)m.style.maxWidth='680px';
+}
+function srToOrdered(ids){
+  if(!ids||!ids.length)return;
+  var meta=_srMeta();
+  sbPatch('showroom_wants',{ordered_at:new Date().toISOString(),ordered_who:meta.who,ordered_name:meta.who_name},'id=in.('+ids.join(',')+')')
+    .then(function(){return _srWLoad();})
+    .then(function(){toast('✔ Отмечено: заказано');srToList();_srRender();})
+    .catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);});
+}
+function srToRemove(wid){
+  sbPatch('showroom_wants',{done_at:new Date().toISOString(),done_kind:'убрано',done_name:_srMeta().who_name},'id=eq.'+wid)
+    .then(function(){return _srWLoad();})
+    .then(function(){toast('Убрано из списка');srToList();_srRender();})
+    .catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);});
+}
+// текст для письма или мессенджера — по одной фабрике
+function _srToText(g){
+  return 'Заказ для магазина «Ваш Дом» от '+new Date().toLocaleDateString('ru-RU')+':\n'
+    +g.rows.map(function(r,i){
+      var d=[r.x.color&&r.x.color!=='-'?'цвет '+r.x.color:'',r.x.dims||''].filter(Boolean).join(', ');
+      return (i+1)+'. '+r.x.name+(d?', '+d:'')+' — '+r.w.qty+' шт.'+(r.w.note?' ('+r.w.note+')':'');
+    }).join('\n');
+}
+function srToCopy(gi){
+  var g=_srToBySup()[gi];if(!g)return;
+  var t=_srToText(g);
+  function done(){toast('📋 Текст для «'+g.sup+'» скопирован — вставьте в письмо или мессенджер');}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done).catch(function(){_copyFallback(t,done);});
+  else _copyFallback(t,done);
+}
+// печать — крупно, по фабрикам, с колонкой «Заказано»
+function srToPrint(){
+  var groups=_srToBySup();if(!groups.length){toast('Список пуст','err');return;}
+  var rows='',n=0;
+  groups.forEach(function(g){
+    rows+='<tr class="cat"><td colspan="4">'+esc(g.sup)+'</td></tr>';
+    g.rows.forEach(function(r){n++;
+      rows+='<tr><td>'+n+'</td><td><b>'+esc(r.x.name)+'</b><div class="s">'+esc(_srToDesc(r.x))+(r.w.note?' · '+esc(r.w.note):'')+'</div></td>'
+        +'<td class="c"><b>'+r.w.qty+'</b></td><td>'+(r.w.ordered_at?'✔ '+fmtDate(String(r.w.ordered_at).slice(0,10)):'')+'</td></tr>';
+    });
+  });
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Заказать на витрину</title><style>'
+    +'@page{size:A4 portrait;margin:10mm}body{font-family:Arial,sans-serif;font-size:16px;margin:0}'
+    +'h1{font-size:22px;margin:0 0 4px}.d{font-size:13px;color:#444;margin-bottom:8px}'
+    +'table{width:100%;border-collapse:collapse}th{background:#222;color:#fff;padding:6px;text-align:left;font-size:14px}'
+    +'td{padding:8px 6px;border-bottom:1px solid #999;vertical-align:top}tr{page-break-inside:avoid}.s{font-size:14px;color:#222}'
+    +'.c{text-align:center;font-size:20px;white-space:nowrap}.cat td{background:#ddd;font-weight:700;font-size:17px;padding:6px}'
+    +'td:last-child{width:110px}'
+    +'</style></head><body><h1>🛒 Заказать на витрину</h1><div class="d">'+new Date().toLocaleDateString('ru-RU')+' · позиций: '+n+'</div>'
+    +'<table><thead><tr><th>№</th><th>Товар</th><th style="text-align:center">Штук</th><th>Заказано</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>';
+  if(typeof _jlOpen==='function')_jlOpen(html);
+}
+// «＋ Привезли»: закрываем строки списка — сначала уже заказанные, потом старые
+function _srToArrived(id,qty){
+  var ws=_srToOpen(id).slice().sort(function(a,b){return (a.ordered_at?0:1)-(b.ordered_at?0:1)||(a.id-b.id);});
+  var left=qty,jobs=[],name=_srMeta().who_name;
+  ws.forEach(function(w){
+    if(left<=0)return;
+    var q=parseInt(w.qty)||0;
+    if(left>=q){jobs.push(sbPatch('showroom_wants',{done_at:new Date().toISOString(),done_kind:'привезли',done_name:name},'id=eq.'+w.id));left-=q;}
+    else{jobs.push(sbPatch('showroom_wants',{qty:q-left},'id=eq.'+w.id));left=0;}
+  });
+  return Promise.all(jobs).then(function(){return jobs.length;});
 }
 
 // ── в форме заказа ────────────────────────────────────────────────────
@@ -15729,7 +15920,8 @@ var _BK_TABLES=[
   {t:'claims',           sheet:'Претензии'},         // v7.75 (SQL 7.20; пока нет — просто пропускается)
   {t:'price_labels',     sheet:'Ценники'},           // v7.89 (SQL 7.21; пока нет — просто пропускается)
   {t:'showroom_items',   sheet:'Витрина'},           // v7.98 (SQL 7.23)
-  {t:'showroom_moves',   sheet:'Витрина — история'}  // v7.98 (SQL 7.23)
+  {t:'showroom_moves',   sheet:'Витрина — история'}, // v7.98 (SQL 7.23)
+  {t:'showroom_wants',   sheet:'Витрина — заказать'} // v8.12 (SQL 7.25)
 ];
 function _bkSave(text,name,mime){
   var blob=new Blob([text],{type:mime});
