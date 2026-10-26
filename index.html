@@ -314,7 +314,11 @@ button.pl:hover,a:hover > .pl{filter:brightness(.97)}
 .sr-ac{display:block;font-size:11px;color:#1B5E20;font-weight:600}
 .sr-ac-col{font-size:13px;color:#111;font-weight:700}
 .sr-to-b{font-size:12px;margin-top:4px;color:#4E342E;background:#FFF8E1;border-radius:6px;padding:2px 8px;display:inline-block}
-.sr-to-ok{color:#1B5E20;font-weight:600}.sr-to-no{color:#C62828;font-weight:600}
+.sr-to-ok{color:#1B5E20;font-weight:600}
+.sr-cons{display:inline-block;font-size:12px;background:#F3E5F5;color:#6A1B9A;border-radius:6px;padding:1px 8px;margin-right:6px;font-weight:600}
+.sr-debt{display:inline-block;font-size:12px;background:#FFEBEE;color:#C62828;border-radius:6px;padding:1px 8px;font-weight:700;cursor:pointer}
+.sr-cons-chk{display:flex;gap:8px;align-items:center;background:#F3E5F5;border-radius:8px;padding:8px 10px;margin:6px 0 2px;font-size:13px;cursor:pointer}
+.sr-cons-chk input{width:18px;height:18px}.sr-to-no{color:#C62828;font-weight:600}
 .sr-to-on{background:#FFF8E1!important;border-color:#F9A825!important}
 .sr-to-banner{cursor:pointer;background:#FFF8E1;border:1.5px solid #F9A825;border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:13.5px}
 .sr-to-g{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px}
@@ -385,7 +389,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.12</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.13</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1176,6 +1180,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div id="sr-tools" style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="srNew()">＋ Новый товар</button>
       <button class="btn btn-outline" id="sr-to-btn" onclick="srToList()">🛒 Заказать</button>
+      <button class="btn btn-outline owner-only" onclick="srConsList()">🤝 Фабрикам</button>
       <button class="btn btn-outline" onclick="srPrintCheck()">🖨 Список для сверки</button>
     </div>
   </div>
@@ -11118,7 +11123,8 @@ function _srLoad(force){
   _srLoadP=Promise.all([
     sbGetAll('showroom_items','select=*&order=id.asc'),
     sbGetAll('showroom_moves','select=*&order=id.asc'),
-    _srWLoad()  // v8.12: список «Заказать» — без SQL 7.25 просто пустой
+    _srWLoad(),  // v8.12: список «Заказать» — без SQL 7.25 просто пустой
+    _srConsProbe() // v8.13: под реализацию — без SQL 7.26 всё по-старому
   ]).then(function(r){
     _srOn=true;_srItems=r[0]||[];_srMoves=r[1]||[];_srLoadedAt=Date.now();_srCalc();
     return _srItems;
@@ -11155,7 +11161,7 @@ function _srReplay(item,excludeOrderId){
     st.qty+=d;
     if(m.kind==='приход'&&d>0){
       var o=(+m.opt>0)?+m.opt:(st.lastOpt||+item.opt||0);
-      st.batches.push({id:m.id,date:day,opt:o,qty:d,left:d,inv:m.invoice||''});
+      st.batches.push({id:m.id,date:day,opt:o,qty:d,left:d,inv:m.invoice||'',consign:!!m.consign,paid:parseInt(m.paid_qty)||0,paidAt:m.paid_at||null});
       st.inQty+=d;if(!st.firstIn)st.firstIn=day;st.lastIn=day;st.lastOpt=o;
     }else if(m.kind==='пересчёт'&&d>0){
       st.batches.push({id:m.id,date:day,opt:st.lastOpt||+item.opt||0,qty:d,left:d,inv:'пересчёт'});
@@ -11170,6 +11176,13 @@ function _srReplay(item,excludeOrderId){
     }
   });
   st.batches.forEach(function(b){if(b.left>0){st.value+=b.left*b.opt;if(!st.oldestLeft)st.oldestLeft=b.date;}});
+  // v8.13: под реализацию — в зале (не наши деньги) и долг фабрике за ушедшее
+  st.consLeft=0;st.consValue=0;st.debt=0;st.debtQty=0;
+  st.batches.forEach(function(b){
+    b.out=Math.max(0,b.qty-b.left);b.owe=b.consign?Math.max(0,b.out-(b.paid||0)):0;
+    if(b.consign){st.consLeft+=b.left;st.consValue+=b.left*b.opt;st.debt+=b.owe*b.opt;st.debtQty+=b.owe;}
+  });
+  st.ownValue=st.value-st.consValue;
   return st;
 }
 function _srCalc(){
@@ -11218,15 +11231,21 @@ function _srRender(){
   var act=_srItems.filter(function(x){return x.active!==false;});
   var inStock=act.filter(function(x){return srQty(x.id)>0;});
   var sold=act.filter(function(x){return srQty(x.id)<=0;});
-  var pcs=0,sumOpt=0,sumRet=0,old=0;
+  var pcs=0,sumOpt=0,sumRet=0,old=0,sumOwn=0,sumCons=0,cPcs=0,debt=0;
   inStock.forEach(function(x){var q=srQty(x.id),st=_srStock[x.id]||{};pcs+=q;sumOpt+=st.value||0;sumRet+=srPrice(x)*q;if(_srDays(st.oldestLeft||st.lastIn)>SR_OLD_DAYS)old++;});
+  act.forEach(function(x){var st=_srStock[x.id]||{};sumOwn+=st.ownValue||0;sumCons+=st.consValue||0;cPcs+=st.consLeft||0;debt+=st.debt||0;});
+  var cons=_srConsOn===true;
   var k=document.getElementById('sr-kpis');
   if(k)k.innerHTML=[
     ['На витрине',inStock.length+' поз. · '+pcs+' шт.',''],
-    _isOwner?['Вложено (по закупке)',fmt(Math.round(sumOpt))+' ₽','']:null,
+    _isOwner&&!cons?['Вложено (по закупке)',fmt(Math.round(sumOpt))+' ₽','']:null,
+    // v8.13: свои деньги отдельно от товара под реализацию
+    _isOwner&&cons?['Вложено своих',fmt(Math.round(sumOwn))+' ₽','']:null,
+    _isOwner&&cons?['Под реализацию',fmt(Math.round(sumCons))+' ₽ · '+cPcs+' шт.','#6A1B9A','srConsList()']:null,
+    _isOwner&&cons?['Долг фабрикам за проданное',fmt(Math.round(debt))+' ₽',debt>0?'#C62828':'','srConsList()']:null,
     _isOwner?['По ценам продажи',fmt(Math.round(sumRet))+' ₽','#1B5E20']:null, // v8.7: сумму витрины видит только владелец
     ['Стоят дольше '+SR_OLD_DAYS+' дней',''+old,old?'#C62828':'']
-  ].filter(Boolean).map(function(a){return '<div class="stat-card"><div class="stat-label">'+a[0]+'</div><div class="stat-val" style="font-size:17px;'+(a[2]?'color:'+a[2]:'')+'">'+a[1]+'</div></div>';}).join('');
+  ].filter(Boolean).map(function(a){return '<div class="stat-card"'+(a[3]?' style="cursor:pointer" onclick="'+a[3]+'" title="Расчёты с фабриками"':'')+'><div class="stat-label">'+a[0]+'</div><div class="stat-val" style="font-size:17px;'+(a[2]?'color:'+a[2]:'')+'">'+a[1]+'</div></div>';}).join('');
   // фильтр по разделу — только разделы, где что-то есть
   var cats={};act.forEach(function(x){cats[x.category||'Прочее']=1;});
   var cb=document.getElementById('sr-cats');
@@ -11272,7 +11291,7 @@ function _srRowHtml(x,soldOut){
       +(sub?'<div class="sr-sub">'+sub+'</div>':'')
       +'<div class="sr-sub">'+(_isOwner?(multi?'закупка '+bt+' ₽':'закупка '+fmt(Math.round(opt))+' ₽')+' · ':'')+'цена <b>'+fmt(price)+' ₽</b>'+(+x.price>0?' <span class="sr-own">своя</span>':'')
       +(since?' · <span style="'+(!soldOut&&days>SR_OLD_DAYS?'color:#C62828;font-weight:600':'')+'">'+since+'</span>':'')
-      +(s.sold?' · продано '+s.sold+' шт.':'')+'</div>'+_srToBadge(x.id)+'</div>'
+      +(s.sold?' · продано '+s.sold+' шт.':'')+'</div>'+_srConsBadge(x.id)+_srToBadge(x.id)+'</div>'
     +'<div class="sr-qty'+(soldOut?' zero':'')+'">'+q+'<small>шт.</small></div>'
     +'<div class="sr-btns">'
       +'<button class="btn btn-primary" onclick="srIn('+x.id+')" title="Привезли ещё на витрину">＋ Привезли</button>'
@@ -11314,7 +11333,7 @@ function _srFormHtml(x,isNew){
     +'<div class="form-row"><div class="fg"><label>Закупка за 1 шт., ₽ *'+(isNew?' <small>(по накладной)</small>':'')+'</label><input id="sr-f-opt" type="number" min="0" class="inp-gold" value="'+(x.opt!=null&&x.opt!==''?Math.round(x.opt):'')+'" oninput="srPriceHint()"></div>'
     +'<div class="fg"><label>Цена продажи, ₽ <small>(пусто — по наценке)</small></label><input id="sr-f-price" type="number" min="0" class="inp-gold" value="'+(+x.price>0?Math.round(x.price):'')+'" oninput="srPriceHint()"><div id="sr-f-hint" style="font-size:11.5px;color:var(--text2);margin-top:3px"></div></div></div>'
     +(isNew?'<div class="form-row"><div class="fg"><label>Сколько привезли, шт. *</label><input id="sr-f-qty" type="number" min="1" step="1" class="inp-gold" value="1"></div>'
-      +'<div class="fg"><label>№ накладной</label><input id="sr-f-inv" class="inp-gold" placeholder="если есть"></div></div>':'')
+      +'<div class="fg"><label>№ накладной</label><input id="sr-f-inv" class="inp-gold" placeholder="если есть"></div></div>'+_srConsField(false):'')
     +'<div class="fg"><label>Примечание</label><input id="sr-f-note" class="inp-gold" value="'+esc(x.note||'')+'" placeholder="напр. уценка — потёртость на подлокотнике"></div>';
 }
 function srPriceHint(){
@@ -11344,7 +11363,7 @@ function srSaveNew(){
   var m=_srMeta();
   sbPost('showroom_items',Object.assign({},d,m)).then(function(rows){
     var it=rows&&rows[0];if(!it)throw new Error('база не вернула запись');
-    return sbPost('showroom_moves',Object.assign({item_id:it.id,delta:qty,kind:'приход',opt:d.opt,invoice:inv||null},m)).then(function(){return it;});
+    return sbPost('showroom_moves',_srConsPatch(Object.assign({item_id:it.id,delta:qty,kind:'приход',opt:d.opt,invoice:inv||null},m))).then(function(){return it;});
   }).then(function(it){
     closeModal('modal-sr');toast('🏬 На витрине: '+it.name+' — '+qty+' шт.');
     renderShowroom(true);
@@ -11358,6 +11377,7 @@ function srIn(id){
     +'<div class="fg"><label>Закупка за 1 шт., ₽ *</label><input id="sr-f-opt" type="number" min="0" class="inp-gold" value="'+Math.round(srOpt(x))+'"></div></div>'
     +'<div class="form-row"><div class="fg"><label>№ накладной</label><input id="sr-f-inv" class="inp-gold"></div>'
     +'<div class="fg"><label>Комментарий</label><input id="sr-f-cmt" class="inp-gold"></div></div>'
+    +_srConsField(_srConsLast(id))
     +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-success" id="sr-save-btn" style="flex:1" onclick="srSaveIn('+id+')">✅ Записать</button>'
     +'<button class="btn btn-outline" onclick="closeModal(\'modal-sr\')">Отмена</button></div>');
 }
@@ -11367,7 +11387,7 @@ function srSaveIn(id){
   if(!(opt>0)){toast('⚠️ Впишите закупку по накладной','err');return;}
   var btn=document.getElementById('sr-save-btn');if(btn)btn.disabled=true;
   var x=_srItem(id),was={opt:x?srOpt(x):0,price:x?srPrice(x):0,qty:srQty(id)};
-  sbPost('showroom_moves',Object.assign({item_id:id,delta:qty,kind:'приход',opt:opt,invoice:_srV('sr-f-inv')||null,comment:_srV('sr-f-cmt')||null},_srMeta()))
+  sbPost('showroom_moves',_srConsPatch(Object.assign({item_id:id,delta:qty,kind:'приход',opt:opt,invoice:_srV('sr-f-inv')||null,comment:_srV('sr-f-cmt')||null},_srMeta())))
   .then(function(){return _srToOpen(id).length?_srToArrived(id,qty).catch(function(e){toast('⚠️ Приход записан, но список «Заказать» не обновился: '+((e&&e.message)||'').slice(0,90),'err',6000);}):0;})
   .then(function(){return _srLoad(true);})
   .then(function(){closeModal('modal-sr');toast('🏬 Записано: +'+qty+' шт.');_srRender();
@@ -11397,14 +11417,15 @@ function srHistory(id){
   _srModal('<div class="modal-title">📜 '+esc(x.name)+'</div>'
     +'<div style="font-size:12.5px;color:var(--text2);margin-bottom:8px">Сейчас на витрине: <b>'+srQty(id)+' шт.</b>'+(x.created_at?' · заведён '+fmtDate(String(x.created_at).slice(0,10))+(x.who_name?' ('+esc(x.who_name)+')':''):'')+'</div>'
     +(bl.length?'<div style="background:var(--alt);border-radius:6px;padding:6px 9px;margin-bottom:8px;font-size:12.5px"><b>Поставки на витрине</b> <span style="color:var(--text2)">(продаются по порядку, первой — старая)</span>'
-      +bl.map(function(b){return '<div>📦 '+fmtDate(b.date)+(b.inv&&b.inv!=='пересчёт'?' · накл. '+esc(b.inv):'')+' — осталось <b>'+b.left+'</b> из '+b.qty+(_isOwner?' по '+fmt(Math.round(b.opt))+' ₽':'')+'</div>';}).join('')+'</div>':'')
+      +bl.map(function(b){return '<div>📦 '+fmtDate(b.date)+(b.inv&&b.inv!=='пересчёт'?' · накл. '+esc(b.inv):'')+' — осталось <b>'+b.left+'</b> из '+b.qty+(_isOwner?' по '+fmt(Math.round(b.opt))+' ₽':'')+(b.consign?' · <span class="sr-cons">🤝 под реализацию</span>':'')+'</div>';}).join('')+'</div>':'')
     +(mv.length?'<div style="max-height:52vh;overflow:auto">'+mv.map(function(m){
       var d=parseInt(m.delta)||0;
-      var what=m.kind+(m.invoice?' · накл. '+esc(m.invoice):'')+(m.order_number?' · заказ №'+esc(m.order_number):'')+(m.comment?' · '+esc(m.comment):'');
+      var what=m.kind+(m.consign?' · 🤝 под реализацию'+(_isOwner&&(+m.paid_qty||0)>0?' (оплачено '+m.paid_qty+' шт.)':''):'')+(m.invoice?' · накл. '+esc(m.invoice):'')+(m.order_number?' · заказ №'+esc(m.order_number):'')+(m.comment?' · '+esc(m.comment):'');
       return '<div class="sr-hrow"><span>'+(ICON[m.kind]||'·')+' '+fmtDate(String(m.created_at).slice(0,10))+'</span>'
         +'<b style="color:'+(d>0?'#1B5E20':'#C62828')+'">'+(d>0?'+':'')+d+'</b>'
         +'<span style="flex:1;min-width:0">'+what+(m.opt&&_isOwner?' · '+fmt(Math.round(m.opt))+' ₽/шт':'')+'<small> '+esc(m.who_name||m.who||'')+'</small></span>'
         +(_isOwner&&m.kind==='приход'?'<button class="sr-x" title="Исправить закупку этой поставки (только владелец)" onclick="srEditMoveOpt('+m.id+','+id+')">✏️</button>':'')
+        +(_isOwner&&m.kind==='приход'&&_srConsOn===true?'<button class="sr-x" title="'+(m.consign?'Снять отметку «под реализацию»':'Отметить: поставка под реализацию (платим фабрике после продажи)')+'" onclick="srConsToggle('+m.id+','+id+')" style="'+(m.consign?'opacity:1':'opacity:.45')+'">🤝</button>':'')
         +(_isOwner?'<button class="sr-x" title="Удалить запись (только владелец)" onclick="srDelMove('+m.id+','+id+')">✕</button>':'')+'</div>';
     }).join('')+'</div>':'<div style="color:var(--text2);font-size:13px">Записей нет</div>')
     +'<div style="margin-top:12px;text-align:right"><button class="btn btn-outline" onclick="closeModal(\'modal-sr\')">Закрыть</button></div>');
@@ -11662,6 +11683,106 @@ function _srToArrived(id,qty){
     else{jobs.push(sbPatch('showroom_wants',{qty:q-left},'id=eq.'+w.id));left=0;}
   });
   return Promise.all(jobs).then(function(){return jobs.length;});
+}
+
+// ═══ v8.13: ТОВАР ПОД РЕАЛИЗАЦИЮ (SQL 7.26) ═══════════════════════════
+// Решения владельца 26.10.2026:
+//  • часть поставок на витрине — под реализацию: фабрике платим ПОСЛЕ продажи;
+//  • вернуть непроданное на фабрику нельзя — кнопки «вернули» нет;
+//  • отметку «под реализацию» при приходе ставит любой продавец; сумму долга
+//    видит и отмечает «оплатили фабрике» только владелец;
+//  • «Вложено» вверху витрины делится: свои деньги / под реализацию /
+//    долг фабрикам за проданное.
+// Долг считается по поставке: (ушло штук из поставки − оплачено) × закупка.
+// «Ушло» — продано или списано пересчётом; возврат по заказу штуку возвращает.
+var _srConsOn=null;   // null — не проверяли; false — нет SQL 7.26
+function _srConsProbe(){
+  if(_srConsOn!==null)return Promise.resolve(_srConsOn);
+  return _sbOnce('GET','showroom_moves',null,'select=consign,paid_qty&limit=1')
+    .then(function(){_srConsOn=true;return true;})
+    .catch(function(e){var m=(e&&e.message)||'';if(/consign|paid_qty|column|42703|PGRST/i.test(m))_srConsOn=false;return _srConsOn;});
+}
+// сводка по товару (берётся из _srStock, считается в _srReplay)
+function _srConsOf(id){var s=_srStock[id];return s?{left:s.consLeft||0,val:s.consValue||0,debt:s.debt||0,debtQty:s.debtQty||0}:{left:0,val:0,debt:0,debtQty:0};}
+function _srConsBadge(id){
+  if(_srConsOn!==true)return '';
+  var c=_srConsOf(id),h='';
+  if(c.left>0)h+='<span class="sr-cons">🤝 под реализацию: '+c.left+' шт.</span>';
+  if(_isOwner&&c.debt>0)h+='<span class="sr-debt" onclick="srConsList()" title="Открыть расчёты с фабриками">долг фабрике '+fmt(Math.round(c.debt))+' ₽ · '+c.debtQty+' шт. продано</span>';
+  return h?'<div class="sr-sub" style="margin-top:4px">'+h+'</div>':'';
+}
+// галочка в формах «Новый товар» и «Привезли»
+function _srConsField(def){
+  if(_srConsOn!==true)return '';
+  return '<label class="sr-cons-chk"><input type="checkbox" id="sr-f-cons"'+(def?' checked':'')+'> 🤝 <b>Под реализацию</b> — с фабрикой рассчитаемся после продажи</label>';
+}
+function _srConsVal(){var c=document.getElementById('sr-f-cons');return !!(c&&c.checked);}
+function _srConsPatch(o){if(_srConsOn===true)o.consign=_srConsVal();return o;}
+// последняя поставка товара была под реализацию — по умолчанию так же
+function _srConsLast(id){
+  var b=((_srStock[id]||{}).batches||[]).filter(function(x){return x.inv!=='пересчёт';});
+  return !!(b.length&&b[b.length-1].consign);
+}
+// история: владелец переключает «под реализацию» у поставки (для того, что уже стоит)
+function srConsToggle(mid,id){
+  if(!ownerOnly('Отмечать поставку под реализацию'))return;
+  var m=_srMoves.find(function(x){return x.id===mid;});if(!m)return;
+  var to=!m.consign;
+  if(!to&&(+m.paid_qty||0)>0&&!confirm('По этой поставке уже отмечена оплата фабрике ('+m.paid_qty+' шт.). Снять отметку «под реализацию»?'))return;
+  sbPatch('showroom_moves',{consign:to},'id=eq.'+mid).then(function(){return _srLoad(true);})
+    .then(function(){toast(to?'🤝 Поставка отмечена: под реализацию':'Поставка — своя (оплачена при закупке)');_srRender();srHistory(id);})
+    .catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);});
+}
+// ── расчёты с фабриками (только владелец) ─────────────────────────────
+function _srConsRows(){
+  var rows=[];
+  _srItems.forEach(function(x){
+    var st=_srStock[x.id];if(!st)return;
+    st.batches.forEach(function(b){if(b.consign)rows.push({x:x,b:b});});
+  });
+  return rows;
+}
+function srConsList(){
+  if(!ownerOnly('Расчёты с фабриками'))return;
+  if(_srConsOn===false){_srModal('<div class="modal-title">🤝 Нужно разовое обновление базы</div><p style="font-size:13px">Выполните в <b>Supabase → SQL Editor</b> файл <b>«SQL_обновление_7.26.sql»</b> и обновите страницу.</p><div style="text-align:right;margin-top:10px"><button class="btn btn-outline" onclick="closeModal(\'modal-sr\')">Понятно</button></div>');return;}
+  var g={};
+  _srConsRows().forEach(function(r){var s=r.x.supplier||'Без поставщика';(g[s]=g[s]||{sup:s,debt:[],left:[],dsum:0,lsum:0}).sup=s;
+    if(r.b.owe>0){g[s].debt.push(r);g[s].dsum+=r.b.owe*r.b.opt;}
+    if(r.b.left>0){g[s].left.push(r);g[s].lsum+=r.b.left*r.b.opt;}});
+  var G=Object.keys(g).map(function(k){return g[k];}).filter(function(x){return x.debt.length||x.left.length;})
+    .sort(function(a,b){return b.dsum-a.dsum||a.sup.localeCompare(b.sup,'ru');});
+  var tot=G.reduce(function(s,x){return s+x.dsum;},0),totL=G.reduce(function(s,x){return s+x.lsum;},0);
+  var desc=function(r){return esc(r.x.name)+(r.x.color&&r.x.color!=='-'?' · '+esc(r.x.color):'');};
+  var body=G.length?G.map(function(x){
+    return '<div class="sr-to-g"><div class="sr-to-gh"><b>'+esc(x.sup)+'</b>'
+      +(x.dsum>0?'<span class="sr-debt">к оплате '+fmt(Math.round(x.dsum))+' ₽</span>':'<small>долга нет</small>')
+      +'<span class="sr-to-gb">'+(x.debt.length?'<button class="btn btn-success" onclick="srConsPaid(['+x.debt.map(function(r){return r.b.id;}).join(',')+'])">✔ Оплатили фабрике всё</button>':'')+'</span></div>'
+      +x.debt.map(function(r){
+        return '<div class="sr-to-r"><div style="flex:1;min-width:0"><b>'+desc(r)+'</b> — продано <b>'+r.b.owe+' шт.</b> × '+fmt(Math.round(r.b.opt))+' = <b>'+fmt(Math.round(r.b.owe*r.b.opt))+' ₽</b>'
+          +'<div class="sr-sub">поставка '+fmtDate(r.b.date)+(r.b.inv?' · накл. '+esc(r.b.inv):'')+' · привезли '+r.b.qty+' шт., оплачено '+r.b.paid+(r.b.paidAt?' ('+fmtDate(String(r.b.paidAt).slice(0,10))+')':'')+'</div></div>'
+          +'<div class="sr-btns"><button class="btn btn-outline" title="Отметить: оплатили фабрике за проданное" onclick="srConsPaid(['+r.b.id+'])">✔ Оплатили</button></div></div>';
+      }).join('')
+      +(x.left.length?'<div class="sr-sub" style="padding:6px 0 2px;border-top:1px solid var(--border)">Ещё стоит в зале (платить после продажи): '
+        +x.left.map(function(r){return desc(r)+' — '+r.b.left+' шт.';}).join('; ')+' · на '+fmt(Math.round(x.lsum))+' ₽</div>':'')
+      +'</div>';
+  }).join(''):'<div style="font-size:13px;color:var(--text2);padding:10px 0">Товара под реализацию нет. Отметить поставку можно при «＋ Привезли» или в 📜 истории товара.</div>';
+  _srModal('<div class="modal-title">🤝 Расчёты с фабриками — товар под реализацию</div>'
+    +(G.length?'<div style="font-size:13px;margin-bottom:10px">Долг за проданное: <b style="color:#C62828">'+fmt(Math.round(tot))+' ₽</b> · стоит в зале под реализацию: <b>'+fmt(Math.round(totL))+' ₽</b></div>':'')
+    +body+'<div style="text-align:right;margin-top:10px"><button class="btn btn-outline" onclick="closeModal(\'modal-sr\')">Закрыть</button></div>');
+  var m=document.querySelector('#modal-sr .modal');if(m)m.style.maxWidth='720px';
+}
+// «Оплатили»: по каждой поставке оплачено = сколько из неё ушло на сейчас
+function srConsPaid(mids){
+  if(!ownerOnly('Отмечать оплату фабрике'))return;
+  var rows=_srConsRows().filter(function(r){return mids.indexOf(r.b.id)>=0&&r.b.owe>0;});
+  if(!rows.length)return;
+  var sum=rows.reduce(function(s,r){return s+r.b.owe*r.b.opt;},0);
+  if(!confirm('Отметить оплату фабрике на '+fmt(Math.round(sum))+' ₽ ('+rows.length+' поз.)?'))return;
+  var now=new Date().toISOString(),nm=_srMeta().who_name;
+  Promise.all(rows.map(function(r){return sbPatch('showroom_moves',{paid_qty:r.b.out,paid_at:now,paid_name:nm},'id=eq.'+r.b.id);}))
+    .then(function(){return _srLoad(true);})
+    .then(function(){toast('✔ Оплата фабрике отмечена: '+fmt(Math.round(sum))+' ₽');_srRender();srConsList();})
+    .catch(function(e){toast('❌ '+((e&&e.message)||'').slice(0,140),'err',6000);_srLoad(true).then(_srRender);});
 }
 
 // ── в форме заказа ────────────────────────────────────────────────────
