@@ -389,7 +389,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.13</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.14</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1509,6 +1509,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <button class="chip chip-active" data-ts="week" onclick="setShipRange('week')">На этой неделе</button>
       <button class="chip" data-ts="late" onclick="setShipRange('late')">⏰ Просрочено</button>
       <button class="chip" data-ts="ready" onclick="setShipRange('ready')">Товар есть</button>
+      <button class="chip" data-ts="shop" onclick="setShipRange('shop')" title="Забрали у поставщика, лежит у нас — клиенту ещё не отвезли">🏬 Лежит у нас</button>
       <button class="chip" data-ts="all" onclick="setShipRange('all')">Все</button>
     </div>
     <div style="font-size:11px;color:var(--text2);background:var(--alt);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5">Позиции по невыполненным заказам, которые ещё не у клиента. Сгруппированы по адресу: за одну поездку можно закрыть несколько заказов.</div>
@@ -2509,6 +2510,7 @@ function orderCard(o){
       // v7.20: наличие переключается кликом прямо в карточке, без редактирования заказа
       // v8.6: «Под заказ» делится на «Не заказано» / «Заказано · ждём» (21b_factory.js)
       (_cancel?'':factoryPill(it,o))+
+      (_cancel||typeof shopPill!=='function'?'':shopPill(it,o))+ // v8.14: «🏬 У нас с …»
       supTag+'</div></div>';
   }
 
@@ -3015,6 +3017,7 @@ function openSupplierItems(name){
       // поставщика ещё лежал, а забирать его было некому.
       if(remainQty(it)<=0)return false;                    // всё уже у клиента
       if(it.showroom_item_id)return false;                 // v7.98: образец с витрины — уже в магазине
+      if(it.at_shop_at)return false;                       // v8.14: уже забрали, лежит у нас
       return _supNorm(it.supplier_manual||it.supplier)===key;
     });
     if(rows.length)groups.push({o:o,rows:rows});
@@ -4199,6 +4202,7 @@ function renderShipList(){
     if(_shipRange==='week'&&!(dd&&dd>=today&&dd<=weekEnd)&&!late)return;
     if(_shipRange==='late'&&!late)return;
     if(_shipRange==='ready'&&!ready)return;
+    if(_shipRange==='shop'&&!rows.some(function(it){return !!it.at_shop_at;}))return; // v8.14
     var key=_shipAddrKey(o.client_address)||'без адреса';
     if(!byAddr[key])byAddr[key]={addr:o.client_address||'адрес не указан',orders:[]};
     byAddr[key].orders.push({o:o,rows:rows,late:late,ready:ready});
@@ -4233,13 +4237,15 @@ function renderShipList(){
           var parts=[it.product_name];
           if(it.color)parts.push(it.color);
           if(it.dims)parts.push(it.dims);
-          txt+='     • '+parts.join(' · ')+(_all>1?' × '+_left+' шт.':'')+' — '+(it.availability||'')+'\n';
+          var _avTxt=it.at_shop_at?'у нас в магазине с '+fmtDate(it.at_shop_at):(it.availability||''); // v8.14
+          txt+='     • '+parts.join(' · ')+(_all>1?' × '+_left+' шт.':'')+' — '+_avTxt+'\n';
           return '<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px dashed var(--border)">'
             +'<div style="flex:1;font-size:13px;line-height:1.45"><strong>'+esc(it.product_name)+'</strong>'
             +(parts.length>1?'<span style="color:var(--text2)"> · '+esc(parts.slice(1).join(' · '))+'</span>':'')
             +(_all>1?' <span class="tag-qty">'+_left+' шт.</span>':'')
             +(_partly?' <span class="pl pl-warn">остаток из '+_all+'</span>':'')+'</div>'
-            +'<span class="badge '+(it.availability==='Есть'?'badge-yes':'badge-order')+'" style="flex-shrink:0">'+esc(it.availability||'')+'</span></div>';
+            +(it.at_shop_at?'<span class="pl pl-good" style="flex-shrink:0" title="Забрали у поставщика '+fmtDate(it.at_shop_at)+' — везти из магазина">🏬 у нас</span>'
+              :'<span class="badge '+(it.availability==='Есть'?'badge-yes':'badge-order')+'" style="flex-shrink:0">'+esc(it.availability||'')+'</span>')+'</div>';
         }).join('');
         var долг=Math.round(orderDebt(o));
         return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">'
@@ -4673,7 +4679,7 @@ function _fShort(iso){if(!iso)return '';var p=String(iso).slice(0,10).split('-')
 // Позиция, которую надо (было) заказывать: не «Есть», не образец с витрины,
 // заказ не закрыт и что-то ещё не у клиента
 function _fTracked(it,o){
-  return !isClosed(o)&&it.availability!=='Есть'&&!it.showroom_item_id&&remainQty(it)>0;
+  return !isClosed(o)&&it.availability!=='Есть'&&!it.showroom_item_id&&!it.at_shop_at&&remainQty(it)>0;
 }
 function factoryNotOrdered(it,o){return _fTracked(it,o)&&!it.ordered_at;}
 function factoryLate(it,o){return _fTracked(it,o)&&!!it.ordered_at&&!!it.ordered_eta&&String(it.ordered_eta)<_fToday();}
@@ -4992,6 +4998,98 @@ function _updateFactoryChips(){
   if(a){a.style.display=c.n?'inline-flex':'none';a.textContent='🏭 Не заказано: '+c.n;}
   if(b){b.style.display=c.late?'inline-flex':'none';b.textContent='⏰ Фабрика задерживает: '+c.late;}
   if(nb)nb.textContent='🏭 Фабрики'+(c.n?' ('+c.n+')':'');
+}
+// ═══ v8.14: ТОВАР УЖЕ У НАС В МАГАЗИНЕ, НО ЕЩЁ НЕ У КЛИЕНТА ═════════════
+// Случай владельца 31.10.2026: заказ пришёл с фабрики, мы его забрали и он лежит
+// в магазине, а клиент принять пока не может (уехал и т. п.). В карточке у
+// позиции так и написано «Есть», и она остаётся в списке «Забрать у поставщика».
+// Через неделю-две водитель уже не понимает: грузить её у поставщика или она
+// давно у нас.
+// Теперь у позиции есть отметка «🏬 У нас с 30.10» (поле order_items.at_shop_at,
+// SQL 7.27). Такая позиция:
+//   • пропадает из «Забрать у поставщика» — её уже забрали;
+//   • в «Кому отвезти» помечена «🏬 у нас в магазине» (везти со склада магазина);
+//   • в «Заказах на фабриках» больше не числится в «Ждём»;
+//   • в печати для отца — словами «забрали, лежит у нас в магазине с 30.10»;
+//   • если лежит неделю и дольше — плашка становится янтарной «лежит 9 дн.».
+// Нет SQL 7.27 — отметки просто не видно, всё работает по-старому.
+
+function shopOn(){
+  var all=allOrders||[];
+  for(var i=0;i<all.length;i++){
+    var its=all[i].order_items||[];
+    for(var j=0;j<its.length;j++)if(Object.prototype.hasOwnProperty.call(its[j],'at_shop_at'))return true;
+  }
+  return false;
+}
+// Лежит у нас: отметка стоит, а что-то ещё не отвезено клиенту
+function atShop(it){return !!(it&&it.at_shop_at)&&remainQty(it)>0;}
+function _shopDays(it){
+  if(!it||!it.at_shop_at)return 0;
+  var p=String(it.at_shop_at).slice(0,10).split('-');
+  var d=new Date(+p[0],+p[1]-1,+p[2]);
+  return Math.max(0,Math.floor((Date.now()-d.getTime())/864e5));
+}
+function _shopShort(iso){var p=String(iso||'').slice(0,10).split('-');return p.length===3?p[2]+'.'+p[1]:'';}
+function _shopToday(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+
+// Плашка в строке товара (рядом с «Есть» / «Заказано»)
+function shopPill(it,o){
+  if(!shopOn()||!it||it.showroom_item_id)return '';
+  if(isClosed(o)||remainQty(it)<=0)return '';
+  var oc='event.stopPropagation();shopToggle('+it.id+','+o.id+')';
+  if(it.at_shop_at){
+    var days=_shopDays(it),long=days>=7;
+    var t='🏬 У нас с '+_shopShort(it.at_shop_at)+(long?' · лежит '+days+' дн.':'');
+    var title='Товар забрали у поставщика '+fmtDate(it.at_shop_at)+', лежит у нас в магазине, клиенту ещё не отвезли. Нажмите, чтобы снять отметку';
+    return '<button class="pl '+(long?'pl-warn':'pl-good')+'" onclick="'+oc+'" title="'+esc(title)+'" style="margin-left:6px">'+t+'</button>';
+  }
+  // предлагаем отметку только там, где товар уже может быть у нас:
+  // «Есть» у поставщика или заказан на фабрике
+  if(it.availability!=='Есть'&&!it.ordered_at)return '';
+  return '<button class="pl pl-mut" onclick="'+oc+'" title="Товар забрали у поставщика и он лежит у нас в магазине, но клиенту ещё не отвезли" style="margin-left:6px;opacity:.85">🏬 к нам?</button>';
+}
+
+function shopToggle(itemId,orderId){
+  var o=(allOrders||[]).find(function(x){return x.id===orderId;});
+  var it=o&&(o.order_items||[]).find(function(x){return x.id===itemId;});
+  if(!it)return;
+  if(isCancelled(o)){toast('Заказ отменён','err');return;}
+  var nm='«'+(it.product_name||'товар')+'»';
+  var fields,msg,logTxt;
+  if(it.at_shop_at){
+    if(!confirm('Снять отметку «лежит у нас в магазине» с '+nm+'?\n\nПозиция снова появится в списке «Забрать у поставщика».'))return;
+    fields={at_shop_at:null};msg='↩ '+nm+' — отметка «у нас» снята';logTxt='отметка «лежит у нас в магазине» снята';
+  }else{
+    if(!confirm(nm+' забрали у поставщика, и он лежит у нас в магазине (клиенту ещё не отвезли)?\n\n'
+      +'Позиция уйдёт из «Забрать у поставщика», а в «Кому отвезти» будет помечена «🏬 у нас в магазине».'))return;
+    fields={at_shop_at:_shopToday()};
+    if(it.availability!=='Есть')fields.availability='Есть'; // раз лежит у нас — товар точно есть
+    msg='🏬 '+nm+' — лежит у нас в магазине';logTxt='забрали к нам в магазин '+fmtDate(fields.at_shop_at);
+  }
+  var prev={at_shop_at:it.at_shop_at||null,availability:it.availability};
+  Object.assign(it,fields);_shopRefresh();
+  sbPatch('order_items',fields,'id=eq.'+it.id).then(function(){
+    toast(msg);
+    try{logOrder(o,'edit',[{field:'Где товар',old:null,new:logTxt,note:it.product_name}]);}catch(e){}
+  }).catch(function(e){
+    Object.assign(it,prev);_shopRefresh();
+    var m=String((e&&e.message)||e||'');
+    if(/at_shop_at/.test(m))toast('⚙️ В базе нет нового поля — выполните SQL_обновление_7.27.sql','err',7000);
+    else toast('❌ Не сохранилось: '+m,'err',6000);
+  });
+}
+function _shopRefresh(){
+  if(typeof _paintOrders==='function')_paintOrders();
+  if(typeof _updateFactoryChips==='function')_updateFactoryChips();
+  var ts=document.getElementById('modal-toship');
+  if(ts&&ts.classList.contains('open')&&typeof renderShipList==='function')renderShipList();
+}
+// Сколько позиций сейчас лежит у нас (для подписи в «Кому отвезти»)
+function shopCount(){
+  var n=0;
+  (allOrders||[]).forEach(function(o){if(isClosed(o))return;(o.order_items||[]).forEach(function(it){if(atShop(it))n++;});});
+  return n;
 }
 function onPriceFile(input){
   var file=input.files[0]; if(!file)return;
@@ -6299,6 +6397,23 @@ function _autoDetectModSys(data){
     for(var _i=0;_i<_half&&_mir;_i++)if(pc[_half+_i]-pc[_i]!==_d)_mir=false;
     if(_mir)pc=pc.slice(0,_half);
   }
+  // v8.14: колонка-копия. У Браво («Кровати из металла» 14.10.2026) рядом с ценой
+  // стоит вторая — формула «цена минус скидка», и при нулевой скидке она равна
+  // первой. Сигнатура выше её не ловит (в колонке есть текст «скидка НЕ
+  // распространяется»), и каждая кровать задваивалась. Колонку, которая совпадает
+  // с одной из прежних почти везде, где обе заполнены, — убираем.
+  var _pc0=pc.slice();
+  pc=_pc0.filter(function(c2,i){
+    for(var j=0;j<i;j++){
+      var both=0,same=0;
+      for(var rr=0;rr<data.length;rr++){
+        var a=_plToNum((data[rr]||[])[_pc0[j]]),b=_plToNum((data[rr]||[])[c2]);
+        if(a>=50&&b>=50){both++;if(Math.abs(a-b)<0.5)same++;}
+      }
+      if(both>=5&&same>=both*0.95)return false;
+    }
+    return true;
+  });
   if(!pc.length||pc.length>8||pc[0]<1)return null;
   // 2) слева от цен разбираем текстовые колонки: габариты («400*520*2150мм»,
   //    «0,3х0,38х0,42») — в артикул, остальные — группа и название.
@@ -6759,15 +6874,42 @@ function _autoDetectMatrix(data){
   // подпись, а не «Верхний шкаф Марсель АНП 400».
   for(var r=0;r<Math.min(7,data.length);r++){
     var row=data[r]||[];var sc=[];
-    if(_plLooksProductName(row[0]))continue; // это строка товара, а не шапка
+    // v8.14: «Наименование» в первой колонке — это подпись шапки, а не товар
+    // (матрасы Армос у Браво: шапка «Наименование | Длина | Высота | 800 900 …»
+    // пропускалась, и в базу шла длина 1900 вместо цены)
+    if(_plLooksProductName(row[0])&&!/^\s*(наименован|название|модель|товар|номенклатур|продукци)/i.test(String(row[0])))continue; // это строка товара, а не шапка
     for(var c=0;c<row.length;c++){if(_plIsSize(row[c]))sc.push({col:c,label:String(row[c]).trim()});}
+    var _first0=sc.length?sc[0].col:0;
+    if(sc.length>=3)sc=_plMatrixOneBlock(data,r,sc);
     if(sc.length>=3){
-      var firstSize=sc[0].col;var descCols=[];
+      var firstSize=Math.min(sc[0].col,_first0);var descCols=[]; // v8.14: описания — только ДО первого блока цен
       for(var cc=1;cc<firstSize;cc++)descCols.push(cc); // колонки-описания между названием и размерами
       return{sizeRow:r,sizeCols:sc,nameCol:0,descCols:descCols,dataStart:r+1};
     }
   }
   return null;
+}
+// v8.14: размеры в шапке повторяются двумя блоками (800…2000 и снова 800…2000) —
+// это ДВЕ цены одного и того же товара. У Браво (матрасы Армос) второй блок —
+// та же цена ×1,2, причём в прайсе 01.11.2026 блоки поменялись местами: раньше
+// дороже был правый, теперь левый. Берём блок с МЕНЬШИМИ ценами — базовую цену
+// без ×1,2. Иначе каждый матрас задваивался бы с двумя разными ценами.
+function _plMatrixOneBlock(data,hr,sc){
+  var blocks=[],cur=[],seen={};
+  sc.forEach(function(s){if(seen[s.label]){blocks.push(cur);cur=[];seen={};}seen[s.label]=1;cur.push(s);});
+  blocks.push(cur);
+  if(blocks.length<2)return sc;
+  var best=null,bestAvg=Infinity;
+  blocks.forEach(function(b){
+    if(b.length<3)return;
+    var sum=0,n=0;
+    for(var r=hr+1;r<data.length;r++){
+      b.forEach(function(s){var v=_plToNum((data[r]||[])[s.col]);if(v>=50){sum+=v;n++;}});
+    }
+    var avg=n?sum/n:Infinity;
+    if(n>=3&&avg<bestAvg){bestAvg=avg;best=b;}
+  });
+  return best||blocks[0];
 }
 // Разворачивает матрицу в строки: товар × размер
 function _collectMatrix(data,m,supplier,sheetName){
@@ -9204,14 +9346,49 @@ function _acRank(name,q){
   if(pos===0)return 0;
   return /[\s.,;:·()\/\-]/.test(n.charAt(pos-1))?1:2;
 }
+// v8.14: условия поиска для строки «Модель / Товар» — каждое слово отдельно
+function _spiParams(words,q){
+  if(_gsNormCol){
+    if(words.length>1)return 'and=('+words.map(function(w){return 'search_name.ilike.'+_normPat(w);}).join(',')+')';
+    return 'or=(search_name.ilike.'+_normPat(words[0]||q)+')';
+  }
+  if(words.length>1){
+    var ands=words.map(function(w){
+      var wp=_ilikePat(w);
+      return _gsCompatCol?'or(product_name.ilike.'+wp+',compatibility.ilike.'+wp+')':'product_name.ilike.'+wp;
+    }).join(',');
+    return 'or=(and('+ands+'),article.ilike.'+_ilikePat(q)+')';
+  }
+  return 'or=(product_name.ilike.'+_ilikePat(q)+',article.ilike.'+_ilikePat(q)+')';
+}
+// По всем словам пусто — ищем без одного слова и оставляем, где совпало большинство
+function _spiRelaxed(words,sel){
+  var W=words.slice(0,6);
+  return Promise.all(W.map(function(_w,k){
+    var sub=W.filter(function(_x,j){return j!==k;});
+    return sbGet('price_items',sel+'&and=('+sub.map(function(w){return 'search_name.ilike.'+_normPat(w);}).join(',')+')&limit=120&order=product_name.asc').catch(function(){return[];});
+  })).then(function(res){
+    var seen={},out=[];
+    res.forEach(function(rows){(rows||[]).forEach(function(p){if(seen[p.id])return;seen[p.id]=1;out.push(p);});});
+    return out;
+  });
+}
 function searchPriceItems(id,q){
   clearTimeout(_priceSearchTimer);
   _priceSearchTimer=setTimeout(function(){
     // v7.29: тянем ещё price_kind и valid_until — раньше их тут не запрашивали,
     // и акционная цена с истёкшим сроком подставлялась в заказ вообще без пометки
-    sbGet('price_items','select=id,product_name,supplier,price_opt,price_retail,article,price_kind,valid_until,category,sheet_name'+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility':'')
-      +(_gsNormCol?'&or=(search_name.ilike.'+_normPat(q)+')':'&or=(product_name.ilike.'+_ilikePat(q)+',article.ilike.'+_ilikePat(q)+')')
-      +'&limit=40&order=product_name.asc')
+    // v8.14: ищем КАЖДОЕ слово отдельно — как глобальный поиск в «Прайсах».
+    // Раньше вся фраза искалась одним куском, и «кровать сакура» не находила
+    // «Сакура Кровать 1,4м» (слова в другом порядке) — в «Прайсах» находилось,
+    // а в «Новом заказе» нет, и продавец искал опт вручную.
+    var _sel='select=id,product_name,supplier,price_opt,price_retail,article,price_kind,valid_until,category,sheet_name'+(_gsFactoryCol?',factory':'')+(_gsCompatCol?',compatibility':'');
+    var words=String(q).split(/\s+/).filter(Boolean);
+    sbGet('price_items',_sel+'&'+_spiParams(words,q)+'&limit=200&order=product_name.asc')
+    .then(function(rows){
+      if((rows&&rows.length)||words.length<2||!_gsNormCol)return rows;
+      return _spiRelaxed(words,_sel); // по всем словам пусто — по большинству слов
+    })
     .catch(function(e){
       if(_gsNormCol&&/search_name/i.test((e&&e.message)||'')){_gsNormCol=false;searchPriceItems(id,q);}
       else if(_gsCompatCol&&/compatibility/i.test((e&&e.message)||'')){_gsCompatCol=false;searchPriceItems(id,q);}
@@ -9227,9 +9404,9 @@ function searchPriceItems(id,q){
       // прайсов, когда по локальным спискам совпадений не было (баг «Карина-5»).
       if(!list||!cur||cur.value.toLowerCase().trim()!==q)return;
       // сортируем по релевантности, затем по алфавиту, и берём первые 15
-      rows.sort(function(a,b){var ra=_acRank(a.product_name,q),rb=_acRank(b.product_name,q);
-        return ra!==rb?ra-rb:String(a.product_name||'').localeCompare(String(b.product_name||''));});
-      rows=rows.slice(0,15);
+      // v8.14: та же сортировка, что в «Прайсах»: больше совпавших слов → слово
+      // в начале названия → короче название
+      rows=_gsRank(rows,words).slice(0,15);
       var sep=document.createElement('div');
       sep.style='font-size:10px;color:var(--text2);padding:2px 10px;background:var(--alt)';
       sep.textContent='📦 Из прайс-листов';
@@ -13260,6 +13437,7 @@ function _jlItemInfo(it,o){
   var sup=String(it.supplier_manual||it.supplier||'').trim();
   var av,avBad=false;
   if(it.showroom_item_id)av='с витрины';
+  else if(it.at_shop_at&&remainQty(it)>0)av='забрали, лежит у нас в магазине с '+_fShort(it.at_shop_at); // v8.14
   else if(it.availability==='Есть')av='есть в наличии';
   else if(Object.prototype.hasOwnProperty.call(it,'ordered_at')){ // SQL 7.24
     if(!it.ordered_at){av='под заказ — НЕ ЗАКАЗАНО';avBad=!isClosed(o);}
@@ -15092,14 +15270,63 @@ function _mgrApply(name,list){
 }
 // v7.0: отметка «менеджер работал в этот день» → таблица manager_days.
 // Если SQL_обновление_7.0 не выполнен — тихо пропускаем (не мешаем работе).
+// v8.14: смена — одна на день. Утреннее окно «кто сегодня работает» есть на
+// КАЖДОМ устройстве (компьютер в магазине, телефон владельца, телефон продавца),
+// и раньше каждый ответ записывался ещё одной сменой. В октябре 2026 так
+// набралось 34 смены на 31 день: 02.10 — Наташа и Диана, 25.10 — Сережа и
+// Наташа, 30.10 — Наташа и Сережа. Теперь, если на сегодня уже отмечен другой
+// человек, спрашиваем: заменить его или вы действительно работаете вдвоём.
 function _mgrLogDay(name){
   var today=new Date().toISOString().slice(0,10);
-  sbGet('manager_days','select=id&work_date=eq.'+today+'&manager=eq.'+encodeURIComponent(name)+'&limit=1')
+  sbGet('manager_days','select=id,manager&work_date=eq.'+today+'&limit=20')
     .then(function(rows){
-      if(rows&&rows.length)return;
-      return sbPost('manager_days',{work_date:today,manager:name});
+      rows=rows||[];
+      var key=String(name).trim().toLowerCase();
+      if(rows.some(function(r){return String(r.manager||'').trim().toLowerCase()===key;}))return; // уже отмечен
+      if(!rows.length)return sbPost('manager_days',{work_date:today,manager:name});
+      _mgrAskSecond(name,today,rows);
     })
     .catch(function(){});
+}
+function _mgrAskSecond(name,today,rows){
+  var others=rows.map(function(r){return r.manager;}).filter(Boolean);
+  var m=document.getElementById('modal-mgr2');
+  if(!m){
+    m=document.createElement('div');m.className='modal-bg';m.id='modal-mgr2';
+    m.innerHTML='<div class="modal" style="max-width:440px"></div>';
+    document.body.appendChild(m);
+  }
+  var who=others.map(esc).join(' и ');
+  window._mgr2={name:name,today:today,rows:rows};
+  m.querySelector('.modal').innerHTML='<div class="modal-title">👥 Сегодня уже отмечен'+(others.length>1?'ы':'')+' '+who+'</div>'
+    +'<div style="font-size:13px;line-height:1.5;margin:-4px 0 14px">Смена за '+fmtDate(today)+' уже записана на <b>'+who+'</b> — '
+    +'наверное, выбрали на другом телефоне или компьютере. Каждая отметка — это смена в зарплате, поэтому уточните:</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px">'
+    +'<button class="btn btn-primary" style="justify-content:center" onclick="_mgr2Pick(\'replace\')">Сегодня работает <b style="margin:0 4px">'+esc(name)+'</b> вместо '+who+'</button>'
+    +'<button class="btn btn-outline" style="justify-content:center" onclick="_mgr2Pick(\'both\')">Работаем вдвоём — две смены</button>'
+    +'<button class="btn btn-outline" style="justify-content:center" onclick="_mgr2Pick(\'keep\')">Ошибся — смена остаётся у '+who+'</button>'
+    +'</div>';
+  m.classList.add('open');
+}
+function _mgr2Pick(how){
+  var x=window._mgr2;closeModal('modal-mgr2');if(!x)return;
+  if(how==='both'){
+    sbPost('manager_days',{work_date:x.today,manager:x.name}).then(function(){toast('👥 Записано: сегодня две смены');}).catch(function(){});
+  }else if(how==='replace'){
+    // правка своей строки разрешена всем (удаление — только владельцу), поэтому
+    // переписываем имя в первой отметке, а лишние (если их было несколько) не трогаем
+    sbPatch('manager_days',{manager:x.name},'id=eq.'+x.rows[0].id)
+      .then(function(){toast('✅ Смена за сегодня — '+x.name);})
+      .catch(function(e){toast('❌ Не сохранилось: '+((e&&e.message)||e),'err',6000);});
+  }else{
+    // устройство отметили по ошибке — возвращаем имя того, кто работает
+    var back=x.rows[0].manager;
+    try{localStorage.setItem('vd_manager',back);}catch(e){}
+    var f=document.getElementById('f-manager');if(f)f.value=back;
+    if(typeof _mgrBadge==='function')_mgrBadge();
+    toast('👤 Сегодня работает: '+back);
+  }
+  window._mgr2=null;
 }
 function checkManagerDay(){
   _mgrBadge();
@@ -15680,10 +15907,10 @@ function _renderWorkdays(){
   var fillBtn='<div style="margin-top:10px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">'
     +'<button class="btn btn-outline" style="padding:6px 12px;font-size:12px;flex-shrink:0" onclick="backfillWorkdays()">📥 Дозаполнить из журнала</button>'
     +'<span style="font-size:11px;color:var(--text2)">День записывается при утреннем выборе «кто сегодня работает». Дозаполнение добавит прошлые дни, когда менеджер оформлял заказы.</span></div>';
-  sbGet('manager_days','select=work_date,manager&work_date=gte.'+since.toISOString().slice(0,10)+'&order=work_date.asc&limit=5000')
+  sbGet('manager_days','select=id,work_date,manager&work_date=gte.'+since.toISOString().slice(0,10)+'&order=work_date.asc&limit=5000')
   .then(function(rows){
     rows=rows||[];
-    var byM={},mgrs={},seen={};
+    var byM={},mgrs={},seen={},byDay={};
     rows.forEach(function(r){
       var name=(r.manager||'').trim(),mon=(r.work_date||'').slice(0,7);
       if(!name||!mon)return;
@@ -15691,7 +15918,12 @@ function _renderWorkdays(){
       if(seen[key])return;seen[key]=1;
       (byM[mon]=byM[mon]||{})[name]=(byM[mon][name]||0)+1;
       mgrs[name]=1;
+      (byDay[r.work_date]=byDay[r.work_date]||[]).push({id:r.id,name:name});
     });
+    // v8.14: дни, где отмечены двое и больше — из-за них смен больше, чем дней в месяце
+    var dupM={};
+    Object.keys(byDay).forEach(function(d){if(byDay[d].length>1)(dupM[d.slice(0,7)]=dupM[d.slice(0,7)]||[]).push(d);});
+    window._wdDup={byDay:byDay,dupM:dupM};
     var names=Object.keys(mgrs).sort();
     var months=Object.keys(byM).sort();
     if(!names.length){
@@ -15701,14 +15933,22 @@ function _renderWorkdays(){
     var td='padding:7px 8px;border-bottom:1px solid var(--border);';
     var h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums">'
       +'<tr><th style="text-align:left;'+td+'font-size:11px;color:var(--text2)">Месяц</th>'
-      +names.map(function(n){return'<th style="text-align:right;'+td+'font-size:11px;color:var(--text2)">'+n+'</th>';}).join('')+'</tr>';
+      +names.map(function(n){return'<th style="text-align:right;'+td+'font-size:11px;color:var(--text2)">'+n+'</th>';}).join('')
+      +'<th style="text-align:right;'+td+'font-size:11px;color:var(--text2)" title="Сумма смен / дней в месяце">Всего</th></tr>';
     var nowKey=new Date().toISOString().slice(0,7);
     for(var i=months.length-1;i>=0;i--){
       var mon=months[i],isNow=mon===nowKey;
       h+='<tr style="'+(isNow?'background:var(--alt);':'')+'"><td style="'+td+'font-weight:'+(isNow?'700':'600')+'">'+fmtMonth(mon)+(isNow?' ·':'')+'</td>'
-        +names.map(function(n){var v=byM[mon][n]||0;return'<td style="text-align:right;'+td+(v?'font-weight:600':'color:#B0BEC5')+'">'+(v||'—')+'</td>';}).join('')+'</tr>';
+        +names.map(function(n){var v=byM[mon][n]||0;return'<td style="text-align:right;'+td+(v?'font-weight:600':'color:#B0BEC5')+'">'+(v||'—')+'</td>';}).join('')
+        +_wdTotalCell(mon,byM[mon],dupM[mon]||[],td)+'</tr>';
     }
-    h+='</table></div>'+fillBtn;
+    h+='</table></div>';
+    var dupAll=Object.keys(dupM).reduce(function(a,k){return a+dupM[k].length;},0);
+    if(dupAll)h+='<div style="margin-top:10px;background:#fbf0e2;border:1px solid #e6c284;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;color:#8a5a18">'
+      +'⚠ <b>'+dupAll+'</b> '+(dupAll===1?'день отмечен':'дня/дней отмечены')+' сразу на двоих — поэтому смен больше, чем дней в месяце. '
+      +'Обычно это значит, что «кто сегодня работает» выбрали на двух устройствах. '
+      +'<button class="btn btn-outline" style="padding:4px 10px;font-size:12px;margin-left:4px" onclick="openWorkdayDups()">Разобрать</button></div>';
+    h+=fillBtn;
     el.innerHTML=h;
   })
   .catch(function(e){
@@ -15717,6 +15957,59 @@ function _renderWorkdays(){
       el.innerHTML='<p style="color:#c62828;font-size:12.5px">Нужно один раз выполнить <strong>SQL_обновление_7.0</strong> в Supabase — появится учёт рабочих дней.</p>';
     else el.innerHTML='<p style="color:#c62828;font-size:12px">Ошибка: '+msg.slice(0,150)+'</p>';
   });
+}
+function _wdTotalCell(mon,counts,dups,td){
+  var sum=0;Object.keys(counts||{}).forEach(function(k){sum+=counts[k];});
+  var p=mon.split('-'),dim=new Date(+p[0],+p[1],0).getDate();
+  var over=dups.length>0;
+  return '<td style="text-align:right;'+td+'color:'+(over?'#9c3b2e;font-weight:700':'var(--text2)')+'" title="'
+    +(over?dups.length+' дн. отмечено двое':'')+'">'+sum+' / '+dim+(over?' ⚠':'')+'</td>';
+}
+// v8.14: разбор дней, где отмечены двое. Убрать лишнюю отметку может только
+// владелец (так настроены права в базе с SQL 7.16).
+function openWorkdayDups(){
+  var w=window._wdDup;if(!w)return;
+  var m=document.getElementById('modal-wddup');
+  if(!m){
+    m=document.createElement('div');m.className='modal-bg';m.id='modal-wddup';
+    m.innerHTML='<div class="modal" style="max-width:520px"></div>';
+    m.addEventListener('click',function(e){if(e.target===m)closeModal('modal-wddup');});
+    document.body.appendChild(m);
+  }
+  var days=[];Object.keys(w.dupM).sort().reverse().forEach(function(k){days=days.concat(w.dupM[k].slice().sort().reverse());});
+  // кто оформлял заказы в этот день — подсказка, кто на самом деле работал
+  var ord={};(allOrders||[]).forEach(function(o){var d=o.order_date,mn=(o.manager||'').trim();if(d&&mn){(ord[d]=ord[d]||{})[mn]=(ord[d][mn]||0)+1;}});
+  var h='<div class="modal-title">👥 Дни, отмеченные на двоих</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin:-6px 0 12px;line-height:1.5">Если в этот день работал один человек — снимите лишнюю отметку. Если работали вдвоём — оставьте обе.'
+    +(_isOwner?'':'<br><b style="color:#9c3b2e">Снимать отметки может только владелец.</b>')+'</div>';
+  if(!days.length)h+='<div style="padding:14px;text-align:center;color:var(--text2)">✅ Таких дней нет</div>';
+  days.forEach(function(d){
+    var o=ord[d]||{};
+    var hint=Object.keys(o).map(function(n){return esc(n)+' — '+o[n]+' зак.';}).join(', ');
+    h+='<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px">'
+      +'<div style="font-weight:700;font-size:13px">'+fmtDate(d)+'</div>'
+      +'<div style="font-size:11.5px;color:var(--text2);margin-bottom:6px">Заказы в этот день: '+(hint||'не оформляли')+'</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +w.byDay[d].map(function(x){
+        return '<span class="pl pl-mut" style="font-size:12.5px">'+esc(x.name)
+          +(_isOwner?' <button class="btn btn-outline" style="padding:1px 8px;font-size:11px;margin-left:6px" onclick="wdRemove('+x.id+',\''+d+'\',\''+esc(x.name).replace(/'/g,"\\'")+'\')">✖ снять</button>':'')+'</span>';
+      }).join('')+'</div></div>';
+  });
+  h+='<button class="btn btn-outline" style="width:100%;justify-content:center;margin-top:4px" onclick="closeModal(\'modal-wddup\')">Закрыть</button>';
+  m.querySelector('.modal').innerHTML=h;
+  m.classList.add('open');
+}
+function wdRemove(id,d,name){
+  if(!ownerOnly('Снятие смены'))return;
+  if(!confirm('Снять смену «'+name+'» за '+fmtDate(d)+'?\n\nЗарплата за этот месяц пересчитается без этой смены.'))return;
+  sbDel('manager_days','id=eq.'+id).then(function(){
+    toast('✅ Смена '+name+' за '+fmtDate(d)+' снята');
+    var w=window._wdDup;
+    if(w&&w.byDay[d]){w.byDay[d]=w.byDay[d].filter(function(x){return x.id!==id;});
+      if(w.byDay[d].length<2){var k=d.slice(0,7);w.dupM[k]=(w.dupM[k]||[]).filter(function(x){return x!==d;});if(!w.dupM[k].length)delete w.dupM[k];}}
+    if(typeof _mdCache!=='undefined')_mdCache=null; // зарплата перечитает смены
+    openWorkdayDups();_renderWorkdays();
+  }).catch(function(e){toast('❌ Не снялось: '+((e&&e.message)||e),'err',6000);});
 }
 // Дозаполнение прошлого: дни, когда менеджер оформлял заказы (из загруженного журнала)
 async function backfillWorkdays(){
