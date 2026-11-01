@@ -401,7 +401,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.15</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.15.1</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -8835,23 +8835,52 @@ function gsFind(q,sel,lim){
 }
 
 // ── что есть в зале и что уже продавали: поднимаем выше и помечаем ──
-var _GS_GENERIC=/^(кровать|кровати|диван|диваны|кресло|кресла|шкаф|стол|стул|тумба|комод|матрас|матрац|угловой|прямой|кровать-диван|диван-кровать|двойная|одинарная|для|без|под|new|новинка)$/;
+var _GS_GENERIC_UNUSED=/^(кровать|кровати|диван|диваны|кресло|кресла|шкаф|стол|стул|тумба|комод|матрас|матрац|угловой|прямой|кровать-диван|диван-кровать|двойная|одинарная|для|без|под|new|новинка)$/;
+// v8.15.1: «в зале» — только по НАЗВАНИЮ МОДЕЛИ. Раньше хватало любого слова,
+// кроме типа, и витринный «Комод 4 ящика» помечал все комоды на 4 ящика из
+// прайсов (Джали и др.), хотя это совсем другие товары. Теперь модель — то, что
+// в кавычках («Лидс», «Эльба 2»), или латиница (Prime Hit); если модели в
+// названии нет — с прайсом не сопоставляем вовсе. Плюс тип изделия (первое слово:
+// комод/стол/стул…) должен совпасть, а слово модели — стоять отдельным словом
+// («Ода» не находит «комОДА»).
 function _gsSig(name){
-  return _eNorm(name).replace(/[«»"“”„()\[\],.:;!?·]/g,' ').split(/\s+/).filter(function(w){return w.length>=3&&!_GS_GENERIC.test(w)&&!/^\d+$/.test(w);});
+  var n=_eNorm(name),q=n.match(/["«“„]([^"»”“]{2,40})["»”“]/),toks;
+  if(q)toks=q[1].split(/[\s\-]+/);
+  else toks=(n.match(/[a-z][a-z0-9\-]*/g)||[]).filter(function(w){return w.length>=2;});
+  toks=toks.map(function(w){return w.replace(/[^а-яa-z0-9]/g,'');}).filter(function(w){return w.length>=2||/^\d+$/.test(w);});
+  return toks.length&&toks.some(function(w){return /[а-яa-z]{2}/.test(w);})?toks:[];
 }
+function _gsKind(name){var w=_eNorm(name).split(/[\s\-"«“„]+/)[0]||'';return w.length>=4?w.slice(0,Math.min(5,w.length-1)):'';}
+function _gsWordIn(full,w){return new RegExp('(^|[^а-яa-z0-9])'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([^а-яa-z0-9]|$)').test(full);}
 var _gsShopIdx=null,_gsShopAt=0;
 function _gsShopList(){
   if(typeof _srItems==='undefined'||!_srItems||!_srItems.length)return [];
   if(_gsShopIdx&&_gsShopAt===_srLoadedAt)return _gsShopIdx;
   _gsShopAt=_srLoadedAt;
   _gsShopIdx=_srItems.filter(function(x){return x.active!==false&&typeof srQty==='function'&&srQty(x.id)>0;})
-    .map(function(x){return{sig:_gsSig(x.name||''),qty:srQty(x.id),name:x.name};}).filter(function(x){return x.sig.length;});
+    .map(function(x){return{sig:_gsSig(x.name||''),kind:_gsKind(x.name||''),qty:srQty(x.id),name:x.name};}).filter(function(x){return x.sig.length;});
   return _gsShopIdx;
 }
+var _GS_KINDS=['комод','стол','стул','шкаф','кроват','кресл','диван','тумб','матра','кухон','пуф','банкет','прихож','стенк','полк','зеркал'];
 function gsShopQty(p){
   var L=_gsShopList();if(!L.length)return 0;
   var full=_eNorm([p.product_name,p.article].filter(Boolean).join(' '));
-  return L.reduce(function(s,x){return x.sig.every(function(w){return full.indexOf(w)>=0;})?s+x.qty:s;},0);
+  return L.reduce(function(s,x){
+    // тип: если в строке прайса назван ДРУГОЙ тип изделия — это не тот товар
+    // («Кресло-кровать Эльба 2» ≠ витринный «Диван "Эльба 2"»)
+    if(x.kind&&full.indexOf(x.kind)<0&&_GS_KINDS.some(function(k){return full.indexOf(k)>=0&&x.kind.indexOf(k.slice(0,3))!==0;}))return s;
+    // модель целиком и подряд, и без чужого номера после неё: «Эльба» ≠ «Эльба 2»
+    var re=new RegExp('(^|[^а-яa-z0-9])'+x.sig.map(function(w){return w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}).join('[\\s\\-]*')+'(?![а-яa-z0-9]|[\\s\\-]*\\d)');
+    if(!re.test(full))return s;
+    // тип изделия в строке прайса не назван — тогда в названии не должно быть
+    // ничего, кроме модели (и размера/цвета после « · »): «Эльба 2» — да,
+    // «мс Алиса КМ-1200», «Угловой Эльба 2 НПБ», «Виктория МДФ» — нет
+    if(x.kind&&full.indexOf(x.kind)<0){
+      var rest=_eNorm(String(p.product_name||'').split(' · ')[0]).replace(re,' ');
+      if(/[а-яa-z]{2}/.test(rest.replace(/["«»“”„()]/g,' ')))return s;
+    }
+    return s+x.qty;
+  },0);
 }
 var _gsSoldIdx=null,_gsSoldN=-1;
 function _gsSoldKey(n){return _eNorm(String(n||'').replace(/\s+—\s+в комплекте:.*$/,'')).replace(/\s+/g,' ').trim();}
