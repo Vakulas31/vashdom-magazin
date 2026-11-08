@@ -409,7 +409,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.17</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.18</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -8823,7 +8823,44 @@ function _gsParams(toks,q){
 }
 // Главная функция поиска. sel — «select=…», lim — размер пула.
 // Ответ: {rows, toks (для сортировки), note (что сделали с запросом), how}
+// v8.18: тип изделия в запросе — «мягкое» слово. У фабрик модель часто записана
+// без типа: у Некрасовых «Бостон», а не «Диван Бостон», и запрос «диван бостон»
+// находил только «Бостон диван-кровать» МебельГрада. Теперь параллельно ищем
+// без слов-типов и добавляем найденное ниже (сортировка всё равно ставит выше
+// строки со всеми словами). Строки с ДРУГИМ типом («Кресло Бостон» на запрос
+// «диван бостон») не добавляем.
+var GS_TYPE_RE=/^(диван|диваны|дивана|диван-кровать|кровать|кровати|кресло|кресла|кресло-кровать|тахта|софа|пуф|банкетка|шкаф|стол|стул|стулья|комод|тумба|матрас|матрац|угловой|прямой)$/i;
+var GS_TYPE_STEMS=['диван','кроват','кресл','тахт','соф','пуф','банкет','шкаф','стол','стул','комод','тумб','матрас','матрац','подушк','полк','зеркал'];
+function _gsTypeStem(w){w=_eNorm(w);for(var i=0;i<GS_TYPE_STEMS.length;i++)if(w.indexOf(GS_TYPE_STEMS[i])===0)return GS_TYPE_STEMS[i];return '';}
 function gsFind(q,sel,lim){
+  var toks=gsTokens(q);
+  var typ=toks.filter(function(t){return !t.alts&&GS_TYPE_RE.test(_eNorm(t.w));});
+  var rest=toks.filter(function(t){return typ.indexOf(t)<0;});
+  if(!typ.length||!rest.length||!_gsNormCol)return gsFind0(q,sel,lim);
+  var want=typ.map(function(t){return _gsTypeStem(t.w);}).filter(Boolean);
+  if(want.indexOf('диван')>=0)want.push('тахт','соф'); // «диван» — и тахты/софы
+  var soft=sbGet('price_items',sel+'&'+_gsParams(rest,rest.map(function(t){return t.w;}).join(' '))+'&limit='+(lim||200)+'&order=product_name.asc')
+    .then(function(r){
+      return (r||[]).filter(function(p){
+        var n=_eNorm(p.product_name||'');
+        if(want.some(function(w){return n.indexOf(w)>=0;}))return true; // свой тип — конечно
+        // чужой тип в названии — не то изделие
+        return !GS_TYPE_STEMS.some(function(st){return want.indexOf(st)<0&&new RegExp('(^|[^а-яa-z])'+st).test(n);});
+      });
+    }).catch(function(){return [];});
+  return Promise.all([gsFind0(q,sel,lim),soft]).then(function(x){
+    var res=x[0],add=x[1];if(!add.length)return res;
+    var seen={};(res.rows||[]).forEach(function(p){seen[p.id]=1;});
+    var extra=add.filter(function(p){return !seen[p.id];});
+    if(!extra.length)return res;
+    if(res.how==='exact'||res.how==='relaxed'||!res.rows.length){
+      var note=res.rows.length?res.note:'Слова «'+typ.map(function(t){return t.w;}).join(' ')+'» в названии у фабрики нет — показаны модели без него';
+      return{rows:res.rows.concat(extra),toks:toks,note:note,how:res.rows.length?res.how:'soft'};
+    }
+    return res;
+  });
+}
+function gsFind0(q,sel,lim){
   lim=lim||200;
   var get=function(params){return sbGet('price_items',sel+'&'+params+'&limit='+lim+'&order=product_name.asc');};
   var toks=gsTokens(q);
@@ -9669,6 +9706,26 @@ function _spiRelaxed(words,sel){
     return out;
   });
 }
+// v8.18: строки одного товара, различающиеся только категорией ткани (артикул «кат. N»)
+function _spiCat(p){var m=String(p.article||'').trim().match(/^кат\.?\s*([0-9]{1,2}|[IVX]{1,5})$/i);return m?m[1].toUpperCase():null;}
+function _spiGroupCats(rows){
+  var out=[],by={};
+  rows.forEach(function(p){
+    var c=_spiCat(p);
+    if(c==null||!(p.price_opt>0)){out.push({p:p});return;}
+    var k=(p.supplier||'')+'|'+_eNorm(p.product_name||'');
+    if(!by[k]){by[k]={cat:true,name:p.product_name,sup:p.supplier||'',cats:[],prices:[],_m:{}};out.push(by[k]);}
+    var g=by[k];if(g._m[c])return;g._m[c]=1;g.cats.push(c);g.prices.push(+p.price_opt);
+  });
+  var rom={I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10};
+  var num=function(c){return /^\d+$/.test(c)?+c:(rom[c]||99);};
+  return out.map(function(e){
+    if(!e.cat)return e;
+    if(e.cats.length<2)return{p:rows.find(function(p){return p.product_name===e.name&&(p.supplier||'')===e.sup;})};
+    var idx=e.cats.map(function(c,i){return i;}).sort(function(a,b){return num(e.cats[a])-num(e.cats[b]);});
+    return{cat:true,name:e.name,sup:e.sup,cats:idx.map(function(i){return e.cats[i];}),prices:idx.map(function(i){return e.prices[i];})};
+  });
+}
 function searchPriceItems(id,q){
   clearTimeout(_priceSearchTimer);
   _priceSearchTimer=setTimeout(function(){
@@ -9705,12 +9762,26 @@ function searchPriceItems(id,q){
       // сортируем по релевантности, затем по алфавиту, и берём первые 15
       // v8.14: та же сортировка, что в «Прайсах»: больше совпавших слов → слово
       // в начале названия → короче название
-      rows=_gsRank(rows,words).slice(0,15);
+      rows=_gsRank(rows,words);
+      // v8.18: цены по категориям ткани («Бостон · кат. 1…8» — 8 строк прайса)
+      // собираем в ОДНУ подсказку с выбором категории, как в спецификации
+      var ents=_spiGroupCats(rows).slice(0,15);
       var sep=document.createElement('div');
       sep.style='font-size:10px;color:var(--text2);padding:2px 10px;background:var(--alt)';
       sep.textContent='📦 Из прайс-листов'+(_note?' · '+_note:'');
       list.appendChild(sep);
-      rows.forEach(function(p){
+      ents.forEach(function(e){
+        if(e.cat){
+          var dc=document.createElement('div');dc.className='ac-item';
+          var lo=Math.min.apply(null,e.prices),hi=Math.max.apply(null,e.prices);
+          dc.innerHTML=esc(e.name)+'<span class="ac-sup">'+esc(e.sup)+'</span>'
+            +'<span style="font-size:11px;color:#1B5E20;display:block">ткань: кат. '+esc(e.cats[0])+(e.cats.length>1?'–'+esc(e.cats[e.cats.length-1]):'')+' — категорию выберете ниже</span>'
+            +'<span style="font-size:12px;font-weight:700;color:#BF360C;display:block">розн.: '+(lo<hi?'от '+fmt(retailFromOpt(lo))+' до '+fmt(retailFromOpt(hi)):fmt(retailFromOpt(lo)))+' ₽</span>'
+            +'<span style="font-size:10px;color:var(--text2);display:block">опт: '+(lo<hi?fmt(lo)+'–'+fmt(hi):fmt(lo))+' ₽</span>';
+          dc.onmousedown=function(){selectModel(id,{type:'fabric',name:e.name,sup:e.sup,cats:e.cats,prices:e.prices,dims:''});};
+          list.appendChild(dc);return;
+        }
+        var p=e.p;
         var it={type:'fixed',name:p.product_name,sup:p.supplier||'',
           price_opt:p.price_opt||0,price_retail:p.price_retail||0,
           dims:'',article:p.article||'',
@@ -15006,11 +15077,20 @@ function onModelInput(id){
   // v8.17: продавец скрыл подсказки (✕ / Esc / Enter) — пока дописывает тот же
   // текст, список не лезет обратно и не закрывает поля ниже
   if(_acOff[id]!=null){if(q.indexOf(_acOff[id])===0){list.style.display='none';return;}delete _acOff[id];}
-  var fab=FABRIC_DB.filter(function(x){return x.n.toLowerCase().indexOf(q)>=0;}).slice(0,8);
+  // v8.18: ищем по словам, тип изделия («диван») — необязательный: у фабрик модель
+  // часто записана без него («Бостон»). Встроенная спецификация и старый каталог
+  // не показываются, если прайс этого поставщика загружен — там цены свежее
+  // (в спецификации Некрасовых лежали цены до повышения 01.11.2026).
+  var _qw=_eNorm(q).split(/\s+/).filter(Boolean);
+  var _qMain=_qw.filter(function(w){return !(typeof GS_TYPE_RE!=='undefined'&&GS_TYPE_RE.test(w));});
+  if(!_qMain.length)_qMain=_qw;
+  var _hit=function(txt){txt=_eNorm(txt);return _qMain.every(function(w){return txt.indexOf(w)>=0;});};
+  var _fresh=function(sup){return sup&&_plSuppliers&&_plSuppliers.has(_eNorm(sup));};
+  var fab=FABRIC_DB.filter(function(x){return !_fresh(x.s)&&_hit(x.n+' '+x.s);}).slice(0,8);
   var prod=allProducts.filter(function(p){
     // товар из старого каталога, чей прайс уже загружен → пропускаем (покажется из прайса с актуальной ценой)
-    if(p.supplier&&_plSuppliers&&_plSuppliers.has(_eNorm(p.supplier)))return false;
-    return(p.name&&p.name.toLowerCase().indexOf(q)>=0)||(p.supplier&&p.supplier.toLowerCase().indexOf(q)>=0);
+    if(_fresh(p.supplier))return false;
+    return _hit((p.name||'')+' '+(p.supplier||''));
   }).slice(0,6);
   // v7.98: витрина — первой; загружаем в фоне при первом вводе
   if(_srOn===null&&typeof _srLoad==='function')_srLoad().then(function(){var el=document.getElementById('fi-model-'+id);if(el&&document.activeElement===el)onModelInput(id);});
