@@ -361,6 +361,14 @@ button.pl:hover,a:hover > .pl{filter:brightness(.97)}
 .kit-test-row small{color:var(--text2)}
 .kit-test-row:hover{background:var(--alt)}
 @media (max-width:700px){.kit-prow{grid-template-columns:1fr 1fr}}
+/* v8.17: шапка подсказки товара — «✕ Скрыть» */
+.ac-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 6px 4px 10px;background:#f2f4f7;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)}
+.ac-head button{border:1px solid var(--border);background:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600;color:#2d3440;cursor:pointer}
+.ac-head button:hover{background:#e9edf2}
+/* v8.17: «нужно больше, чем на витрине» — разделить */
+.sr-bar-split{margin-top:8px;padding:7px 10px;background:#fbf0e2;border:1px solid #f0d9b5;border-radius:6px;font-size:12.5px;color:#6b4a14;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sr-bar-split button{border:1px solid #c98a2b;background:#fff;color:#8a5a18;border-radius:6px;padding:5px 12px;font-weight:700;font-size:12.5px;cursor:pointer}
+.sr-bar-split button:hover{background:#fff6ea}
 </style>
 <!-- defer: библиотека Excel не должна блокировать открытие приложения, если CDN недоступен
      (из-за этого приложение могло не открываться на новых устройствах/сетях) -->
@@ -401,7 +409,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.16</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.17</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -2448,7 +2456,7 @@ function statusClass(s){
 }
 
 function orderCard(o){
-  var items=o.order_items||[];
+  var items=srSplitOrder(o.order_items||[]); // v8.17: «с витрины» и «под заказ» одной вещи — рядом
   var _done=isDone(o); // v7.29: общая проверка вместо строгого сравнения со строкой
   var _cancel=isCancelled(o); // v7.75: отменённый заказ — серый, свёрнутый, без кнопок работы
   var isPaid=o.status&&o.status.indexOf('Оплачено')>=0&&o.status.indexOf('Не')<0;
@@ -2491,6 +2499,9 @@ function orderCard(o){
     var supTag=supName?'<button class="tag-sup" onclick="event.stopPropagation();openSupplierItems('+JSON.stringify(supName).replace(/"/g,'&quot;')+')" title="Показать всё, что нужно забрать у поставщика «'+supName.replace(/"/g,'&quot;')+'»" style="cursor:pointer;border:1px solid #ddd;font-family:inherit">'+supName+'</button>':'';
     if(it.showroom_item_id)supTag+='<span class="tag-sr" title="Продан образец с витрины магазина">🏬 с витрины</span>'; // v7.98
     var qtyTag=it.qty>1?'<span class="tag-qty">'+it.qty+' шт.</span>':'';
+    // v8.17: одна вещь разделена на «с витрины» и «под заказ» — показываем, из скольких
+    var _grp=_srSplitTotal(items,it);
+    if(_grp)qtyTag='<span class="tag-qty" title="Всего '+_grp+' шт.: часть с витрины, часть новые под заказ">'+it.qty+' из '+_grp+' шт.</span>';
     var availClass=it.availability==='Есть'?'badge-yes':'badge-order';
     // Отметка «отвезено клиенту» по каждому товару отдельно (частичная доставка заказа).
     // Выполненный заказ (_done) = товар у клиента, поэтому НЕ показываем оранжевую
@@ -2531,7 +2542,7 @@ function orderCard(o){
     }
     itemsHtml+='<div class="item-row-compact"'+(dlv?' style="background:#F4FBF4"':'')+'>'+
       '<div class="item-info"><span class="item-text"'+(dlv?' style="opacity:.75"':'')+'><strong>'+it.product_name+'</strong>'+(parts.length>1?' · '+parts.slice(1).join(' · '):'')+'</span>'+
-      (it.qty>1?'<span class="tag-qty" style="margin-left:6px">'+it.qty+' шт.</span>':'')+
+      (_grp?'<span class="tag-qty" style="margin-left:6px" title="Всего '+_grp+' шт.: часть с витрины, часть новые под заказ">'+it.qty+' из '+_grp+' шт.</span>':(it.qty>1?'<span class="tag-qty" style="margin-left:6px">'+it.qty+' шт.</span>':''))+
       '</div>'+
       '<div class="item-avail">'+paidTag+dlvBtn+
       '<span class="item-price" style="margin-right:8px">'+price+' ₽</span>'+
@@ -4380,6 +4391,28 @@ function openOrderLog(orderId){
       +(нет?'Выполните в базе <strong>SQL_обновление_7.15.sql</strong> — после этого приложение начнёт вести журнал.'
            :esc(String(e&&e.message||'')))+'</p></div>';
   });
+}
+
+// ═══ v8.17: позиция, разделённая на «с витрины» + «под заказ» ════════════
+// Одинаковые товар и цвет, у одной строки — образец с витрины, у другой нет.
+// Возвращает общее количество (или 0, если это обычная позиция).
+function _srSplitKey(it){return _eNorm(String(it.product_name||''))+'|'+_eNorm(String(it.color||''));}
+function _srSplitTotal(items,it){
+  var k=_srSplitKey(it),same=(items||[]).filter(function(x){return _srSplitKey(x)===k;});
+  if(same.length<2||!same.some(function(x){return x.showroom_item_id;})||!same.some(function(x){return !x.showroom_item_id;}))return 0;
+  return same.reduce(function(s,x){return s+(parseInt(x.qty)||1);},0);
+}
+// В карточке — рядом: строка «под заказ» сразу под своей «с витрины», даже если
+// между ними в форме был другой товар
+function srSplitOrder(items){
+  var out=[],used={};
+  (items||[]).forEach(function(it,i){
+    if(used[i])return;out.push(it);used[i]=1;
+    if(!_srSplitTotal(items,it))return;
+    var k=_srSplitKey(it);
+    items.forEach(function(x,j){if(!used[j]&&_srSplitKey(x)===k){out.push(x);used[j]=1;}});
+  });
+  return out;
 }
 // ═══ v7.75: ОТМЕНА ЗАКАЗА ВМЕСТО УДАЛЕНИЯ ═══════════════════════════════
 // Что было. Клиент отказался — заказ можно было только удалить, и только
@@ -9664,6 +9697,11 @@ function searchPriceItems(id,q){
       // РАНЬШЕ здесь стояла проверка display==='none' — она отбрасывала товары из
       // прайсов, когда по локальным спискам совпадений не было (баг «Карина-5»).
       if(!list||!cur||cur.value.toLowerCase().trim()!==q)return;
+      // v8.17: продавец уже ушёл из поля или скрыл подсказки — не открываем
+      // список поверх формы (раньше ответ прайса приходил позже и закрывал поля)
+      if(document.activeElement!==cur)return;
+      if(typeof _acOff!=='undefined'&&_acOff[id]!=null)return;
+      if(!list.querySelector('.ac-head')&&typeof acHead==='function')list.insertAdjacentHTML('afterbegin',acHead(id));
       // сортируем по релевантности, затем по алфавиту, и берём первые 15
       // v8.14: та же сортировка, что в «Прайсах»: больше совпавших слов → слово
       // в начале названия → короче название
@@ -12500,11 +12538,38 @@ function _srBar(id){
   var mine=0,oid=document.getElementById('edit-order-id').value;
   if(oid)_srMoves.forEach(function(m){if(String(m.order_id)===String(oid)&&String(m.item_id)===String(x.id))mine-=(parseInt(m.delta)||0);});
   var avail=srQty(x.id)+mine;
+  // v8.17: клиент берёт больше, чем стоит на витрине («4 стула есть, ещё 2
+  // таких же закажем») — одной кнопкой: эта позиция = всё с витрины, рядом
+  // новая позиция «под заказ» на остаток. Раньше вторую строку набирали руками.
+  var _qn=parseInt((document.getElementById('fi-qty2-'+id)||{}).value)||1;
+  var split=(avail>0&&_qn>avail)
+    ?'<div class="sr-bar-split"><span>⚠️ Нужно <b>'+_qn+' шт.</b>, а на витрине <b>'+avail+'</b>.</span>'
+      +'<button type="button" onclick="srSplit('+id+')">Разделить: '+avail+' с витрины + '+(_qn-avail)+' под заказ</button></div>'
+    :'';
   bar.innerHTML='<div class="sr-bar-t">🏬 Этот товар есть на витрине: <b>'+avail+' шт.</b> Что продаём?</div>'
     +'<div class="sr-bar-b">'
     +'<button type="button" class="'+(mode==='sample'?'on':'')+'"'+(avail>0?'':' disabled title="На витрине не осталось"')+' onclick="srPick('+id+',\'sample\')">Образец с витрины<small>спишется с витрины · '+fmt(srPrice(x))+' ₽</small></button>'
     +'<button type="button" class="'+(mode==='new'?'on':'')+'" onclick="srPick('+id+',\'new\')">Новый такой же под заказ<small>витрина не меняется</small></button>'
-    +'</div>';
+    +'</div>'+split;
+}
+function srSplit(id){
+  var ib=document.getElementById('ib-'+id);if(!ib)return;
+  var x=_srItem(ib.dataset.srId);if(!x)return;
+  var qEl=document.getElementById('fi-qty2-'+id);var need=parseInt(qEl&&qEl.value)||1;
+  var mine=0,oid=document.getElementById('edit-order-id').value;
+  if(oid)_srMoves.forEach(function(m){if(String(m.order_id)===String(oid)&&String(m.item_id)===String(x.id))mine-=(parseInt(m.delta)||0);});
+  var avail=srQty(x.id)+mine;if(!(avail>0)||need<=avail)return;
+  // 1) эта позиция — образцы с витрины, сколько есть
+  qEl.value=avail;srPick(id,'sample');calcItemPrice(id);
+  // 2) копия — такие же новые под заказ на остаток
+  duplicateFormItem(id);
+  var n=itemCount;
+  var q2=document.getElementById('fi-qty2-'+n);if(q2)q2.value=need-avail;
+  srAttach(n,x.id);srPick(n,'new');calcItemPrice(n);
+  var nb=document.getElementById('ib-'+n);
+  if(nb&&nb.scrollIntoView)nb.scrollIntoView({behavior:'smooth',block:'center'});
+  recalcTotals();
+  toast('✂️ Разделено: '+avail+' шт. с витрины + '+(need-avail)+' шт. под заказ (такие же новые)','ok',4000);
 }
 function srAttach(id,srId){
   var ib=document.getElementById('ib-'+id);if(!ib)return;
@@ -14597,7 +14662,7 @@ function addFormItem(){
     '<div class="fg" style="margin-bottom:10px">'+
       '<label>Модель / Товар * <span id="sup-lbl-'+id+'" onclick="var s=document.getElementById(\'suprow-'+id+'\');if(s)s.style.display=\'block\'" title="Нажмите, чтобы изменить поставщика" style="cursor:pointer;font-size:11px;color:var(--dark);background:var(--lite);padding:1px 6px;border-radius:10px;display:none"></span></label>'+
       '<div class="ac-wrap">'+
-        '<input type="text" id="fi-model-'+id+'" class="inp-gold" placeholder="Введите название..." autocomplete="off" oninput="onModelInput('+id+')" onfocus="onModelInput('+id+')" onblur="hideAc(\'ac-model-'+id+'\',250)">'+
+        '<input type="text" id="fi-model-'+id+'" class="inp-gold" placeholder="Введите название..." autocomplete="off" oninput="onModelInput('+id+')" onfocus="onModelInput('+id+')" onkeydown="acKey('+id+',event)" onblur="hideAc(\'ac-model-'+id+'\',250)">'+
         '<div class="ac-list" id="ac-model-'+id+'"></div>'+
       '</div></div>'+
     '<div class="form-row" style="margin-bottom:10px">'+
@@ -14627,7 +14692,7 @@ function addFormItem(){
     '</div>'+
     '<div id="nocat-row-'+id+'" class="form-row" style="margin-bottom:10px">'+
       '<div class="fg"><label>Наличие</label><select id="fi-avail-'+id+'" class="inp-gold"><option>Есть</option><option>Под заказ</option></select></div>'+
-      '<div class="fg"><label>Кол-во *</label><input type="number" id="fi-qty2-'+id+'" value="1" min="1" step="1" class="inp-gold" oninput="_qtyFix(this);calcItemPrice('+id+')" onblur="_qtyFix(this,1);calcItemPrice('+id+')"></div>'+
+      '<div class="fg"><label>Кол-во *</label><input type="number" id="fi-qty2-'+id+'" value="1" min="1" step="1" class="inp-gold" oninput="_qtyFix(this);calcItemPrice('+id+');if(typeof _srBar===\'function\')_srBar('+id+')" onblur="_qtyFix(this,1);calcItemPrice('+id+');if(typeof _srBar===\'function\')_srBar('+id+')"></div>'+
     '</div>'+
     '<div style="display:flex;gap:14px;margin-top:6px;align-items:center">'+
       '<div style="font-size:13px">Розн.: <strong id="fi-ret-'+id+'" style="color:#BF360C">—</strong></div>'+
@@ -14937,7 +15002,10 @@ function _loadPriceSuppliers(){
 function onModelInput(id){
   var q=document.getElementById('fi-model-'+id).value.toLowerCase().trim();
   var list=document.getElementById('ac-model-'+id);
-  if(q.length<1){list.style.display='none';return;}
+  if(q.length<1){list.style.display='none';delete _acOff[id];return;}
+  // v8.17: продавец скрыл подсказки (✕ / Esc / Enter) — пока дописывает тот же
+  // текст, список не лезет обратно и не закрывает поля ниже
+  if(_acOff[id]!=null){if(q.indexOf(_acOff[id])===0){list.style.display='none';return;}delete _acOff[id];}
   var fab=FABRIC_DB.filter(function(x){return x.n.toLowerCase().indexOf(q)>=0;}).slice(0,8);
   var prod=allProducts.filter(function(p){
     // товар из старого каталога, чей прайс уже загружен → пропускаем (покажется из прайса с актуальной ценой)
@@ -14956,9 +15024,29 @@ function onModelInput(id){
       (it.dims?'<span style="font-size:11px;color:var(--text2);display:block">'+it.dims+'</span>':'')+
       '</div>';
   });
-  list.innerHTML=html;
+  list.innerHTML=html?acHead(id)+html:'';
   list.style.display=items.length?'block':'none';
   if(q.length>=2)searchPriceItems(id,q);
+}
+// ═══ v8.17: подсказку товара можно убрать ═══════════════════════════════
+// Пишешь «диван томас», а он не из прайса — список вариантов закрывал поля
+// «Цвет», «Наличие», «Кол-во», и убрать его было нечем. Теперь: кнопка
+// «✕ Скрыть» сверху списка, Esc или Enter. Пока дописываешь тот же текст —
+// список не возвращается; сотрёшь и начнёшь заново — появится снова.
+var _acOff={};
+function acHead(id){
+  return '<div class="ac-head"><span>Подсказки — можно не выбирать</span>'
+    +'<button type="button" onmousedown="event.preventDefault();acClose('+id+')" title="Скрыть подсказки (Esc)">✕ Скрыть</button></div>';
+}
+function acClose(id){
+  var el=document.getElementById('fi-model-'+id),list=document.getElementById('ac-model-'+id);
+  if(list)list.style.display='none';
+  if(el)_acOff[id]=el.value.toLowerCase().trim();
+}
+function acKey(id,ev){
+  var list=document.getElementById('ac-model-'+id);
+  if((ev.key==='Escape'||ev.key==='Enter')&&list&&list.style.display!=='none'){ev.preventDefault();acClose(id);}
+  else if(ev.key==='Enter')ev.preventDefault(); // Enter в поле товара не отправляет форму
 }
 
 function selectModel(id,item){
@@ -15281,7 +15369,7 @@ function saveOrder(){
     for(var _sk in _srNeed){
       var _mine=0;if(_eid0)_srMoves.forEach(function(m){if(String(m.order_id)===String(_eid0)&&String(m.item_id)===String(_sk))_mine-=(parseInt(m.delta)||0);});
       var _av=srQty(_sk)+_mine,_sx=_srItem(_sk);
-      if(_srNeed[_sk]>_av){itemErrors.push('«'+(_sx?_sx.name:'товар')+'»: на витрине '+_av+' шт., а продаёте '+_srNeed[_sk]);}
+      if(_srNeed[_sk]>_av){itemErrors.push('«'+(_sx?_sx.name:'товар')+'»: на витрине '+_av+' шт., а продаёте '+_srNeed[_sk]+' — нажмите «Разделить» у товара: '+_av+' с витрины + остальное под заказ');}
     }
     items.forEach(function(it){it.showroom_item_id=it._sr||null;});
   }
