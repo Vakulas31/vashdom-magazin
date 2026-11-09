@@ -409,7 +409,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.20.1</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.22</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1050,6 +1050,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn btn-primary" id="pl-import-btn" onclick="importPriceList()" style="flex:1;justify-content:center;min-width:170px">⬆️ Импортировать этот лист</button>
           <button class="btn btn-success" id="pl-import-all-btn" onclick="importAllSheets()" style="flex:1;justify-content:center;min-width:150px;display:none">📚 Все листы сразу</button>
+          <button class="btn btn-success" id="pl-patch-btn" onclick="ppPrepare()" style="flex:1;justify-content:center;min-width:170px;display:none;background:#e67e22;border-color:#e67e22">🔁 Обновить цены по письму</button>
+          <button class="btn btn-outline" id="pl-patch-undo-btn" onclick="ppUndo()" style="display:none">↩ Вернуть прежние цены</button>
           <button class="btn btn-outline" onclick="resetPriceImport()">✕</button>
         </div>
         <div id="pl-multi-note" style="display:none;font-size:11.5px;color:var(--text2);margin-top:8px;background:var(--alt);border-radius:6px;padding:7px 10px;line-height:1.5"></div>
@@ -1262,6 +1264,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
     <p style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:12px">Способ запишется в заказ. Сумма поступления не изменится — изменится только то, в какую колонку она попадёт в «Учёте».</p>
     <button class="btn btn-outline" style="width:100%;justify-content:center" onclick="closeModal('modal-paymethod')">Отмена</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-ppatch">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">🔁 Обновление цен по письму фабрики</div>
+    <div id="ppatch-body"></div>
   </div>
 </div>
 
@@ -5205,6 +5214,7 @@ function onPriceFile(input){
       document.getElementById('pl-mapper').style.display='block';
       try{if(window.mtOnPriceWB)mtOnPriceWB(_plWB,file.name);}catch(_e){} // v7.92: прайс матрасов → ценники
       _plScopeNote();
+      try{ppOnWB();}catch(_e){} // v8.22: письмо фабрики об изменении цен
     }catch(err){toast('❌ Не удалось прочитать файл: '+err.message,'err');}
   };
   reader.readAsArrayBuffer(file);
@@ -5902,6 +5912,13 @@ function _collectRows(data,cfg){
         continue;
       }
       if(nameVal&&!optNum){
+        // v8.21: цвет под кроватью без цены («ПШЕНИЧНЫЙ | 3 ВАРИАНТ» — сейчас не
+        // выпускается) — это не новый заголовок. Раньше такая строка обрывала кровать:
+        // следующие цвета теряли модель, а «Комплектующие» не попадали в комплект
+        // (Грета 1400, Ирма 1600, Нельсон 1200–1600).
+        if(_kc&&!_kc.cur&&_kc.bedEnd==null&&row.some(function(x,ci){return ci!==cfg.colName&&/вариант/i.test(String(x==null?'':x));})){
+          continue;
+        }
         if(!_plIsNoteRow(nameVal)){
           // Заголовок группы (без цены) — новая группа, примечание сбрасываем
           _kcFlush();
@@ -7670,6 +7687,7 @@ var _plDetOptNote=''; // v7.81: цвета группы из шапки над �
 var _plDetDimCols=null; // v7.86: отдельные колонки «Ширина / Высота / Глубина» (БТС)
 async function importPriceList(){
   if(!ownerOnly('Загрузка прайсов'))return; // v7.60
+  if(typeof ppGuardImport==='function'&&!ppGuardImport())return; // v8.22: письмо об изменении цен
   var supplier=(document.getElementById('pl-sup').value||'').trim();
   var factory=(document.getElementById('pl-factory').value||'').trim();
   var colName=document.getElementById('pl-col-name').value;
@@ -7785,6 +7803,7 @@ async function importPriceList(){
 async function importAllSheets(){
   if(!ownerOnly('Загрузка прайсов'))return; // v7.60
   if(!_plWB)return;
+  if(typeof ppGuardImport==='function'&&!ppGuardImport())return; // v8.22: письмо об изменении цен
   var supplier=(document.getElementById('pl-sup').value||'').trim();
   var factory=(document.getElementById('pl-factory').value||'').trim();
   if(!supplier){toast('⚠️ Укажите название поставщика','err');return;}
@@ -8723,6 +8742,247 @@ function _collectMatPav(data,cfg){
     });
   });
   return rows;
+}
+// ═══ v8.22: ОБНОВЛЕНИЕ ЦЕН ПО ПИСЬМУ ФАБРИКИ ═══════════════════════════
+// Фабрика (Браво, 09.11.2026) прислала не полный прайс, а «письмо о повышении»:
+// несколько листов, у каждой позиции «старая цена» и «цена с 09.11.2026».
+// Загружать его как прайс нельзя: «Все листы сразу» заменяет ВСЮ фабрику —
+// исчезло бы всё, чего в письме нет (мягкая мебель, металл, матрасы, траверсы,
+// опоры, ножки), и комплекты кроватей перестали бы считаться. Поэтому здесь
+// другой путь: каждую строку письма находим в базе (по старой цене + названию,
+// модели, размеру и цвету) и меняем ТОЛЬКО цену. Остальное не трогаем.
+// Перед записью старые цены сохраняются (app_settings.price_patch_undo) —
+// одной кнопкой всё возвращается назад.
+
+function _ppNorm(s){return String(s==null?'':s).toLowerCase().replace(/ё/g,'е').replace(/[xх×*]/g,'х')
+  .replace(/(^|[^\d])0+(\d{3,4})(?=\s*х)/g,'$1$2').replace(/[«»"“”„()\[\],.;:!?\/\\+]/g,' ').replace(/\s+/g,' ').trim();}
+function _ppTok(s){var o={};_ppNorm(s).split(' ').forEach(function(w){if(w.length>=2||/\d/.test(w))o[w]=1;});return Object.keys(o);}
+function _ppSizes(t){return (_ppNorm(t).match(/\d{3,4}х\d{3,4}/g)||[]);}
+function _ppColor(t){
+  var m=_ppNorm(t).match(/цвет\s+([а-я\-]+(?:\s+(?!кровать|кровати|одинарн|двойн|двухъяр|лдсп|мдф|лак)[а-я\-]+)?)/);
+  return m?m[1].split(' ').filter(function(w){return w.length>=3;}):[];
+}
+function _ppKey(name){var w=_ppNorm(name).split(' ')[0]||'';return w.length>=3?w:'';}
+function _ppNum(v){if(typeof v==='number')return v;var n=parseFloat(String(v==null?'':v).replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0;}
+
+// Это письмо об изменении цен? (в шапке листа «цена с 09.11.2026»)
+function ppIsLetter(wb){
+  if(!wb||!wb.SheetNames)return false;
+  return wb.SheetNames.some(function(n){return !!_ppHeader(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:null,raw:true}));});
+}
+function _ppHeader(rows){
+  for(var i=0;i<Math.min(8,rows.length);i++){
+    var r=rows[i]||[];
+    for(var j=1;j<r.length;j++){if(/цена\s*с\s*\d{1,2}[.\-]\d{1,2}/i.test(String(r[j]||'')))return{row:i,newCol:j,oldCol:j-1};}
+  }
+  return null;
+}
+// Строки письма: {sheet, model, name, ch, old, new}
+function ppParseLetter(wb){
+  var out=[];
+  wb.SheetNames.forEach(function(sn){
+    var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
+    var h=_ppHeader(rows);if(!h)return;
+    var model='';
+    for(var i=h.row+1;i<rows.length;i++){
+      var r=rows[i]||[];
+      var name=String(r[0]==null?'':r[0]).replace(/\s+/g,' ').trim(),ch=String(r[1]==null?'':r[1]).replace(/\s+/g,' ').trim();
+      var nw=_ppNum(r[h.newCol]),old=_ppNum(r[h.oldCol]);
+      if(name&&!ch&&!(nw>0)){model=name;continue;}
+      if(!(nw>0)||(!name&&!ch))continue;
+      out.push({sheet:sn,model:model,name:name||model,ch:ch,old:old,new:Math.round(nw*100)/100});
+    }
+  });
+  return out;
+}
+// Сопоставление строк письма с товарами базы.
+// how: 'price' — та же старая цена и то же изделие; 'name' — старая цена в базе
+// другая, но название/размер/цвет совпали точно; 'none' — не нашли.
+function ppMatch(letter,db){
+  var byPrice={},info=new Map();
+  db.forEach(function(d){
+    var k=Math.round(+d.price_opt||0);(byPrice[k]=byPrice[k]||[]).push(d);
+    var t=d.product_name+' '+(d.article||''),tk=_ppTok(t);
+    info.set(d,{tok:new Set(tk),n:tk.length,sz:_ppSizes(t),txt:' '+_ppNorm(t)+' '});
+  });
+  var hasPre=function(I,w){
+    if(I.tok.has(w))return true;if(w.length<4)return false;
+    var ok=false;I.tok.forEach(function(t){if(!ok&&t.length>=4&&(t.indexOf(w)===0||w.indexOf(t)===0))ok=true;});return ok;
+  };
+  // strict: размер обязан совпасть (поиск без цены). С той же старой ценой размер
+  // в письме бывает записан иначе (Миа 800х1795 в базе → 800х1800 в письме).
+  var fit1=function(key,txt,lt,d,strict){
+    var I=info.get(d);
+    if(key&&I.txt.indexOf(' '+key+' ')<0)return -1;
+    var ls=_ppSizes(txt),szOk=!ls.length||ls.every(function(s){return I.sz.indexOf(s)>=0;});
+    if(!szOk&&strict)return -1;
+    var col=_ppColor(txt);if(col.length&&!col.every(function(w){return hasPre(I,w);}))return -1;
+    var h=0;lt.forEach(function(w){if(hasPre(I,w))h++;});
+    return 2*h/(lt.length+I.n)-(szOk?0:0.05);
+  };
+  var fit=function(L,lt,d,strict){
+    var a=fit1(_ppKey(L.name),L.name+' '+L.ch,lt,d,strict);
+    if(L.model&&L.model!==L.name){var t2=L.model+' '+L.ch,b=fit1(_ppKey(L.model),t2,_ppTok(t2),d,strict);if(b>a)a=b;}
+    return a;
+  };
+  var pick=function(L,lt,cands,strict){
+    var best=[],bs=-1;
+    cands.forEach(function(d){var s=fit(L,lt,d,strict);if(s>bs+1e-9){bs=s;best=[d];}else if(s>=0&&Math.abs(s-bs)<1e-9)best.push(d);});
+    return{best:bs>=0?best:[],s:bs};
+  };
+  var res=[];
+  letter.forEach(function(L){
+    var lt=_ppTok(L.name+' '+L.ch),o=Math.round(L.old);
+    // с новой ценой тоже — письмо уже применяли (повторный запуск ничего не меняет)
+    var nn=Math.round(L.new);
+    var c=[].concat(byPrice[o]||[],byPrice[o-1]||[],byPrice[o+1]||[],nn!==o?(byPrice[nn]||[]):[]);
+    var p=pick(L,lt,c,false);
+    if(L.old>0&&p.best.length&&p.s>=0.45){res.push({L:L,ds:p.best,s:p.s,how:'price'});return;}
+    p=pick(L,lt,db,true);
+    if(p.best.length>1){ // одинаковые по тексту — берём ближайшие по цене (лист «рез. ткани» с другой ценой не трогаем)
+      var dist=function(d){return Math.abs((+d.price_opt||0)-L.old);},mn=Math.min.apply(null,p.best.map(dist));
+      p.best=p.best.filter(function(d){return dist(d)<=mn+1;});
+    }
+    if(p.best.length&&p.best.length<=3&&p.s>=0.75){res.push({L:L,ds:p.best,s:p.s,how:'name'});return;}
+    res.push({L:L,ds:[],s:p.s,how:'none'});
+  });
+  // одна строка базы — одной строке письма (той, что подходит лучше)
+  var own=new Map();
+  res.forEach(function(r,i){r.ds.forEach(function(d){var j=own.get(d);if(j==null||res[j].s<r.s)own.set(d,i);});});
+  res.forEach(function(r,i){r.ds=r.ds.filter(function(d){return own.get(d)===i;});if(!r.ds.length&&r.how!=='none')r.how='none';});
+  return res;
+}
+
+var _ppPlan=null;
+function ppOnWB(){
+  var isL=false;try{isL=ppIsLetter(_plWB);}catch(e){}
+  var b=document.getElementById('pl-patch-btn');if(b)b.style.display=isL?'inline-flex':'none';
+  var mn=document.getElementById('pl-multi-note');
+  if(isL&&mn){mn.style.display='block';
+    mn.innerHTML='📨 <strong>Это письмо фабрики об изменении цен</strong> (в шапке «цена с …»), а не полный прайс. Загружать его кнопкой «📚 Все листы сразу» нельзя — она заменит всю фабрику, и пропадёт всё, чего нет в письме. Укажите поставщика и фабрику и нажмите <strong>«🔁 Обновить цены по письму»</strong>: поменяются только цены найденных товаров.';}
+  _ppUndoBtn();
+}
+function _ppSupFac(){
+  return{sup:(document.getElementById('pl-sup').value||'').trim(),fac:((document.getElementById('pl-factory')||{}).value||'').trim()};
+}
+function _ppFilter(sf){
+  return 'supplier=eq.'+encodeURIComponent(sf.sup)+(_plHasFactoryCol?(sf.fac?'&factory=eq.'+encodeURIComponent(sf.fac):'&or=(factory.is.null,factory.eq.%22%22)'):'');
+}
+function _ppPct(o,n){return o>0?((n/o-1)*100):0;}
+function _ppFmtPct(p){return (p>=0?'+':'−')+Math.abs(p).toFixed(1).replace('.',',')+' %';}
+async function ppPrepare(){
+  if(!ownerOnly('Обновление цен'))return;
+  if(!_plWB){toast('Сначала выберите файл письма','err');return;}
+  var sf=_ppSupFac();
+  if(!sf.sup){toast('Укажите поставщика (и фабрику), чьи цены обновляем','err',4000);return;}
+  var letter=ppParseLetter(_plWB);
+  if(!letter.length){toast('В файле не нашлось строк с колонкой «цена с …»','err',4000);return;}
+  _ppShow('<div style="padding:18px;text-align:center;color:var(--text2)">⏳ Сверяю '+letter.length+' строк письма с базой…</div>');
+  var db;
+  try{db=await sbGetAll('price_items','select=id,product_name,article,price_opt,sheet_name&'+_ppFilter(sf)+'&order=id.asc');}
+  catch(e){_ppShow('<div style="padding:14px;color:#c0392b">❌ Не удалось прочитать базу: '+esc(e.message)+'</div>');return;}
+  if(!db.length){_ppShow('<div style="padding:14px;color:#c0392b">В базе нет товаров «'+esc(sf.sup)+(sf.fac?' · '+esc(sf.fac):'')+'». Проверьте поставщика и фабрику.</div>');return;}
+  var res=ppMatch(letter,db);
+  var upd=[],same=0,miss=[],byName=[];
+  res.forEach(function(r){
+    if(r.how==='none'){miss.push(r);return;}
+    if(r.how==='name')byName.push(r);
+    r.ds.forEach(function(d){if(Math.abs((+d.price_opt||0)-r.L.new)<0.005){same++;return;}upd.push({id:d.id,o:+d.price_opt||0,n:r.L.new,r:r,d:d});});
+  });
+  _ppPlan={sf:sf,upd:upd,file:_plFileName||''};
+  // сводка по листам письма
+  var bySheet={};
+  res.forEach(function(r){var s=bySheet[r.L.sheet]=bySheet[r.L.sheet]||{n:0,ok:0,pcts:[]};s.n++;if(r.how!=='none'){s.ok++;}});
+  upd.forEach(function(u){bySheet[u.r.L.sheet].pcts.push(_ppPct(u.o,u.n));});
+  var med=function(a){if(!a.length)return 0;a=a.slice().sort(function(x,y){return x-y;});return a[a.length>>1];};
+  var h='<div style="font-size:13px;line-height:1.5;margin-bottom:10px">Поставщик <strong>'+esc(sf.sup)+'</strong>'+(sf.fac?' · фабрика <strong>'+esc(sf.fac)+'</strong>':'')+' — в базе '+db.length+' товаров. В письме '+letter.length+' строк.</div>';
+  h+='<table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:10px"><tr style="color:var(--text2)"><th style="text-align:left">Лист письма</th><th>строк</th><th>нашлось</th><th>рост (в середине)</th></tr>';
+  Object.keys(bySheet).forEach(function(k){var s=bySheet[k];h+='<tr><td>'+esc(k)+'</td><td style="text-align:center">'+s.n+'</td><td style="text-align:center">'+s.ok+'</td><td style="text-align:center">'+(s.pcts.length?_ppFmtPct(med(s.pcts)):'—')+'</td></tr>';});
+  h+='</table>';
+  h+='<div style="font-size:13px;margin-bottom:8px">Будет изменено цен: <strong>'+upd.length+'</strong>'+(same?' · уже такие же: '+same:'')+(miss.length?' · <span style="color:#b26a00">не нашлось в базе: '+miss.length+'</span>':'')+'</div>';
+  var row=function(u){var p=_ppPct(u.o,u.n);return '<tr><td>'+esc(u.d.product_name)+(u.d.article?'<div style="color:var(--text2);font-size:11px">'+esc(String(u.d.article).slice(0,70))+'</div>':'')+'</td><td style="text-align:right;white-space:nowrap">'+fmt(Math.round(u.o))+'</td><td style="text-align:right;white-space:nowrap"><strong>'+fmt(Math.round(u.n))+'</strong></td><td style="text-align:right;white-space:nowrap;color:'+(p<0?'#2e7d32':'#c0392b')+'">'+_ppFmtPct(p)+'</td></tr>';};
+  var tbl=function(list){return '<table style="width:100%;font-size:12px;border-collapse:collapse"><tr style="color:var(--text2)"><th style="text-align:left">Товар</th><th>было</th><th>станет</th><th></th></tr>'+list.map(row).join('')+'</table>';};
+  if(byName.length){
+    var bn=upd.filter(function(u){return u.r.how==='name';});
+    h+='<details style="margin-bottom:8px"><summary style="cursor:pointer;font-size:12.5px;color:#b26a00">⚠ '+bn.length+' — старая цена в письме не такая, как в базе (найдено по названию, размеру и цвету) — проверьте</summary><div style="max-height:200px;overflow:auto;margin-top:6px">'+tbl(bn)+'</div></details>';
+  }
+  if(miss.length){
+    h+='<details style="margin-bottom:8px"><summary style="cursor:pointer;font-size:12.5px;color:#b26a00">'+miss.length+' строк письма не нашлось в базе — их цены не изменятся (новые товары нужно будет загрузить с полным прайсом)</summary><div style="max-height:200px;overflow:auto;margin-top:6px;font-size:12px">'+
+      miss.map(function(r){return '<div style="padding:2px 0;border-bottom:1px solid var(--border)">'+esc(r.L.name)+(r.L.ch?' · <span style="color:var(--text2)">'+esc(r.L.ch.slice(0,60))+'</span>':'')+' — '+fmt(Math.round(r.L.old))+' → <strong>'+fmt(Math.round(r.L.new))+'</strong></div>';}).join('')+'</div></details>';
+  }
+  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-size:12.5px">Все изменения ('+upd.length+')</summary><div style="max-height:260px;overflow:auto;margin-top:6px">'+tbl(upd)+'</div></details>';
+  h+='<div style="font-size:11.5px;color:var(--text2);margin-bottom:12px;line-height:1.5">Меняется только оптовая цена найденных товаров; розница в заказах считается от неё по вашей наценке. Уже оформленные заказы не меняются. Прежние цены сохраняются — кнопкой «↩ Вернуть прежние цены» всё откатывается.</div>';
+  h+='<div style="display:flex;gap:10px"><button class="btn btn-success" id="pp-apply-btn" onclick="ppApply()" style="flex:1;justify-content:center"'+(upd.length?'':' disabled')+'>✅ Обновить '+upd.length+' цен</button><button class="btn btn-outline" onclick="closeModal(\'modal-ppatch\')">Отмена</button></div>';
+  _ppShow(h);
+}
+function _ppShow(html){
+  var b=document.getElementById('ppatch-body');if(b)b.innerHTML=html;
+  document.getElementById('modal-ppatch').classList.add('open');
+}
+// Записать цены группами «одна новая цена — список номеров»
+async function _ppWrite(list,field,onProg){
+  var groups={};list.forEach(function(u){var k=String(u[field]);(groups[k]=groups[k]||[]).push(u.id);});
+  var jobs=[];Object.keys(groups).forEach(function(p){var ids=groups[p];for(var i=0;i<ids.length;i+=150)jobs.push({p:+p,ids:ids.slice(i,i+150)});});
+  var done=0,fail=0,changed=0,k=0;
+  var worker=async function(){
+    while(k<jobs.length){
+      var j=jobs[k++];
+      try{var r=await sbPatch('price_items',{price_opt:j.p},'id=in.('+j.ids.join(',')+')');changed+=Array.isArray(r)?r.length:j.ids.length;}
+      catch(e){fail+=j.ids.length;}
+      done+=j.ids.length;if(onProg)onProg(done,list.length);
+    }
+  };
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  return{changed:changed,fail:fail};
+}
+async function ppApply(){
+  if(!ownerOnly('Обновление цен'))return;
+  var plan=_ppPlan;if(!plan||!plan.upd.length)return;
+  var btn=document.getElementById('pp-apply-btn');if(btn){btn.disabled=true;btn.textContent='⏳ Сохраняю прежние цены…';}
+  var undo={at:new Date().toISOString(),sup:plan.sf.sup,fac:plan.sf.fac,file:plan.file,rows:plan.upd.map(function(u){return{id:u.id,o:u.o};})};
+  var js=JSON.stringify(undo);
+  try{localStorage.setItem('vd_price_patch_undo',js);}catch(e){}
+  try{await saveSetting('price_patch_undo',js);}
+  catch(e){
+    if(!confirm('Не удалось сохранить прежние цены в базе (откат будет только с этого устройства). Всё равно обновить?')){if(btn){btn.disabled=false;btn.textContent='✅ Обновить '+plan.upd.length+' цен';}return;}
+  }
+  var r=await _ppWrite(plan.upd,'n',function(d,t){if(btn)btn.textContent='⏳ '+d+' из '+t+'…';});
+  try{_kitCache={};}catch(e){}
+  _ppPlan=null;
+  _ppShow('<div style="padding:8px 4px;font-size:14px;line-height:1.6">'+(r.fail?'⚠️':'✅')+' Обновлено цен: <strong>'+r.changed+'</strong>'+(r.fail?'<br><span style="color:#c0392b">Не записалось: '+r.fail+' — проверьте связь и нажмите «Обновить цены по письму» ещё раз (уже обновлённые покажутся как «уже такие же»).</span>':'')+
+    '<div style="font-size:12px;color:var(--text2);margin-top:8px">Остальные товары '+esc(plan.sf.sup)+(plan.sf.fac?' · '+esc(plan.sf.fac):'')+' не тронуты. Когда придёт полный прайс — загрузите его как обычно («📚 Все листы сразу»).</div>'+
+    '<div style="display:flex;gap:10px;margin-top:14px"><button class="btn btn-primary" onclick="closeModal(\'modal-ppatch\')" style="flex:1;justify-content:center">Готово</button><button class="btn btn-outline" onclick="ppUndo()">↩ Вернуть прежние цены</button></div></div>');
+  toast('✅ Цены обновлены: '+r.changed,r.fail?'err':'ok',4000);
+  _ppUndoBtn();
+}
+async function _ppUndoData(){
+  try{var r=await sbGet('app_settings','select=value&key=eq.price_patch_undo');if(r&&r[0]&&r[0].value)return JSON.parse(r[0].value);}catch(e){}
+  try{var l=localStorage.getItem('vd_price_patch_undo');if(l)return JSON.parse(l);}catch(e){}
+  return null;
+}
+async function _ppUndoBtn(){
+  var b=document.getElementById('pl-patch-undo-btn');if(!b)return;
+  var u=await _ppUndoData();
+  b.style.display=(u&&u.rows&&u.rows.length)?'inline-flex':'none';
+  if(u&&u.at)b.title='Последнее обновление: '+new Date(u.at).toLocaleString('ru-RU')+', '+u.rows.length+' цен ('+(u.sup||'')+(u.fac?' · '+u.fac:'')+')';
+}
+async function ppUndo(){
+  if(!ownerOnly('Откат цен'))return;
+  var u=await _ppUndoData();
+  if(!u||!u.rows||!u.rows.length){toast('Нечего возвращать','err');return;}
+  if(!confirm('Вернуть прежние цены у '+u.rows.length+' товаров ('+(u.sup||'')+(u.fac?' · '+u.fac:'')+', обновление от '+new Date(u.at).toLocaleString('ru-RU')+')?'))return;
+  _ppShow('<div style="padding:18px;text-align:center;color:var(--text2)">⏳ Возвращаю прежние цены…</div>');
+  var r=await _ppWrite(u.rows,'o');
+  try{_kitCache={};}catch(e){}
+  if(!r.fail){try{await saveSetting('price_patch_undo','');}catch(e){}try{localStorage.removeItem('vd_price_patch_undo');}catch(e){}}
+  _ppShow('<div style="padding:8px 4px;font-size:14px">'+(r.fail?'⚠️ Возвращено '+r.changed+', не записалось '+r.fail+' — нажмите ещё раз.':'✅ Прежние цены возвращены: '+r.changed)+'<div style="margin-top:14px"><button class="btn btn-primary" onclick="closeModal(\'modal-ppatch\')" style="width:100%;justify-content:center">Готово</button></div></div>');
+  _ppUndoBtn();
+}
+// Защита: письмо пытаются загрузить как обычный прайс
+function ppGuardImport(){
+  var isL=false;try{isL=ppIsLetter(_plWB);}catch(e){}
+  if(!isL)return true;
+  return confirm('⚠️ Этот файл — письмо фабрики об изменении цен, а не полный прайс.\n\nЕсли загрузить его как прайс, программа возьмёт СТАРУЮ цену и заменит товары фабрики только тем, что есть в письме — всё остальное пропадёт.\n\nОтмена — не загружать (нажмите «🔁 Обновить цены по письму»).\nОК — всё равно загрузить как прайс.');
 }
 function globalSearch(){
   clearTimeout(_gsTimer);
@@ -11256,16 +11516,21 @@ function kitCompatText(c){return String(c||'').replace(/🧩[\s\S]*?¶\s*(·\s*)
 //   части есть список кроватей, модель должна в нём быть; models — часть только для
 //   этих моделей; qty — сколько штук; group/variant — выбор одного варианта;
 //   opt — 'need' (обязательно) | 'on' (включено) | 'off' (по желанию).
-var KIT_RULES_V=3;
+var KIT_RULES_V=4;
 var KIT_DEFAULTS=[
  {id:'bravo-ct',on:true,name:'Браво · кровати из массива с центральной траверсой (ЦТ)',
-  when:{sup:'браво',sheet:'массив',all:['кровать','(цт)'],none:['ящиками','комплектующ','опора','матрас','защит','карниз','ножек','траверса']},
+  // v8.21: «(РАЗБОРНАЯ ЦТ)» — тоже ЦТ (Грация, Карина-7, Лаура разборные)
+  when:{sup:'браво',sheet:'массив',all:['кровать'],any:['(цт)','цт)'],none:['ящиками','комплектующ','опора','матрас','защит','карниз','ножек','траверса']},
   parts:[
    // v7.96: траверса ЦТ бывает только 1200–1800; на 900 ставят обычные ламели
    {label:'центральная траверса',find:['центральная траверса'],none:['н-330'],size:'need',group:'Основание',variant:'Центральная траверса (ламели)',
     alt:['комплектующие на кровать с ламелями'],altLabel:'комплектующие (ламели)',altVariant:'Ламельное основание'},
    {label:'опора с гибким основанием',find:['опора с гибким основанием'],none:['74в','гпм','74 в'],size:'need',group:'Основание',variant:'Металлокаркас'},
    {label:'комплект ножек',find:['комплект ножек'],compat:true,group:'Основание',variant:'Металлокаркас'},
+   // v8.21: ЦТ-кровати тоже «с универсальными царгами» — односторонний матрас кладётся
+   // прямо на царги, без основания (прайс: «Матрасы односторонние для кроватей с
+   // универсальными царгами»). Раньше этот вариант был только у кроватей без ЦТ.
+   {label:'матрас односторонний',find:['матрасы односторонние'],size:'need',group:'Основание',variant:'Матрас односторонний'},
    {label:'ящики выкатные (2 шт.)',find:['ящик выкатной','для кровати'],opt:'off',models:['сканди','грация разборная','карина-7 разборная','лаура разборная','виола','глория','джуниор']}
   ]},
  {id:'bravo-teen-sonya',on:true,name:'Браво · Соня, Алёнка (ящики в комплекте)',
@@ -11282,7 +11547,7 @@ var KIT_DEFAULTS=[
    {label:'матрас односторонний',find:['матрасы односторонние'],size:'need',qty:'ярус',group:'Под матрас',variant:'Матрас односторонний'}
   ]},
  {id:'bravo-massiv',on:true,name:'Браво · кровати из массива (основание докупается)',
-  when:{sup:'браво',sheet:'массив',all:['кровать'],none:['(цт)','ящиками','комплектующ','опора','матрас','защит','карниз','ножек','траверса','соня','аленка','глория','джуниор','миа кровать','скай кровать','металлическ','ярус']},
+  when:{sup:'браво',sheet:'массив',all:['кровать'],none:['(цт)','цт)','ящиками','комплектующ','опора','матрас','защит','карниз','ножек','траверса','соня','аленка','глория','джуниор','миа кровать','скай кровать','металлическ','ярус']},
   parts:[
    {label:'комплектующие (ламели)',find:['комплектующие на кровать с ламелями'],size:'need',group:'Основание',variant:'Ламельное основание'},
    {label:'опора с гибким основанием',find:['опора с гибким основанием'],none:['74в','гпм','74 в'],size:'need',group:'Основание',variant:'Металлокаркас'},
@@ -11291,7 +11556,9 @@ var KIT_DEFAULTS=[
    {label:'ящики выкатные (2 шт.)',find:['ящик выкатной','для кровати'],opt:'off',models:['сканди','грация разборная','карина-7 разборная','лаура разборная','виола']}
   ]},
  {id:'mgrad-soft',on:true,name:'МебельГрад · мягкие кровати «(каркас)»',
-  when:{sup:'мебельград',sheet:'мягк',all:['кровать','каркас']},
+  // v8.21: у Дрим в прайсе есть готовая «Кровать (с орт. основанием, подъёмным механизмом)» —
+  // из частей её не собираем (основание 900 «Дрим, Хеппи» стоит иначе, щитов 900 нет)
+  when:{sup:'мебельград',sheet:'мягк',all:['кровать','каркас'],none:['дрим']},
   parts:[
    {label:'ортопедическое основание',find:['ортопедическое основание разборное'],size:'need',compat:true,group:'Основание',variant:'Ортопедическое основание'},
    {label:'опоры',find:['опора мебельная к разборному'],size:'prefer',group:'Основание',variant:'Ортопедическое основание'},
@@ -11301,7 +11568,7 @@ var KIT_DEFAULTS=[
    {label:'щиты бельевого короба',find:['щит','бельевого короба','{модель}'],alt:['щиты бельевого короба'],size:'need',group:'Основание',variant:'С подъёмным механизмом'}
   ]},
  {id:'mgrad-karkas',on:true,name:'МебельГрад · кровати «(каркас)»',
-  when:{sup:'мебельград',all:['кровать','каркас']},
+  when:{sup:'мебельград',all:['кровать','каркас'],none:['дрим']},
   parts:[
    {label:'ортопедическое основание',find:['ортопедическое основание разборное'],size:'need',compat:true,group:'Основание',variant:'Ортопедическое основание'},
    {label:'опоры',find:['опора мебельная к разборному'],size:'prefer',group:'Основание',variant:'Ортопедическое основание'},
@@ -11360,19 +11627,48 @@ var KIT_DEFAULTS=[
    {label:'комплект ножек',find:['комплект ножек'],compat:true,sheet:'кровати стандарт',group:'Основание',variant:'Металлокаркас'},
    {label:'центральная траверса',find:['центральная траверса'],none:['н-330'],size:'need',sheet:'кровати стандарт',group:'Основание',variant:'Ламели (центральная траверса)'},
    {label:'спинка головная',find:['джали','спинка головная'],size:'need',each:true,opt:'need',group:'Спинка — обивка'}
+  ]},
+ // v8.21: Лотос (лак) — в прайсе под кроватью сразу «Опора с гибким основанием … 1600» и
+ // «Ножка L-260 Н/Р» (без строки «Комплектующие»), раньше они в сумму не попадали
+ {id:'bravo-lotos',on:true,name:'Браво · Лотос (лак): кровать + опора + ножки',
+  when:{sup:'браво',all:['лотос','кровать']},
+  parts:[
+   {label:'опора с гибким основанием',find:['опора с гибким основанием'],none:['74в','гпм','74 в'],size:'need',sheet:'лак',opt:'need'},
+   {label:'ножки L-260',find:['ножка l-260'],opt:'need'}
   ]}
 ];
 // v8.0: правила, добавленные в программу позже. У владельца, который уже
 // сохранял свои правила, их нет — дописываем один раз (по номеру версии
 // сохранённых правил), чтобы удалённое владельцем потом не воскресало.
-var KIT_ADDED={2:['bravo-domino','bravo-nsm-shr2','bravo-nsm-shr3'],3:['bravo-jali-head','bravo-jali-belt']};
+var KIT_ADDED={2:['bravo-domino','bravo-nsm-shr2','bravo-nsm-shr3'],3:['bravo-jali-head','bravo-jali-belt'],4:['bravo-lotos']};
 var _kitRules=null,_kitRulesSrc='',_kitRulesP=null;
 function _kitCopy(x){return JSON.parse(JSON.stringify(x));}
 // v7.96: сохранённые владельцем правила не знают о новых запасных поисках из
 // программы — дописываем их в ту же часть (то же правило, та же группа и слова поиска),
 // если владелец не задал свои. Остальные правки владельца не трогаем.
+// v8.21: части, добавленные в существующие правила (владелец мог сохранить правила
+// до этого — дописываем один раз, по номеру версии сохранённых правил)
+var KIT_PART_ADDED={4:[{rule:'bravo-ct',label:'матрас односторонний',before:'ящики выкатные (2 шт.)'}]};
 function _kitMigrate(rules,ver){
   ver=parseInt(ver)||1;
+  // v8.21: «(РАЗБОРНАЯ ЦТ)» относится к ЦТ — условия правил Браво
+  if(ver<4)(rules||[]).forEach(function(r){
+    var w=r.when;if(!w)return;
+    if(r.id==='bravo-ct'&&(w.all||[]).indexOf('(цт)')>=0){w.all=w.all.filter(function(x){return x!=='(цт)';});if(!(w.any||[]).length)w.any=['(цт)','цт)'];}
+    if(r.id==='bravo-massiv'&&(w.none||[]).indexOf('(цт)')>=0&&w.none.indexOf('цт)')<0)w.none.push('цт)');
+    if((r.id==='mgrad-soft'||r.id==='mgrad-karkas')&&(w.none||[]).indexOf('дрим')<0)w.none=(w.none||[]).concat(['дрим']);
+  });
+  Object.keys(KIT_PART_ADDED).forEach(function(v){
+    if(ver>=+v)return;
+    KIT_PART_ADDED[v].forEach(function(a){
+      var r=(rules||[]).filter(function(x){return x.id===a.rule;})[0];if(!r||!r.parts)return;
+      if(r.parts.some(function(p){return p.label===a.label;}))return;
+      var d=KIT_DEFAULTS.filter(function(x){return x.id===a.rule;})[0];
+      var dp=d&&d.parts.filter(function(p){return p.label===a.label;})[0];if(!dp)return;
+      var at=r.parts.map(function(p){return p.label;}).indexOf(a.before);
+      if(at<0)r.parts.push(_kitCopy(dp));else r.parts.splice(at,0,_kitCopy(dp));
+    });
+  });
   Object.keys(KIT_ADDED).forEach(function(v){
     if(ver>=+v)return;
     KIT_ADDED[v].forEach(function(id){
@@ -11514,8 +11810,26 @@ function _kitSizeSrc(c){
 }
 function _kitModelIn(t,model){
   if(!model)return false;
+  // v8.21: «Эрдэн» в названии кровати и «Эрден» в списке ножек — одно и то же
+  t=String(t).replace(/э/g,'е');model=String(model).replace(/э/g,'е');
   var rx=new RegExp('(^|[^а-яёa-z0-9-])'+model.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![0-9])','i');
   return rx.test(t);
+}
+// v8.21: насколько точно список называет ЭТУ кровать: «Карина-7 разборная ЦТ» —
+// 2 уточнения, оба есть у кровати; «Карина-7 разборная» у ЦТ-кровати — 1; у кровати
+// без ЦТ упоминание «… ЦТ» не годится (-1); «Грация-2» — другая модель.
+var _KIT_TAILW=['разборная','цт','тахта'];
+function _kitWordIn(t,w){return new RegExp('(^|[^а-яёa-z0-9])'+w+'([^а-яёa-z0-9]|$)','i').test(t);}
+function _kitMentionFit(t,model,bed){
+  t=String(t).replace(/э/g,'е');model=String(model).replace(/э/g,'е');bed=String(bed||'').replace(/э/g,'е');
+  var rx=new RegExp('(^|[^а-яёa-z0-9-])'+model.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([^,;()]*)','gi'),m,best=-1;
+  while((m=rx.exec(t))){
+    var tail=m[2];if(/^\s*-\s*\d/.test(tail)||/^\d/.test(tail))continue;
+    var ws=tail.split(/[^а-яёa-z0-9]+/).filter(function(w){return _KIT_TAILW.indexOf(w)>=0;});
+    if(ws.some(function(w){return !_kitWordIn(bed,w);}))continue;
+    if(ws.length>best)best=ws.length;
+  }
+  return best;
 }
 function _kitHasList(t){return /для\s+кроват|\(([^()]*,){1,}[^()]*\)|только\s+для/i.test(t);}
 // v8.15: оценка одной части-кандидата (null — не подходит); общая для «лучшей» и «всех»
@@ -11537,7 +11851,12 @@ function _kitScore(c,part,ctx){
       if(sc===-1)return null;
       if(sc==null){if(part.size==='need')return null;score+=60;}else score+=sc;
     }
-    if(part.compat&&_kitHasList(txt)){if(!_kitModelIn(txt,ctx.model))return null;}
+    if(part.compat&&_kitHasList(txt)){
+      if(!_kitModelIn(txt,ctx.model))return null;
+      // v8.21: в списке может стоять «Грация», «Грация разборная» и «Грация разборная ЦТ»
+      // в РАЗНЫХ комплектах ножек — берём самое точное упоминание
+      var fit=_kitMentionFit(txt,ctx.model,ctx.txt);if(fit<0)return null;score-=fit*20;
+    }
     else if(part.compat&&ctx.model&&!_kitModelIn(txt,ctx.model)&&/\(/.test(nm))score+=30;
     // цвет как у кровати — для ящиков и защит
     var cw=_kN(c.article||'').replace(/цвет|лдсп|лак/g,' ').split(/[\s\/,]+/).filter(function(w){return w.length>3;});
@@ -11592,7 +11911,11 @@ function kitResolve(it){
     var ctx={W:d.w,L:d.l,model:model,txt:txt,selfId:it.id,sheet:_kN(it.sheet_name||'')};
     var sup=it.supplier||it.sup||'';
     var jobs=rule.parts.map(function(pt){
-      if(pt.models&&pt.models.length&&!pt.models.some(function(m){return _kitModelIn(txt,_kN(m))||txt.indexOf(_kN(m))>=0;}))return Promise.resolve(null);
+      if(pt.models&&pt.models.length&&!pt.models.some(function(m){
+        m=_kN(m);if(_kitModelIn(txt,m)||txt.indexOf(m)>=0)return true;
+        // v8.21: «грация разборная» — у кровати «ГРАЦИЯ кровать … (РАЗБОРНАЯ ЦТ)»
+        var mw=m.split(' ');return mw.length>1&&mw[0]===model&&mw.slice(1).every(function(w){return _kitWordIn(txt,w);});
+      }))return Promise.resolve(null);
       var words=(pt.find||[]).map(function(w){return _kitFill(w,model);}).filter(Boolean);
       if(!words.length||!sup)return Promise.resolve({pt:pt,c:null});
       return _kitFetch(sup,words).then(function(cands){
