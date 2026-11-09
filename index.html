@@ -409,7 +409,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.19</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.20.1</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -7116,6 +7116,49 @@ function _plMatrixCols(){
   return Array.from(document.querySelectorAll('.pl-mx-col:checked')).map(function(x){return parseInt(x.value);});
 }
 // Сбор товаров: строка × отмеченные колонки. Каскад (заголовки групп) работает всегда.
+// v8.20: заголовок колонки-категории ткани в любом виде → «кат. N» (+ цена ткани за метр):
+// «до 300руб, 1 категория» → «кат. 1 · ткань до 300 ₽/м»; «1кат (200-249р)» → «кат. 1 · ткань 200–249 ₽/м»;
+// «2 категория», «Категория III» → «кат. 2», «кат. III». Остальное — как было.
+function _plCatLabel(L){
+  var s=String(L||'').replace(/\s+/g,' ').trim();
+  var m=s.match(/(?:^|[^0-9a-zа-я])(\d{1,2}|[IVX]{1,5})\s*-?\s*(?:я\s*)?кат(?:егор(?:ия|ии))?\.?(?![а-я])/i)||s.match(/кат(?:егор(?:ия|ии))?\.?\s*(\d{1,2}|[IVX]{1,5})(?![0-9a-zа-я])/i);
+  if(!m)return s;
+  var n=m[1].toUpperCase(),out='кат. '+n;
+  var r=s.match(/(\d{2,5})\s*[-–]\s*(\d{2,5})\s*(?:р|руб|₽)/i);
+  if(r)return out+' · ткань '+r[1]+'–'+r[2]+' ₽/м';
+  var d=s.match(/до\s*(\d{2,5})\s*(?:р|руб|₽)/i);
+  if(d)return out+' · ткань до '+d[1]+' ₽/м';
+  return out;
+}
+// ячейка модели в несколько строк: «НАЗВАНИЕ / описание / Габ.: ШхГхВ» (переносы или 3+ пробела)
+function _plSplitModelCell(raw){
+  var t=String(raw==null?'':raw);
+  // только для ячеек с габаритом («Габ.: …») — у остальных прайсов многострочные
+  // названия как были (иначе поменялись бы имена у Кварлета, Брянска и др.)
+  if(!/габ/i.test(t))return null;
+  var gab='';
+  // «Габ.: 2000х1300х770», «Габ:.1500X800», «Габ:800х560х850», «Габ. 900 x 900» — где бы ни стоял
+  var GAB=/габ[а-я]*\s*[.:]*\s*[.:]*\s*(\.?\d{3,4}\s*[хxХX×*]\s*\d{3,4}(?:\s*[хxХX×*]\s*\d{3,4})?|диаметр\s*\d{2,4})(\s*мм)?[,;]?/i;
+  var gm=t.match(GAB);if(gm){gab='Габ. '+gm[1].replace(/^\./,'').replace(/\s+/g,'');t=t.replace(gm[0],' ');}
+  var parts=t.split(/\n|\s{3,}/).map(function(x){return x.replace(/\s+/g,' ').replace(/^[,;\s]+|[,;\s]+$/g,'').trim();}).filter(Boolean);
+  if(!parts.length)return null;
+  var head=parts[0],rest=parts.slice(1);
+  // «ЛОРД   +» / «ВИКТОРИЯ   (БАР)» — хвост модели уехал во вторую строку
+  while(rest.length&&(rest[0]==='+'||/^\([^)]{1,25}\)/.test(rest[0]))){
+    var mm=rest[0].match(/^(\+|\([^)]{1,25}\))\s*(.*)$/);head+=' '+mm[1];if(mm[2])rest[0]=mm[2];else rest.shift();
+  }
+  var name=head+(rest.length?' — '+rest.join(' '):'');
+  name=name.replace(/\s+/g,' ').replace(/\s+([,.])/g,'$1').trim();
+  if(name===String(raw).replace(/\s+/g,' ').trim()&&!gab)return null;
+  return{name:name,gab:gab};
+}
+// «Габ. 2000х1300х770» — ширина × глубина × высота (мебельный порядок у кухонных уголков)
+function _plGabDims(g){
+  var m=String(g).match(/(\d{3,4})\s*[хxХX×*]\s*(\d{3,4})(?:\s*[хxХX×*]\s*(\d{3,4}))?/);
+  if(!m)return null;
+  return{w:+m[1],d:+m[2],h:m[3]?+m[3]:null};
+}
+var _plMxTypos=[];
 function _collectMulti(data,cfg){
   var rows=[],currentGroupName='';
   var lr=_plFindLabelRow(data,cfg.start,cfg.varCols||[]);
@@ -7124,6 +7167,7 @@ function _collectMulti(data,cfg){
   (cfg.varCols||[]).forEach(function(c){
     var L=_plClean(lrow[c])||_plClean((data[cfg.start-2]||[])[c])||('вариант '+(c+1));
     if(/^\d{1,2}$/.test(L)||/^[ivxIVX]{1,5}$/.test(L))L='кат. '+L; // «1|2|3» или «I|II|III» — категории тканей
+    else L=_plCatLabel(L);
     labels[c]=L;
   });
   // повторные строки-шапки внутри листа: имя совпадает с заголовком колонки названия
@@ -7142,10 +7186,19 @@ function _collectMulti(data,cfg){
     if(!base)continue;
     if(_plIsDead(base)||_plIsDead(artVal))continue;
     var cat=nameVal?'':currentGroupName;
-    (cfg.varCols||[]).forEach(function(c){
+    // v8.20: «РИО\n Уголок без спального места +3 короба\nГаб.: 2000х1300х770» —
+    // модель и описание в название, габарит — в характеристику (и в размеры)
+    var _gab='';
+    if(nameVal){var _sp=_plSplitModelCell(row[cfg.colName]);if(_sp){base=_sp.name;_gab=_sp.gab;}}
+    // v8.20: опечатка в ячейке матрицы (у Багси «Пуф Лайм» кат.5 = 255 при соседях 2400/2600) —
+    // цена меньше половины соседних не берётся, остальные категории остаются
+    var _rowP=(cfg.varCols||[]).map(function(c){return _plToNum(row[c]);});
+    (cfg.varCols||[]).forEach(function(c,ci){
       var p=_plToNum(row[c]);
       // цена варианта от 50 ₽ — отсекает строки-подшапки («1|2|3») и служебные числа
       if(p<50||p>99999999)return;
+      var _nb=[_rowP[ci-1],_rowP[ci+1]].filter(function(x){return x>0;});
+      if(_nb.length&&p<0.5*Math.min.apply(null,_nb)){_plMxTypos.push(base+' · '+labels[c]+': '+p);return;}
       p=Math.round(p*100)/100;
       var lbl=labels[c],nm=base,art=[];
       // Случай матрасов ФСМ: в «названии» строки — просто число (ширина),
@@ -7153,8 +7206,10 @@ function _collectMulti(data,cfg){
       if(/^\d{2,4}$/.test(base)&&!/^\d+$/.test(lbl)){nm=lbl;art.push('ш'+base);}
       else art.push(lbl);
       if(artVal)art.push(artVal);
+      if(_gab)art.push(_gab);
       var artStr=art.filter(Boolean).join(' · ');
       var _at=_extractAttrs(nm,artStr,'');
+      if(_gab){var _gd=_plGabDims(_gab);if(_gd){_at.dim_w=_gd.w;_at.dim_d=_gd.d;_at.dim_h=_gd.h;}}
       // ширина из числового заголовка колонки или числовой «строки-размера» (мм)
       if(_at.dim_w==null&&/^\d{3,4}$/.test(lbl)){var wn=parseInt(lbl);if(wn>=300&&wn<=2500)_at.dim_w=wn;}
       if(_at.dim_w==null&&/^\d{3,4}$/.test(base)){var wb=parseInt(base);if(wb>=300&&wb<=2500)_at.dim_w=wb;}
@@ -7735,6 +7790,7 @@ async function importAllSheets(){
   if(!supplier){toast('⚠️ Укажите название поставщика','err');return;}
   var store=_getTplStore();
   var plan=[],report=[];
+  _plMxTypos=[]; // v8.20
   // v7.53: грузим только отмеченные листы (галочки строит _plBuildSheetPicker)
   var picked=_plCheckedSheets();
   if(picked&&!picked.length){toast('⚠️ Не отмечен ни один лист','err',4000);return;}
@@ -7921,8 +7977,10 @@ async function importAllSheets(){
     var _rn2=_plResultNote();
     note.innerHTML='<div style="font-weight:600;margin-bottom:4px">📚 Результат импорта всех листов:</div>'
       +report.map(function(r){return '<div>'+(r.count?'✅':'⚠️')+' '+r.sheet+' — '+(r.count?r.count+' тов. ('+r.note+(r.drop?', '+r.drop:'')+')':r.note)+'</div>';}).join('')
-      +(_rn2?'<div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border)">'+esc(_rn2)+'</div>':'');
+      +(_rn2?'<div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border)">'+esc(_rn2)+'</div>':'')
+      +(_plMxTypos.length?'<div style="margin-top:5px;padding:5px 8px;background:#fbf0e2;border-radius:6px;color:#6b4a14">⚠️ Похоже на опечатку в прайсе — эти цены НЕ загружены (меньше половины соседних категорий), уточните у фабрики:<br>'+[...new Set(_plMxTypos)].slice(0,12).map(esc).join('<br>')+'</div>':'');
     toast('✅ «'+supplier+'»: '+total+' товаров с '+plan.length+' листов','ok',5000);
+    if(_plMxTypos.length)setTimeout(function(){toast('⚠️ Похоже на опечатку в прайсе, эти цены не загружены: '+[...new Set(_plMxTypos)].slice(0,4).join('; ')+(_plMxTypos.length>4?' и ещё '+(_plMxTypos.length-4):'')+'. Уточните у фабрики.','err',12000);},5200); // v8.20
     loadPriceSummary();
   }catch(e){toast('❌ Ошибка: '+e.message,'err',6000);}
   finally{btn.innerHTML='📚 Все листы сразу';btn.disabled=false;}
@@ -9712,15 +9770,17 @@ function _spiRelaxed(words,sel){
   });
 }
 // v8.18: строки одного товара, различающиеся только категорией ткани (артикул «кат. N»)
-function _spiCat(p){var m=String(p.article||'').trim().match(/^кат\.?\s*([0-9]{1,2}|[IVX]{1,5})$/i);return m?m[1].toUpperCase():null;}
+function _spiCat(p){var m=String(p.article||'').trim().match(/^кат\.?\s*([0-9]{1,2}|[IVX]{1,5})(?:\s*·|$)/i);return m?m[1].toUpperCase():null;}
+// v8.20: «кат. 5 · ткань до 500 ₽/м» / «ткань 450–499 ₽/м» → верхняя граница цены ткани за метр
+function _spiBand(p){var m=String(p.article||'').match(/ткань\s*(?:до\s*(\d{2,5})|(\d{2,5})\s*[–-]\s*(\d{2,5}))\s*₽/i);return m?+(m[1]||m[3]):null;}
 function _spiGroupCats(rows){
   var out=[],by={};
   rows.forEach(function(p){
     var c=_spiCat(p);
     if(c==null||!(p.price_opt>0)){out.push({p:p});return;}
     var k=(p.supplier||'')+'|'+_eNorm(p.product_name||'');
-    if(!by[k]){by[k]={cat:true,name:p.product_name,sup:p.supplier||'',cats:[],prices:[],_m:{}};out.push(by[k]);}
-    var g=by[k];if(g._m[c])return;g._m[c]=1;g.cats.push(c);g.prices.push(+p.price_opt);
+    if(!by[k]){by[k]={cat:true,name:p.product_name,sup:p.supplier||'',cats:[],prices:[],bands:[],_m:{}};out.push(by[k]);}
+    var g=by[k];if(g._m[c])return;g._m[c]=1;g.cats.push(c);g.prices.push(+p.price_opt);g.bands.push(_spiBand(p));
   });
   var rom={I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10};
   var num=function(c){return /^\d+$/.test(c)?+c:(rom[c]||99);};
@@ -9728,7 +9788,7 @@ function _spiGroupCats(rows){
     if(!e.cat)return e;
     if(e.cats.length<2)return{p:rows.find(function(p){return p.product_name===e.name&&(p.supplier||'')===e.sup;})};
     var idx=e.cats.map(function(c,i){return i;}).sort(function(a,b){return num(e.cats[a])-num(e.cats[b]);});
-    return{cat:true,name:e.name,sup:e.sup,cats:idx.map(function(i){return e.cats[i];}),prices:idx.map(function(i){return e.prices[i];})};
+    return{cat:true,name:e.name,sup:e.sup,cats:idx.map(function(i){return e.cats[i];}),prices:idx.map(function(i){return e.prices[i];}),bands:idx.map(function(i){return e.bands[i];})};
   });
 }
 function searchPriceItems(id,q){
@@ -9783,7 +9843,13 @@ function searchPriceItems(id,q){
             +'<span style="font-size:11px;color:#1B5E20;display:block">ткань: кат. '+esc(e.cats[0])+(e.cats.length>1?'–'+esc(e.cats[e.cats.length-1]):'')+' — категорию выберете ниже</span>'
             +'<span style="font-size:12px;font-weight:700;color:#BF360C;display:block">розн.: '+(lo<hi?'от '+fmt(retailFromOpt(lo))+' до '+fmt(retailFromOpt(hi)):fmt(retailFromOpt(lo)))+' ₽</span>'
             +'<span style="font-size:10px;color:var(--text2);display:block">опт: '+(lo<hi?fmt(lo)+'–'+fmt(hi):fmt(lo))+' ₽</span>';
-          dc.onmousedown=function(){selectModel(id,{type:'fabric',name:e.name,sup:e.sup,cats:e.cats,prices:e.prices,dims:''});};
+          dc.onmousedown=function(){
+            selectModel(id,{type:'fabric',name:e.name,sup:e.sup,cats:e.cats,prices:e.prices,bands:e.bands,dims:''});
+            // v8.20: поставщик и цены ткани за метр — для автоподбора категории
+            var cs=document.getElementById('fi-cat-'+id);
+            if(cs){cs.dataset.sup=e.sup||'';cs.dataset.bands=(e.bands||[]).some(function(b){return b>0;})?JSON.stringify(e.bands):'';}
+            setTimeout(function(){onFabricInput(id);},0);
+          };
           list.appendChild(dc);return;
         }
         var p=e.p;
@@ -15028,13 +15094,32 @@ function onFabricInput(id){
   if(!catRow||catRow.style.display==='none'||!sel){if(hint)hint.style.display='none';return;}
   var text=((document.getElementById('fi-color-'+id)||{}).value||'').trim();
   if(!text){if(hint)hint.style.display='none';return;}
+  // v8.20: у фабрик вроде Багси категория = цена ткани за метр («до 300 ₽ — 1 кат.»).
+  // Продавец пишет «ткань 480 р» / «480 руб/м» — подбираем категорию по цене.
+  var _bands=null;try{_bands=sel.dataset.bands?JSON.parse(sel.dataset.bands):null;}catch(e){}
+  if(_bands){
+    var pm=text.match(/(\d{2,5})\s*(?:р\b|р\.|руб|₽)/i)||text.match(/(?:ткань|цена|по)\s*(\d{2,5})(?!\d)/i);
+    if(pm){
+      var fp=+pm[1],bi=-1;
+      for(var b=0;b<_bands.length;b++){if(_bands[b]>0&&fp<=_bands[b]){bi=b;break;}}
+      var bc=JSON.parse(sel.dataset.cats||'[]');
+      if(bi>=0){if(sel.value!==bc[bi]){sel.value=bc[bi];calcItemPrice(id);}
+        _fabShowHint(id,'ok','Ткань '+fp+' ₽/м → категория '+bc[bi]+' (до '+_bands[bi]+' ₽/м) · подобрана автоматически');}
+      else _fabShowHint(id,'warn','Ткань '+fp+' ₽/м дороже всех категорий прайса — уточните цену у фабрики');
+      return;
+    }
+  }
+  // v8.20.1 (решение владельца 09.11): цен тканей у нас обычно нет, а категории у
+  // фабрик почти всегда совпадают — поэтому для любой фабрики (и для Багси) подбираем
+  // и по НАЗВАНИЮ ткани из спецификации Некрасовых. Цена ткани, если вписана, главнее.
+  var _other=sel.dataset.sup&&!/некрас/i.test(sel.dataset.sup);
   var idx=_fabIndex(),found=null;
   for(var i=0;i<idx.length;i++){
     var nm=idx[i].l;if(nm.length<3)continue;
     var re=new RegExp('(^|[^0-9a-zа-яё])'+_fabEscape(nm)+'([^0-9a-zа-яё]|$)','i');
     if(re.test(text)){found=idx[i];break;}
   }
-  if(!found){if(hint)hint.style.display='none';return;}
+  if(!found){if(_bands)_fabShowHint(id,'warn','Ткань не нашлась в спецификации — выберите категорию или впишите цену ткани, например «ткань 480 р»');else if(hint)hint.style.display='none';return;}
   var coll=_detectFabColl(text);
   var cands=found.v; // [[cat,collIdx],...]
   var pick=cands;
@@ -15050,7 +15135,7 @@ function onFabricInput(id){
     var cat=cats[0],opt=optFor(cat);
     if(opt){
       if(sel.value!==opt){sel.value=opt;calcItemPrice(id);}
-      _fabShowHint(id,'ok','Ткань «'+found.n+'» → категория '+cat+' · подобрана автоматически');
+      _fabShowHint(id,'ok','Ткань «'+found.n+'» → категория '+cat+(_other?' (по спецификации Некрасовых — у этой фабрики обычно так же; если знаете цену ткани, впишите «ткань 480 р»)':' · подобрана автоматически'));
     }else{
       _fabShowHint(id,'warn','Ткань «'+found.n+'» — категория '+cat+(cat==='>12'?' (спецзаказ)':' (выше прайса этой модели)')+'. Уточните цену вручную.');
     }
@@ -15151,7 +15236,7 @@ function selectModel(id,item){
     if(availRow)availRow.style.display='block';
     var sel=document.getElementById('fi-cat-'+id);
     sel.innerHTML='<option value="">— категория —</option>'+item.cats.map(function(c){return'<option>'+c+'</option>';}).join('');
-    sel.dataset.prices=JSON.stringify(item.prices);sel.dataset.cats=JSON.stringify(item.cats);
+    sel.dataset.prices=JSON.stringify(item.prices);sel.dataset.cats=JSON.stringify(item.cats);sel.dataset.sup=item.sup||'';sel.dataset.bands=(item.bands&&item.bands.some(function(b){return b>0;}))?JSON.stringify(item.bands):''; // v8.20
     itemPrices[id]=0;
     setTimeout(function(){onFabricInput(id);},0); // ткань уже могла быть вписана — подберём категорию
   }else{
