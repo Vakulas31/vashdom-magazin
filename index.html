@@ -409,7 +409,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.22</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.23</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -7940,6 +7940,11 @@ async function importAllSheets(){
     if(!_plNamesLookOk(plan[_pi].rows,'лист «'+plan[_pi].sheetName+'»'))return;
   }
   var scopeLbl=factory?('фабрики «'+factory+'» (поставщик «'+supplier+'»)'):('поставщика «'+supplier+'» БЕЗ фабрики');
+  // v8.23: отмечены НЕ все листы файла — заменяем только отмеченные листы, остальное
+  // у фабрики не трогаем. Раньше и в этом случае стиралась вся фабрика: сняв галочки,
+  // чтобы перезалить один лист, владелец потерял бы остальные листы (и цены по письму).
+  var _allSn=_plWB.SheetNames.filter(function(sn){return !/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац)/i.test(String(sn));});
+  var _whole=!picked||_allSn.every(function(sn){return picked.indexOf(sn)>=0;});
   // v7.2.1: показываем реальные цифры из базы, чтобы случайно не стереть лишнее
   var curNote='';
   try{
@@ -7952,7 +7957,7 @@ async function importAllSheets(){
         mineTot+=n;
         if(factory?f===factory:!f)scopeTot+=n;
       });
-      if(mineTot)curNote='\n⚠ Сейчас в базе у «'+supplier+'»: '+mineTot+' товаров. Будут удалены и заменены: '
+      if(mineTot&&_whole)curNote='\n⚠ Сейчас в базе у «'+supplier+'»: '+mineTot+' товаров. Будут удалены и заменены: '
         +scopeTot+' ('+(factory?'фабрика «'+factory+'»':'товары без фабрики')+'). Остальные '+(mineTot-scopeTot)+' останутся как есть.';
     }
   }catch(e){}
@@ -7961,7 +7966,8 @@ async function importAllSheets(){
     +report.map(function(r){return '• '+r.sheet+': '+(r.count?r.count+' товаров ('+r.note+')'+(r.drop?'\n   ↳ '+r.drop:''):r.note);}).join('\n')
     +'\n\nИтого: '+total+' товаров.'
     +(dropTot?'\nСтрок файла отброшено при разборе: '+dropTot+' (обычно это шапки, пустые строки и позиции без цены — но если число велико, проверьте колонки).':'')
-    +curNote+'\nПрежние товары '+scopeLbl+' будут заменены. Продолжить?';
+    +curNote+(_whole?'\nПрежние товары '+scopeLbl+' будут заменены. Продолжить?'
+      :'\nОтмечены не все листы. Заменятся только товары этих листов: «'+plan.map(function(p){return p.sheetName;}).join('», «')+'».\nОстальные листы '+scopeLbl+' останутся как есть. Продолжить?');
   if(!confirm(msg))return;
   // v7.73: этот же прайс раньше грузили без фабрики?
   var _tw=await _plTwinCheck(supplier,factory,plan.map(function(p){return p.sheetName;}));
@@ -7970,7 +7976,7 @@ async function importAllSheets(){
   var btn=document.getElementById('pl-import-all-btn');
   btn.innerHTML='<span class="spinner"></span> Импорт '+total+' товаров...';btn.disabled=true;
   try{
-    await _importBatches(supplier,factory,plan.map(function(p){return{sheetName:p.sheetName,rows:p.rows};}),true);
+    await _importBatches(supplier,factory,plan.map(function(p){return{sheetName:p.sheetName,rows:p.rows};}),_whole);
     if(_twDel){try{await _plTwinDelete(supplier,_tw);toast('🗑 Убрана старая загрузка без фабрики: '+_tw.n+' товаров','ok',5000);}catch(e){toast('⚠️ Новый прайс загружен, но старые товары без фабрики удалить не вышло: '+e.message,'err',8000);}}
     // сохраняем шаблоны всех успешно определённых листов
     var st=_getTplStore();
