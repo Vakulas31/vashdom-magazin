@@ -212,6 +212,21 @@ body.role-seller .owner-only{display:none!important}
 .order-card:hover{border-color:#b6c5d6;box-shadow:0 6px 18px -8px rgba(31,78,121,.30)}
 .order-card.done{border-color:#c6d9cb}
 /* ── МОБИЛЬНАЯ ВЕРСИЯ ─────────────────────────────────── */
+/* ── v8.27 · ПОИСК: сортировка, фабрики, журнал ── */
+.sp-bar{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:0 0 6px}
+.sp-lbl{font-size:11.5px;color:#5b6270}
+.sp-chip{border:1px solid #d5dbe3;background:#fff;border-radius:14px;padding:3px 10px;font-size:12px;font-family:inherit;color:#5b6270;cursor:pointer;min-height:28px}
+.sp-chip.on{background:var(--dark);border-color:var(--dark);color:#fff}
+.sp-param{font-size:12px;background:#EBF3FB;border-radius:6px;padding:6px 10px;margin:0 0 6px;line-height:1.4}
+.sp-mk{font-size:11.5px;color:#1F4E79;background:#F3F7FB;border-radius:4px;padding:2px 6px;margin-top:2px}
+.sl-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:8px 0 12px}
+.sl-sum>div{background:#f6f8fb;border-radius:8px;padding:8px 10px}
+.sl-sum b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.sl-sum span{font-size:11.5px;color:#5b6270}
+.sl-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.sl-row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #eef1f5;font-size:13px;align-items:center}
+.sl-row>span:last-child{white-space:nowrap}
+.sl-syn{padding:2px 8px;font-size:11px;margin-left:4px}
 /* ── v8.25 · НАГЛЯДНАЯ АНАЛИТИКА (28d_stats_dash.js) ── */
 .an-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:8px}
 .an-kpi{padding:14px 16px;margin:0}
@@ -480,7 +495,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.25</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.27.1</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -896,6 +911,18 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div id="gs-results"><div style="color:var(--text2);font-size:12px;padding:4px 2px">Введите минимум 2 символа — ищет сразу по всем поставщикам</div></div>
   </div>
 
+  <!-- v8.27: журнал поиска -->
+  <details class="card" id="sl-card" ontoggle="if(this.open)slReportRender()">
+    <summary class="card-title" style="cursor:pointer;margin:0">📒 Что ищут продавцы <span style="font-weight:400;color:var(--text2);font-size:11px;text-transform:none;letter-spacing:0">(что не нашлось, на что переписывали запрос)</span></summary>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:10px 0 4px">
+      <span class="an-muted">Период:</span>
+      <button type="button" class="sp-chip" onclick="slReportRender(7)">7 дней</button>
+      <button type="button" class="sp-chip" onclick="slReportRender(30)">30 дней</button>
+      <button type="button" class="sp-chip" onclick="slReportRender(90)">90 дней</button>
+    </div>
+    <div id="sl-report"></div>
+  </details>
+
   <!-- v7.93: комплекты — что докладывается к кровати -->
   <details class="card" id="kit-card" style="border:1.5px solid #6A4C93">
     <summary class="card-title" style="cursor:pointer;margin:0">🧩 Комплекты: что докладывается к товару <span style="font-weight:400;color:var(--text2);font-size:12px">(основания, траверсы, ящики, механизмы)</span></summary>
@@ -1192,6 +1219,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <input type="month" id="stats-month" class="inp-gold" style="width:auto;padding:3px 8px;font-size:12px" onchange="setStatsMonth(this.value)" title="Выбрать конкретный месяц">
     </div>
   </div>
+  <!-- v8.26: владелец попросил таблицу по месяцам самой первой, над всем остальным -->
+  <div class="card" style="margin-bottom:16px"><div class="card-title">📅 По месяцам — каждый месяц отдельно (последние 12)</div><div id="chart-months"></div></div>
   <div id="stats-period-note" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
   <div class="an-kpis" id="stats-kpis"></div>
 
@@ -1220,9 +1249,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </details>
 
   <!-- v8.25: прежние таблицы — целиком, свёрнуты -->
-  <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">📋 Подробные таблицы <span style="font-weight:400;font-size:11px">(как было раньше: по месяцам, поставщики, топ товаров и клиентов, должники, оплаты, доставка, география)</span></summary>
+  <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">📋 Подробные таблицы <span style="font-weight:400;font-size:11px">(как было раньше: поставщики, топ товаров и клиентов, должники, оплаты, доставка, география)</span></summary>
   <div class="an-old">
-    <div class="card"><div class="card-title">📅 По месяцам — каждый месяц отдельно (последние 12)</div><div id="chart-months"></div></div>
     <div class="card"><div class="card-title">По поставщикам (выручка · прибыль)</div><div id="chart-suppliers"></div></div>
     <div class="card"><div class="card-title">Топ товаров</div><div id="chart-topgoods"></div></div>
     <div class="card"><div class="card-title">Топ клиентов</div><div id="chart-topclients"></div></div>
@@ -7620,6 +7648,7 @@ async function _plSheetScope(base,sheetName,tag){
 // (если фабрика пустая — заменяются только товары поставщика БЕЗ фабрики)
 async function _importBatches(supplier,factory,batches,replaceWhole){
   var all=[];batches.forEach(function(b){all=all.concat(b.rows);});
+  if(typeof spFinishRows==='function')try{spFinishRows(all,factory);}catch(e){console.error('spFinishRows',e);} // v8.27: вид мебели, коды МИКОН
   // PostgREST требует ОДИНАКОВЫЙ набор ключей у всех строк пакета (ошибка PGRST102
   // «All object keys must match»). Разные режимы сбора (каскад/матрица/модули) дают
   // разные поля — выравниваем: недостающие ключи заполняем null у всех строк.
@@ -9974,7 +10003,10 @@ async function backfillAttrs(){
       btn.textContent='🔧 '+done+' просмотрено, дополнено '+filled+'...';
       if(rows.length<1000)break;
     }
-    toast('✅ Готово: просмотрено '+done+', дополнено '+filled+' товаров. То, что уже было заполнено, не тронуто.','ok',7000);
+    // v8.27: вид мебели у всех позиций + расшифровка кодов МИКОН (нужен SQL 7.28)
+    var ty=null,tyErr='';
+    if(typeof backfillTypes==='function'){try{ty=await backfillTypes(btn);}catch(e2){tyErr=(e2&&e2.message)||'';}}
+    toast('✅ Готово: просмотрено '+done+', дополнено '+filled+' товаров.'+(ty?' Вид мебели определён ещё у '+ty.fixed+'.':'')+(tyErr==='NORPC_TYPES'?' Чтобы определить вид мебели у всех позиций, выполните SQL_обновление_7.28.':(tyErr?' Вид мебели: '+tyErr.slice(0,120):''))+' То, что уже было заполнено, не тронуто.','ok',9000);
   }catch(e){
     var msg=(e.message||'');
     if(msg==='NORPC')toast('❌ Выполните в Supabase SQL_обновление_7.19 (функция apply_attrs)','err',8000);
@@ -10301,7 +10333,7 @@ function _ssMiss(c,D){
 // Хранится в общих настройках (app_settings.search_syn), запасной путь — браузер.
 var GS_SYN_DEFAULT=[
   ['прихожая','коридор'],['тахта','кушетка'],['матрас','матрац'],
-  ['обувница','галошница','тумба для обуви'],['стенка','горка'],['двуспальная','двухспальная','2-спальная']
+  ['обувница','галошница','тумба для обуви'],['стенка','горка'],['двуспальная','двухспальная','2-спальная'],['тв','телевизор','tv']
 ];
 var _gsSyn=GS_SYN_DEFAULT,_gsSynSrc='default',_gsSynP=null;
 function gsSynLoad(force){
@@ -13211,6 +13243,445 @@ function renderShowroomStats(orders){
         +old.slice(0,8).map(function(o){return '<div class="sr-hrow"><span style="flex:1">'+esc(o.x.name)+'</span><span>'+o.q+' шт.</span><b>'+o.d+' дн.</b></div>';}).join(''):'');
   });
 }
+// ═══ v8.27: ПОИСК ПО ПРАЙСАМ — УМНЕЕ ════════════════════════════════════
+// Владелец 11.11.2026 (план «План_развития_поиска.md»):
+//  1. Журнал поиска: что ищут, что не находят, на что переписывают запрос.
+//  2. Вид мебели у всех позиций; коды МИКОН («Корпус: 150ГТ-1 Мокко») —
+//     расшифровка «гостиная Мади · тумба под ТВ» и размеры.
+//  3. «Вид + размер» («диван 2 метра», «прихожая 120», «тумба тв 160») —
+//     ищем и по разобранным размерам, сортировка по цене, отбор по фабрике.
+//  4. Одна модель у разных поставщиков — где дешевле.
+// Модуль надстраивает существующие функции (gsFind, _gsRenderRows, _gsBadges…),
+// поэтому старый код не переписан: если что-то здесь сломается, поиск
+// продолжит работать по-старому.
+
+// ── 0. Общие мелочи ─────────────────────────────────────────────────────
+function _spRet(p){var o=+p.price_opt||0;return o?retailFromOpt(o):(+p.price_retail||0);}
+// размер словами → «2м», «120см»: «диван 2 метра», «шкаф 1,5 метра», «120 см»
+function spNormQuery(q){
+  return String(q||'')
+    .replace(/(\d+(?:[.,]\d+)?)\s*(?:метр[а-яё]*|м\.?)(?=\s|$)/gi,'$1м')
+    .replace(/(\d+(?:[.,]\d+)?)\s*(?:сантиметр[а-яё]*|см\.?)(?=\s|$)/gi,'$1см')
+    .replace(/(\d+)\s*(?:миллиметр[а-яё]*|мм\.?)(?=\s|$)/gi,'$1мм')
+    .replace(/\s+/g,' ').trim();
+}
+// слово-размер → миллиметры (или null). «2м»=2000, «160»=1600, «1,6»=1600, «120см»=1200
+function spMM(w){
+  var m=String(w||'').toLowerCase().match(/^(\d{1,4}(?:[.,]\d{1,2})?)(м|см|мм)?$/);if(!m)return null;
+  var v=parseFloat(m[1].replace(',','.')),u=m[2]||'';
+  if(u==='м')v*=1000;else if(u==='см')v*=10;else if(u==='мм'){}
+  else if(/[.,]/.test(m[1]))v*=1000;            // «1,6» — метры
+  else if(v>=40&&v<=300)v*=10;                  // «160», «120» — сантиметры
+  else if(!(v>=400&&v<=3000))return null;       // «1600» — миллиметры; прочее — не размер
+  v=Math.round(v);return(v>=300&&v<=3200)?v:null;
+}
+// слово → вид мебели (как в базе, ptype). Берём словарь импорта _PTYPES.
+function spTypeOf(w){
+  if(typeof _PTYPES==='undefined')return null;var low=_eNorm(w);if(low.length<3)return null;
+  for(var i=0;i<_PTYPES.length;i++)if(new RegExp('^'+_PTYPES[i][0]).test(low))return _PTYPES[i][1];
+  return null;
+}
+
+// ── 1. ЖУРНАЛ ПОИСКА ────────────────────────────────────────────────────
+// Запрос считается «законченным», когда продавец что-то сделал с результатом
+// (нажал «В расчёт», выбрал подсказку, раскрыл варианты…), начал другой поиск
+// или ушёл с экрана. Пока он допечатывает тот же запрос («дива» → «диван бо»),
+// ничего не пишем. Не выбрал ничего и сразу набрал другое — записываем пару
+// «что искали → на что переписали»: так видно, каких синонимов не хватает.
+var _slBuf=null,_slOff=false,_slLastKey='',_slLastAt=0;
+function _slWrite(b,next){
+  if(_slOff||!b||b.q.length<2)return;
+  var key=b.place+'|'+b.q+'|'+(b.act||'');
+  if(key===_slLastKey&&Date.now()-_slLastAt<15000)return; // тот же запрос только что записан
+  _slLastKey=key;_slLastAt=Date.now();
+  var row={q:b.q.slice(0,200),place:b.place,n:b.n==null?null:b.n,how:b.how||null,act:b.act||null,
+    next_q:next?String(next).slice(0,200):null,who_name:(function(){try{return localStorage.getItem('vd_manager')||null;}catch(e){return null;}})()};
+  if(typeof sbPost!=='function')return;
+  sbPost('search_log',row).catch(function(e){
+    if(/search_log|does not exist|PGRST20|42P01|relation/i.test((e&&e.message)||''))_slOff=true; // SQL 7.28 ещё не выполнен
+  });
+}
+// «переписал запрос» — только если это тот же поиск другими словами: ничего не
+// нашлось, или есть общее слово, или слова почти одинаковые. «диван 2 м» →
+// «прихожая 120» — это уже другой поиск, не переписывание.
+function _slRelated(a,b,n){
+  if(n===0)return true;
+  var A=_eNorm(a).split(/\s+/).filter(function(w){return w.length>=3&&!spMM(w);}),B=_eNorm(b).split(/\s+/).filter(function(w){return w.length>=3&&!spMM(w);});
+  return A.some(function(x){return B.some(function(y){return x===y||(x.length>=4&&y.length>=4&&_gsLev(x,y)<=2);});});
+}
+function _slSame(a,b){a=_eNorm(a).trim();b=_eNorm(b).trim();return a===b||a.indexOf(b)===0||b.indexOf(a)===0;}
+// новый запрос (place: 'prices' | 'order')
+function slQuery(q,place,n,how){
+  q=String(q||'').trim();if(q.length<2)return;
+  var now=Date.now(),b=_slBuf;
+  if(b&&!b.done&&b.place===place&&_slSame(b.q,q)&&now-b.t<60000){b.q=q;b.t=now;if(n!=null)b.n=n;if(how)b.how=how;return;}
+  if(b&&!b.done)_slWrite(b,(b.place===place&&now-b.t<90000&&_slRelated(b.q,q,b.n))?q:null);
+  _slBuf={q:q,place:place,n:n,how:how,t:now,act:null,done:false};
+}
+// результат поиска пришёл — уточняем число найденного у текущего запроса
+function slResult(q,place,n,how){var b=_slBuf;if(b&&!b.done&&b.place===place&&_eNorm(b.q)===_eNorm(String(q).trim())){b.n=n;b.how=how||b.how;}}
+// с результатом что-то сделали
+function slAct(act,place){
+  var b=_slBuf;if(!b||b.done||(place&&b.place!==place))return;
+  b.act=act;b.done=true;_slWrite(b,null);
+}
+document.addEventListener('visibilitychange',function(){if(document.hidden&&_slBuf&&!_slBuf.done){_slWrite(_slBuf,null);_slBuf.done=true;}});
+
+// Сводка «Что ищут продавцы» (вкладка «Прайсы»)
+var _slDays=7;
+function slReportRender(days){
+  if(days)_slDays=days;
+  var el=document.getElementById('sl-report');if(!el)return;
+  el.innerHTML='<div class="an-muted" style="padding:8px 0">Загружаю журнал…</div>';
+  var since=new Date(Date.now()-_slDays*864e5).toISOString();
+  sbGet('search_log','select=q,place,n,how,act,next_q,who_name,at&at=gte.'+encodeURIComponent(since)+'&order=at.desc&limit=5000')
+  .then(function(rows){
+    rows=rows||[];
+    if(!rows.length){el.innerHTML='<div class="an-muted" style="padding:8px 0">За '+_slDays+' дн. записей нет. Журнал начнёт заполняться, когда продавцы будут искать товары в «Прайсах» и в «Новом заказе».</div>';return;}
+    var tot=rows.length,found=rows.filter(function(r){return r.act;}).length,zero=rows.filter(function(r){return r.n===0;});
+    function top(list,keyf,lim){var m={},ex={};list.forEach(function(r){var k=keyf(r);if(!k)return;m[k]=(m[k]||0)+1;ex[k]=r;});
+      return Object.keys(m).sort(function(a,b){return m[b]-m[a];}).slice(0,lim||15).map(function(k){return{k:k,n:m[k],r:ex[k]};});}
+    var zt=top(zero,function(r){return _eNorm(r.q).trim();});
+    var rw=top(rows.filter(function(r){return !r.act&&r.next_q;}),function(r){return _eNorm(r.q).trim()+' → '+_eNorm(r.next_q).trim();});
+    var nopick=top(rows.filter(function(r){return !r.act&&!r.next_q&&r.n>0;}),function(r){return _eNorm(r.q).trim();},10);
+    var h='<div class="sl-sum">'
+      +'<div><b>'+tot+'</b><span>запросов</span></div>'
+      +'<div><b>'+found+'</b><span>нашли и выбрали ('+_anPct(found,tot)+' %)</span></div>'
+      +'<div style="color:#9c3b2e"><b>'+zero.length+'</b><span>ничего не нашлось</span></div>'
+      +'<div><b>'+rw.reduce(function(s,x){return s+x.n;},0)+'</b><span>переписали запрос</span></div></div>';
+    h+='<div class="sl-cols">';
+    h+='<div><div class="an-ct">Ничего не нашлось</div>'+(zt.length?zt.map(function(x){return '<div class="sl-row"><span>'+esc(x.k)+'</span><span class="an-muted">'+x.n+'×</span></div>';}).join(''):'<div class="an-muted">нет — отлично</div>')
+      +(zt.length?'<div class="an-muted" style="margin-top:6px">Это либо товар, которого нет в загруженных прайсах, либо слово, которое пишут иначе, чем фабрика. Второе лечится словарём синонимов.</div>':'')+'</div>';
+    h+='<div><div class="an-ct">Не выбрали и переписали</div>'+(rw.length?rw.map(function(x,i){
+        var p=x.k.split(' → '),sg=_slSynGuess(p[0],p[1]);
+        return '<div class="sl-row"><span>'+esc(p[0])+' <span class="an-muted">→</span> '+esc(p[1])+'</span><span class="an-muted">'+x.n+'×'
+          +(sg?' <button type="button" class="btn btn-outline sl-syn" onclick="slAddSyn(\''+esc(sg[0]).replace(/'/g,'')+'\',\''+esc(sg[1]).replace(/'/g,'')+'\')" title="Добавить в словарь синонимов: '+esc(sg[0]+' = '+sg[1])+'">＋ '+esc(sg[0])+' = '+esc(sg[1])+'</button>':'')+'</span></div>';}).join(''):'<div class="an-muted">нет</div>')+'</div>';
+    h+='<div><div class="an-ct">Нашлось, но ничего не выбрали</div>'+(nopick.length?nopick.map(function(x){return '<div class="sl-row"><span>'+esc(x.k)+'</span><span class="an-muted">'+x.n+'×</span></div>';}).join(''):'<div class="an-muted">нет</div>')
+      +'<div class="an-muted" style="margin-top:6px">Иногда это нормально: посмотрели цену и ответили клиенту. Если запрос повторяется — стоит проверить, что выдаёт поиск.</div></div>';
+    h+='</div>';
+    el.innerHTML=h;
+  }).catch(function(e){
+    var m=(e&&e.message)||'';
+    el.innerHTML='<div class="an-muted" style="padding:8px 0">'+(/search_log|does not exist|42P01|PGRST20/i.test(m)?'Журнал ещё не включён: выполните в Supabase <b>SQL_обновление_7.28</b>.':'Не удалось загрузить журнал: '+esc(m.slice(0,160)))+'</div>';
+  });
+}
+// пара «коридор → прихожая»: слова, которые есть только в одном из запросов
+function _slSynGuess(a,b){
+  var A=_eNorm(a).split(/\s+/).filter(Boolean),B=_eNorm(b).split(/\s+/).filter(Boolean);
+  var onlyA=A.filter(function(w){return B.indexOf(w)<0&&!spMM(w);}),onlyB=B.filter(function(w){return A.indexOf(w)<0&&!spMM(w);});
+  if(onlyA.length<1||onlyB.length<1||onlyA.length>2||onlyB.length>2)return null;
+  var x=onlyA.join(' '),y=onlyB.join(' ');
+  if(_gsLev(x,y)<=1)return null; // это опечатка, её поиск и так поправит
+  return [x,y];
+}
+function slAddSyn(a,b){
+  if(!ownerOnly('Словарь синонимов'))return;
+  gsSynLoad().then(function(){
+    var groups=(_gsSyn||[]).map(function(g){return g.slice();}),na=_eNorm(a),nb=_eNorm(b),done=false;
+    groups.forEach(function(g){var n=g.map(_eNorm);if(done)return;if(n.indexOf(na)>=0&&n.indexOf(nb)<0){g.push(b);done=true;}else if(n.indexOf(nb)>=0&&n.indexOf(na)<0){g.push(a);done=true;}else if(n.indexOf(na)>=0&&n.indexOf(nb)>=0)done=true;});
+    if(!done)groups.push([a,b]);
+    var o={v:1,groups:groups,at:new Date().toISOString()};_gsSyn=groups;
+    try{localStorage.setItem('vd_search_syn',JSON.stringify(o));}catch(e){}
+    var ok=function(){toast('📖 В словарь добавлено: '+a+' = '+b);if(typeof gsSynRender==='function'){var ta=document.getElementById('syn-text');if(ta)ta.dataset.dirty='';gsSynRender();}};
+    if(typeof saveSetting==='function')saveSetting('search_syn',JSON.stringify(o)).then(ok).catch(ok);else ok();
+  });
+}
+
+// ── 2. ВИД МЕБЕЛИ И КОДЫ МИКОН ──────────────────────────────────────────
+// Код МИКОН = [ширина, см][буквы][высота антресоли][-вариант]: «150ГТ-1»,
+// «70Ш с полками», «35АТ300», «90ДКР-1». Буквы сверены с сайтом
+// micon-mebel.com (СМС Мади, 11.11.2026). Высота/глубина — типовые по сайту,
+// пишутся только туда, где размеров нет.
+var MIKON_CODES=[ // [буквы, комната, вид (ptype), расшифровка, высота, глубина]
+  ['ГНО','гостиная','полка','полка навесная открытая',null,330],
+  ['ГНГ','гостиная','шкаф','шкаф навесной горизонтальный',null,350],
+  ['ГНВ','гостиная','шкаф','шкаф навесной вертикальный',null,350],
+  ['ГТ','гостиная','тумба','тумба под ТВ',400,522],
+  ['ГШ','гостиная','шкаф','шкаф-пенал для гостиной',null,520],
+  ['СЖ','гостиная','стол','стол журнальный',450,null],
+  ['ПКР','спальня','кровать','кровать с мягким изголовьем',null,null],
+  ['ДКР','подростковая','кровать','кровать подростковая',null,null],
+  ['КР','спальня','кровать','кровать',950,null],
+  ['СК','спальня','комод','комод',null,null],
+  ['СТ','спальня','тумба','тумба прикроватная',null,null],
+  ['СЗ','спальня','зеркало','зеркало',null,null],
+  ['СП','спальня','стол','стол туалетный / письменный',750,null],
+  ['ДС','подростковая','стеллаж','шкаф-стеллаж подростковый',1900,375],
+  ['ДП','подростковая','пенал','пенал подростковый',1900,375],
+  ['ДН','подростковая','полка','надстройка (полка над кроватью)',null,290],
+  ['ПЦС','прихожая','шкаф','шкаф для прихожей',2300,520],
+  ['ПТ','прихожая','тумба','тумба для прихожей (обувница)',450,520],
+  ['ПВ','прихожая','вешалка','вешалка',1790,292],
+  ['ПО','прихожая','полка','модуль открытый для прихожей',null,375],
+  ['ШУП','шкафы','шкаф','шкаф угловой',2300,null],['ШУС','шкафы','шкаф','шкаф угловой',2300,null],
+  ['ШТ','шкафы','шкаф','шкаф торцевой',2300,516],
+  ['АУЗР','шкафы','антресоль','антресоль для углового завершения',null,500],['АУЗ','шкафы','антресоль','антресоль для углового завершения',null,500],
+  ['АУП','шкафы','антресоль','антресоль для углового шкафа',null,null],['АУС','шкафы','антресоль','антресоль для углового шкафа',null,null],
+  ['АТ','шкафы','антресоль','антресоль для торцевого шкафа',null,516],
+  ['УЗР','шкафы','стеллаж','угловое завершение',2300,500],['УЗ','шкафы','стеллаж','угловое завершение',2300,500],
+  ['Ш','шкафы','шкаф','шкаф',2300,520],
+  ['С','шкафы','стеллаж','стеллаж',2300,500],
+  ['А','шкафы','антресоль','антресоль',null,520]
+];
+// разбор одной строки МИКОН: {part:'корпус'|'фасад'|'панель'|'сиденье', code, letters, w, coll, ptype, desc, h, d}
+function mikonParse(name,sheet){
+  var s=String(name||''),m,part=null,code=null,coll='';
+  var shm=String(sheet||'').match(/^СМС\s+(.+)$/i);if(shm)coll=shm[1].trim();
+  // «Корпус: 90,120,140,160,180КР Белый» — один корпус на несколько ширин
+  if((m=s.match(/^Корпус:\s*((?:\d{2,3},)*\d{0,3}[А-ЯЁ]{1,4}[0-9]{0,3}(?:-\d+)?)/)))part='корпус',code=m[1];
+  // «Фасад: Вальтер/40С с дверкой/Лофт серый» — после кода бывают слова
+  else if((m=s.match(/^Фасад:\s*([^\/]+)\/((?:\d{2,3},)*\d{0,3}[А-ЯЁ]{1,4}[0-9]{0,3}(?:-\d+)?)[^\/]*\//)))part='фасад',coll=coll||m[1].trim(),code=m[2];
+  else if((m=s.match(/^Панель:\s*([^\/]+)\/([^\/]+)\//)))return{part:'панель',code:m[2],coll:coll||m[1].trim(),ptype:'панель',desc:'декоративная панель',room:''};
+  else if(/^Мягкое сиденье/i.test(s))return{part:'сиденье',code:'',coll:coll,ptype:'сиденье',desc:'мягкое сиденье для тумбы или шкафа прихожей',room:'прихожая'};
+  if(!part)return null;
+  var cm=code.match(/^((?:\d{2,3},)*\d{0,3})([А-ЯЁ]{1,4})(\d{0,3})(?:-(\d+))?$/);if(!cm)return null;
+  var letters=cm[2],hit=null;
+  for(var i=0;i<MIKON_CODES.length;i++)if(MIKON_CODES[i][0]===letters){hit=MIKON_CODES[i];break;}
+  if(!hit)return null;
+  var w=cm[1]&&cm[1].indexOf(',')<0?parseInt(cm[1],10)*10:null,h=hit[4],d=hit[5]; // список ширин — ширину не ставим
+  if(/^А/.test(letters)&&cm[3])h=parseInt(cm[3],10);           // антресоль 300/400 — это высота
+  if(letters==='СЖ'&&w)d=w;                                       // журнальный стол квадратный
+  return{part:part,code:code,letters:letters,w:w,h:h,d:d,coll:coll,room:hit[1],ptype:hit[2],desc:hit[3]};
+}
+// Вид мебели строки прайса. Порядок: МИКОН-код → название → раздел → лист →
+// фабрика/поставщик → «по умолчанию» для поставщиков, у которых модели
+// записаны без вида («Байрон» у Некрасовых — диван).
+var SP_EXTRA_TYPES=[['мягкое\\s+сиденье','сиденье'],['изголов','кровать'],['брючниц|подсветк|штанг|корзин','фурнитура'],['вешалк','вешалка'],['угловое\\s+завершени','стеллаж'],['сегмент','диван'],['^угол\\s','диван'],['угловой\\s+диван','диван'],
+  ['надстройк','полка'],['чех[оа]л|одеял|подушк|топпер','текстиль'],['направляющ|доводчик|подвес|петл[ия]|фурнитур|ручк[аи]','фурнитура'],
+  ['кро[ы]?ват','кровать'],['кресл','кресло']];
+var SP_DEFAULT_TYPE={'некрасовы':'диван','новый взгляд':'диван'};
+function _spRe(list,s){s=_eNorm(s||'');if(!s)return null;for(var i=0;i<list.length;i++)if(new RegExp(list[i][0]).test(s))return list[i][1];return null;}
+function spTypeGuess(r){
+  var mk=(/микон/i.test(r.factory||'')||/^(Корпус|Фасад|Панель):/.test(r.product_name||''))?mikonParse(r.product_name,r.sheet_name):null;
+  if(mk)return{ptype:mk.part==='фасад'?'фасад':mk.ptype,mk:mk};
+  var t=_spRe(_PTYPES,r.product_name)||_spRe(SP_EXTRA_TYPES,r.product_name)
+    ||_spRe(_PTYPES,r.category)||_spRe(SP_EXTRA_TYPES,r.category)
+    ||_spRe(_PTYPES,r.sheet_name)||_spRe(SP_EXTRA_TYPES,r.sheet_name)
+    ||_spRe(_PTYPES,r.factory)||_spRe(SP_EXTRA_TYPES,r.factory)
+    ||SP_DEFAULT_TYPE[_eNorm(r.supplier||'')]||SP_DEFAULT_TYPE[_eNorm(r.factory||'')]||null;
+  return{ptype:t,mk:null};
+}
+// расшифровка в раздел (category): «Мади · гостиная · тумба под ТВ · корпус»
+function spMikonCategory(mk){
+  return [mk.coll,mk.room,(mk.part==='фасад'?'фасад для: ':'')+mk.desc,mk.part==='корпус'?'корпус':''].filter(Boolean).join(' · ');
+}
+// При загрузке прайса: дописать вид мебели и расшифровку тем, у кого их нет.
+function spFinishRows(rows,factory){
+  (rows||[]).forEach(function(r){
+    var g=spTypeGuess({product_name:r.product_name,category:r.category,sheet_name:r.sheet_name,factory:r.factory||factory,supplier:r.supplier});
+    if(g.mk){
+      if(g.ptype)r.ptype=g.ptype;
+      if(!r.category)r.category=spMikonCategory(g.mk);
+      if(r.dim_w==null&&g.mk.w)r.dim_w=g.mk.w;
+      if(r.dim_h==null&&g.mk.h)r.dim_h=g.mk.h;
+      if(r.dim_d==null&&g.mk.d)r.dim_d=g.mk.d;
+    }else if(!r.ptype&&g.ptype)r.ptype=g.ptype;
+  });
+  return rows;
+}
+// Уже загруженные прайсы: пройти всю базу и дописать вид мебели (кнопка
+// «🔧 Разобрать атрибуты» зовёт это после своего прохода). Нужен SQL 7.28.
+async function backfillTypes(btn){
+  var lastId=0,done=0,fixed=0;
+  while(true){
+    var rows=await sbGet('price_items','select=id,supplier,factory,sheet_name,product_name,category,ptype,dim_w,dim_h,dim_d&id=gt.'+lastId+'&order=id.asc&limit=1000');
+    if(!rows||!rows.length)break;
+    lastId=rows[rows.length-1].id;done+=rows.length;
+    var items=[];
+    rows.forEach(function(r){
+      var g=spTypeGuess(r),it={id:r.id},ch=false;
+      if(g.mk){
+        if(r.ptype!==g.ptype){it.ptype=g.ptype;ch=true;}           // у МИКОН код главнее: «70Ш с полками» — шкаф, а не полка
+        if(!r.category){it.category=spMikonCategory(g.mk);ch=true;}
+        if(r.dim_w==null&&g.mk.w){it.dim_w=g.mk.w;ch=true;}
+        if(r.dim_h==null&&g.mk.h){it.dim_h=g.mk.h;ch=true;}
+        if(r.dim_d==null&&g.mk.d){it.dim_d=g.mk.d;ch=true;}
+      }else if(!r.ptype&&g.ptype){it.ptype=g.ptype;ch=true;}
+      if(ch)items.push(it);
+    });
+    for(var k=0;k<items.length;k+=500){
+      try{var n=await sb('POST','rpc/apply_types',{items:items.slice(k,k+500)});fixed+=parseInt(n)||0;}
+      catch(e){var t=(e&&e.message)||'';if(/apply_types|does not exist|PGRST202/i.test(t))throw new Error('NORPC_TYPES');throw e;}
+    }
+    if(btn)btn.textContent='🧭 Вид мебели: '+done+' просмотрено, дополнено '+fixed+'...';
+    if(rows.length<1000)break;
+  }
+  return{done:done,fixed:fixed};
+}
+
+// ── 3. «ВИД + РАЗМЕР» В ГЛАВНОМ ПОИСКЕ ─────────────────────────────────
+// «диван 2м» раньше находил только строки, где «2000» написано в названии.
+// Теперь параллельно ищем по разобранным размерам: вид = диван, ширина ≈ 2 м
+// (±6 %, не меньше 50 мм). Найденное добавляется к обычным результатам.
+var _spLastParam=null; // что учли — для подсказки над результатами
+function spParamPlan(q){
+  var toks=String(q||'').split(/\s+/).filter(Boolean),type=null,mm=null,rest=[];
+  toks.forEach(function(w){
+    var t=type?null:spTypeOf(w),v=mm?null:spMM(w);
+    if(t&&!type)type=t;else if(v&&!mm)mm=v;else rest.push(w);
+  });
+  if(!type||!mm)return null;
+  var tol=Math.max(50,Math.round(mm*0.06));
+  return{type:type,mm:mm,lo:mm-tol,hi:mm+tol,rest:rest};
+}
+var _spFindBase=typeof gsFind==='function'?gsFind:null;
+if(_spFindBase)gsFind=function(q,sel,lim){
+  var qn=spNormQuery(q),plan=_gsNormCol?spParamPlan(qn):null;
+  var base=_spFindBase(qn,sel,lim);
+  if(!plan){_spLastParam=null;return base;}
+  var restCond=plan.rest.length?'&and=('+plan.rest.map(function(w){return _gsTokCond({w:w,alts:typeof gsSynAlts==='function'&&gsSynAlts(w).length?[w].concat(gsSynAlts(w)):null});}).join(',')+')':'';
+  var p=sbGet('price_items',sel+'&ptype=eq.'+encodeURIComponent(plan.type)+'&dim_w=gte.'+plan.lo+'&dim_w=lte.'+plan.hi+restCond+'&limit=300&order=product_name.asc').catch(function(){return [];});
+  return Promise.all([base,p]).then(function(x){
+    var res=x[0],add=x[1]||[];
+    _spLastParam={type:plan.type,lo:plan.lo,hi:plan.hi,mm:plan.mm,n:add.length,q:q};
+    if(!add.length)return res;
+    var seen={};(res.rows||[]).forEach(function(r){seen[r.id]=1;});
+    var extra=add.filter(function(r){return !seen[r.id];});
+    if(!extra.length)return res;
+    var rows=(res.how==='none'?[]:res.rows||[]).concat(extra);
+    return{rows:rows,toks:res.toks,note:res.how==='none'||res.how==='relaxed'?'':res.note,how:res.how==='none'?'param':res.how,q:res.q};
+  });
+};
+
+// ── 4. СОРТИРОВКА, ФАБРИКИ, «ГДЕ ДЕШЕВЛЕ» ───────────────────────────────
+var _spSort='rel',_spFac='',_spAll=null,_spQ='',_spBox=null,_spNote='',_spCmp={};
+// одна модель у разных поставщиков: ключ — название без поставщика,
+// кавычек, «№», с размерами в одной записи
+function spModelKey(n){
+  return _eNorm(String(n||'')).replace(/["«»“”„'`]/g,'').replace(/(\d)\s*[xх×*]\s*(\d)/g,'$1х$2')
+    .replace(/[(),.;:]/g,' ').replace(/\s*-\s*/g,'-').replace(/\s+/g,' ').trim();
+}
+function _spFacName(p){return String(p.factory||p.supplier||'—').trim();}
+// v8.27.1 (владелец): одинаковое название ≠ один товар. «Бостон» у одной фабрики —
+// диван, у другой — кровать; «Фортуна» и «Маэстро» разных фабрик похожи, но
+// отличаются высотой. Поэтому сравниваем ТОЛЬКО одну и ту же фабрику: та же
+// фабрика + то же полное название (с размером) + тот же вид мебели, а продают
+// разные поставщики (матрас Аскона у «Добрый Дом» и у «Мебель Рум»). Фабрика
+// не указана — не сравниваем вовсе.
+function _spCmpKey(p){
+  var f=_eNorm(String(p.factory||'').trim());if(!f)return '';
+  var k=spModelKey(p.product_name);if(k.length<5)return '';
+  return f+'|'+(p.ptype||'')+'|'+k;
+}
+function _spBuildCmp(rows){
+  var m={};
+  rows.forEach(function(p){var k=_spCmpKey(p);if(!k)return;var r=_spRet(p);if(!r)return;
+    var s=String(p.supplier||'').trim();if(!s)return;(m[k]=m[k]||{})[s]=Math.min((m[k][s]||Infinity),r);});
+  var out={};Object.keys(m).forEach(function(k){if(Object.keys(m[k]).length>=2)out[k]=m[k];});
+  _spCmp=out;
+}
+// плашка в строке результата: «есть у 2 поставщиков · дешевле у X на N ₽»
+function spCmpBadge(p){
+  var k=_spCmpKey(p),c=k?_spCmp[k]:null;if(!c)return'';
+  var mine=String(p.supplier||'').trim(),my=c[mine],others=Object.keys(c).filter(function(s){return s!==mine;});
+  if(my==null||!others.length)return'';
+  var best=others.reduce(function(a,s){return c[s]<c[a]?s:a;},others[0]),diff=Math.round(my-c[best]);
+  var tip='Тот же товар фабрики '+(p.factory||'')+' у разных поставщиков: '+Object.keys(c).map(function(s){return s+' — '+fmt(Math.round(c[s]))+' ₽';}).join('; ');
+  if(diff>0)return ' <span class="pl pl-warn" title="'+esc(tip)+'">у '+esc(best)+' дешевле на '+fmt(diff)+' ₽</span>';
+  if(diff<0)return ' <span class="pl pl-good" title="'+esc(tip)+'">здесь дешевле, чем у '+esc(best)+', на '+fmt(-diff)+' ₽</span>';
+  return ' <span class="pl pl-mut" title="'+esc(tip)+'">у '+esc(best)+' та же цена</span>';
+}
+var _spBadgesBase=typeof _gsBadges==='function'?_gsBadges:null;
+if(_spBadgesBase)_gsBadges=function(p){return spTypePill(p)+_spBadgesBase(p)+spCmpBadge(p)+spMikonInfo(p);};
+// «Бостон» у Некрасовых — диван, у Браво — кровать: если вид мебели в названии
+// не написан, показываем его плашкой, чтобы продавец не перепутал
+function spTypePill(p){
+  var t=String(p.ptype||'').trim();if(!t||t==='фасад'||/^(Корпус|Фасад|Панель):/.test(p.product_name||''))return'';
+  var stem=_eNorm(t).replace(/-.*$/,'').slice(0,5),n=_eNorm(p.product_name||'');
+  if(n.indexOf(stem)>=0)return'';
+  return ' <span class="pl pl-mut" title="Вид мебели (определён по прайсу)">'+esc(t)+'</span>';
+}
+// раздел МИКОН — расшифровка видна сразу под названием
+function spMikonInfo(p){
+  if(!/^(Корпус|Фасад):/.test(p.product_name||''))return'';
+  var mk=mikonParse(p.product_name,p.sheet_name);if(!mk||!mk.desc)return'';
+  return ' <span class="pl pl-mut" title="Расшифровка кода МИКОН">'+esc((mk.coll?mk.coll+' · ':'')+mk.room+' · '+mk.desc+(mk.w?' · ш. '+mk.w:''))+'</span>';
+}
+var _spRenderBase=typeof _gsRenderRows==='function'?_gsRenderRows:null;
+if(_spRenderBase)_gsRenderRows=function(rows,q,box,note){
+  if(box&&box.id==='gs-results'){
+    // новый поиск — сбрасываем отбор по фабрике; сортировку помним
+    if(q!==_spQ){_spFac='';}
+    _spAll=rows;_spQ=q;_spBox=box;_spNote=note;
+    slQuery(q,'prices');slResult(q,'prices',rows.length,_spLastParam&&_spLastParam.q===q&&_spLastParam.n?'param':'');
+    _spRedraw();return;
+  }
+  return _spRenderBase(rows,q,box,note);
+};
+function _spRedraw(){
+  if(!_spAll||!_spBox)return;
+  var rows=_spAll.slice();
+  _spBuildCmp(rows);
+  var facs={};rows.forEach(function(p){var f=_spFacName(p);facs[f]=(facs[f]||0)+1;});
+  if(_spFac)rows=rows.filter(function(p){return _spFacName(p)===_spFac;});
+  if(_spSort==='price')rows.sort(function(a,b){var x=_spRet(a)||1e12,y=_spRet(b)||1e12;return x-y;});
+  _gsLastResults=rows;
+  _spRenderBase(rows,_spQ,_spBox,_spNote);
+  // панель над результатами: сортировка + фабрики + что учли из размера
+  var fk=Object.keys(facs).sort(function(a,b){return facs[b]-facs[a];});
+  var bar='<div class="sp-bar"><span class="sp-lbl">Сортировка:</span>'
+    +'<button type="button" class="sp-chip'+(_spSort==='rel'?' on':'')+'" onclick="spSetSort(\'rel\')">как в запросе</button>'
+    +'<button type="button" class="sp-chip'+(_spSort==='price'?' on':'')+'" onclick="spSetSort(\'price\')">дешевле ↑</button>';
+  if(fk.length>1){
+    bar+='<span class="sp-lbl" style="margin-left:6px">Фабрики:</span><button type="button" class="sp-chip'+(!_spFac?' on':'')+'" onclick="spSetFac(\'\')">все '+_spAll.length+'</button>';
+    fk.slice(0,12).forEach(function(f,i){bar+='<button type="button" class="sp-chip'+(_spFac===f?' on':'')+'" onclick="spSetFac('+i+')">'+esc(f)+' '+facs[f]+'</button>';});
+    window._spFacKeys=fk;
+  }
+  bar+='</div>';
+  var pm=_spLastParam&&_spLastParam.q===_spQ&&_spLastParam.n?'<div class="sp-param">📐 Учёл размер: <b>'+esc(_spLastParam.type)+'</b> шириной <b>'+fmt(_spLastParam.lo)+'–'+fmt(_spLastParam.hi)+' мм</b> — в том числе товары, у которых размер не написан в названии, а разобран из прайса.</div>':'';
+  _spBox.insertAdjacentHTML('afterbegin',bar+pm);
+  spMikonDecorate(rows);
+}
+function spSetSort(s){_spSort=s;_spRedraw();}
+function spSetFac(i){_spFac=i===''?'':((window._spFacKeys||[])[i]||'');_spRedraw();}
+
+// ── 5. МИКОН: корпус + фасад одной ценой ───────────────────────────────
+// Модуль МИКОН = корпус (цвет корпуса) + фасад (цвет фасада), в прайсе это
+// разные строки. Под корпусом показываем, сколько стоит модуль с фасадом,
+// под фасадом — с корпусом. Как у РАУС, только без перемножения всех цветов.
+function spMikonDecorate(rows){
+  var need={};
+  rows.slice(0,120).forEach(function(p){var mk=/^(Корпус|Фасад):/.test(p.product_name||'')?mikonParse(p.product_name,p.sheet_name):null;
+    if(mk&&mk.code&&(mk.part==='корпус'||mk.part==='фасад'))need[mk.part+'|'+mk.coll+'|'+mk.code]=mk;});
+  var keys=Object.keys(need);if(!keys.length)return;
+  keys.slice(0,40).forEach(function(k){
+    var mk=need[k],other=mk.part==='корпус'?'Фасад: '+(mk.coll?mk.coll+'/':'*/')+mk.code+'/':'Корпус: '+mk.code+' ';
+    sbGet('price_items','select=product_name,price_opt,sheet_name&factory=eq.'+encodeURIComponent('МИКОН')+'&product_name=ilike.'+encodeURIComponent(other.replace(/\*/g,'%')+'%')+'&limit=200')
+    .then(function(list){
+      list=(list||[]).filter(function(x){return !mk.coll||String(x.sheet_name||'').indexOf(mk.coll)>=0||mk.part==='корпус';});
+      var opts=list.map(function(x){return +x.price_opt||0;}).filter(function(x){return x>0;});
+      document.querySelectorAll('[data-mk="'+k.replace(/"/g,'')+'"]').forEach(function(n){n.remove();});
+      _gsLastResults.forEach(function(p,i){
+        var m2=/^(Корпус|Фасад):/.test(p.product_name||'')?mikonParse(p.product_name,p.sheet_name):null;
+        if(!m2||m2.part+'|'+m2.coll+'|'+m2.code!==k)return;
+        var host=document.getElementById('gs-kit-'+i);if(!host)return;
+        var my=+p.price_opt||0,txt;
+        if(!opts.length)txt=mk.part==='корпус'?'Фасада для '+mk.code+' в прайсе нет — модуль без фасада (открытый) или фасад в другом листе':'';
+        else{var lo=Math.min.apply(null,opts),hi=Math.max.apply(null,opts);
+          txt='Модуль целиком ('+(mk.part==='корпус'?'+ фасад':'+ корпус')+', '+opts.length+' вар.): '+(hi>lo?'от '+fmt(retailFromOpt(my+lo))+' до '+fmt(retailFromOpt(my+hi)):fmt(retailFromOpt(my+lo)))+' ₽ · опт '+fmt(Math.round(my+lo))+(hi>lo?'–'+fmt(Math.round(my+hi)):'')+' ₽';}
+        if(txt)host.insertAdjacentHTML('beforeend','<div class="sp-mk" data-mk="'+esc(k)+'">🧩 '+esc(txt)+'</div>');
+      });
+    }).catch(function(){});
+  });
+}
+
+// ── 6. Сигналы «нашёл» для журнала ────────────────────────────────────
+(function(){
+  function wrap(name,act,place){var f=window[name];if(typeof f!=='function')return;window[name]=function(){try{slAct(act,place);}catch(e){}return f.apply(this,arguments);};window[name]._orig=f;}
+  wrap('calcAddFromSearch','в расчёт','prices');
+  wrap('openWebSearch','в интернете');
+  wrap('gsGrpToggle','раскрыл варианты','prices');
+  wrap('kitToCalc','комплект в расчёт');
+  wrap('kitExtraToCalc','комплект в расчёт');
+  wrap('selectModel','выбрал в заказе','order');
+  wrap('calcAddFromSmart','в расчёт (умный)');
+  // запросы из подсказки «Нового заказа»
+  var spi=window.searchPriceItems;
+  if(typeof spi==='function'){window.searchPriceItems=function(id,q){try{slQuery(q,'order');}catch(e){}return spi.apply(this,[id,q]);};window.searchPriceItems._orig=spi;}
+  // ничего не найдено в «Прайсах»
+  var nf=window._gsNotFound;
+  if(typeof nf==='function')window._gsNotFound=function(q,box){try{if(box&&box.id==='gs-results'){slQuery(q,'prices',0);slResult(q,'prices',0,'none');_spAll=null;}}catch(e){}return nf.apply(this,arguments);};
+})();
 function qrDataUrl(text,size){
   // QR генерируется ЛОКАЛЬНО встроенной библиотекой (data:URL) — печатается всегда,
   // даже без интернета. Раньше был внешний сервис api.qrserver.com — он не грузился,
