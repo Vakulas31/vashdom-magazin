@@ -212,7 +212,76 @@ body.role-seller .owner-only{display:none!important}
 .order-card:hover{border-color:#b6c5d6;box-shadow:0 6px 18px -8px rgba(31,78,121,.30)}
 .order-card.done{border-color:#c6d9cb}
 /* ── МОБИЛЬНАЯ ВЕРСИЯ ─────────────────────────────────── */
+/* ── v8.25 · НАГЛЯДНАЯ АНАЛИТИКА (28d_stats_dash.js) ── */
+.an-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:8px}
+.an-kpi{padding:14px 16px;margin:0}
+.an-kv{font-size:23px;font-weight:700;margin:2px 0;font-variant-numeric:tabular-nums}
+.an-ks{font-size:11.5px;color:#5b6270;line-height:1.4;font-variant-numeric:tabular-nums}
+.an-ct{font-size:11.5px;font-weight:600;color:#5b6270;text-transform:uppercase;letter-spacing:.5px;margin:0 0 3px}
+.an-cq{font-size:15.5px;font-weight:600;margin:0 0 12px;color:var(--text)}
+.an-big{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.an-sec{font-size:18px;font-weight:700;margin:22px 0 2px;color:var(--dark)}
+.an-sum{cursor:pointer;margin:22px 0 10px}
+.an-secsub{font-size:12.5px;color:#5b6270;margin:0 0 10px}
+.an-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+.an-grid-s{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-bottom:10px}
+.an-span2{grid-column:span 2;min-width:0}
+.an-card{margin:0;min-width:0}
+.an-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px}
+.an-seg{display:inline-flex;border:1px solid #d5dbe3;border-radius:8px;overflow:hidden;flex-shrink:0}
+.an-seg button{border:none;background:#fff;padding:6px 11px;font-size:12px;font-family:inherit;color:#5b6270;cursor:pointer;min-height:32px}
+.an-seg button+button{border-left:1px solid #e3e7ed}
+.an-seg button.on{background:var(--dark);color:#fff}
+.an-bars{display:flex;align-items:flex-end;gap:10px;border-bottom:1px solid #e3e7ed;padding:0 2px;overflow:hidden}
+.an-labels{display:flex;gap:10px;padding:5px 2px 0}
+.an-col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;text-align:center}
+.an-labels .an-col{justify-content:flex-start}
+.an-top{font-size:11px;font-weight:600;margin-bottom:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.an-bar{width:100%;max-width:56px;position:relative}
+.an-bar>div{position:absolute;left:0;right:0;bottom:0}
+.an-cost{background:#9DB8D3;border-radius:4px 4px 0 0}
+.an-prof{background:var(--dark);border-radius:0 0 3px 3px}
+.an-bar>.an-prof[style*="100%"]{border-radius:4px 4px 0 0}
+.an-proj{border:1.5px dashed var(--dark);border-bottom:none;border-radius:4px 4px 0 0;box-sizing:border-box}
+.an-ml{font-size:12px;font-weight:600}
+.an-ms{font-size:10.5px;color:#5b6270;white-space:nowrap}
+.an-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:11.5px;color:#5b6270}
+.an-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.an-legend i.an-li-proj{border:1.5px dashed var(--dark);box-sizing:border-box}
+.an-list{display:flex;flex-direction:column;gap:8px}
+.an-row{display:flex;align-items:center;gap:10px;font-size:13px}
+.an-rl{flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-rv{flex-shrink:0;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;min-width:70px}
+.an-track{flex:1;min-width:30px;height:12px;background:#eef1f5;border-radius:4px;overflow:hidden}
+.an-thin{height:9px}
+.an-fill{height:100%;background:var(--dark);border-radius:4px}
+.an-chk-h{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;margin-bottom:3px;font-variant-numeric:tabular-nums}
+.an-top-row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #eef1f5;font-size:13px}
+.an-top-row:last-child{border-bottom:none}
+.an-ix{display:inline-block;width:18px}
+.an-nw{white-space:nowrap;font-variant-numeric:tabular-nums}
+.an-muted{color:#5b6270;font-size:11.5px}
+.an-tag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:10px;background:#eef1f5;color:#5b6270;font-weight:400;cursor:help}
+.an-hint{display:flex;gap:8px;align-items:flex-start;background:#EBF3FB;border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.45;margin-top:12px}
+.an-hint b{color:var(--dark)}
+.an-hint.an-warn{background:#FFF6E5}
+.an-hint.an-warn b{color:#8a5a18}
+.an-hint a{color:var(--dark)}
+.an-empty{color:#5b6270;font-size:13px;margin:6px 0}
+.an-mgr-h{display:flex;justify-content:space-between;align-items:baseline;font-size:16px}
+.an-mgr-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.an-mv{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.an-old{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.an-old .card{margin:0}
 @media (max-width:700px){
+  .an-span2{grid-column:auto}
+  .an-grid,.an-old{grid-template-columns:minmax(0,1fr)}
+  .an-kpis{grid-template-columns:1fr 1fr;gap:8px}
+  .an-kv{font-size:19px}
+  .an-bars,.an-labels{gap:4px}
+  .an-top{font-size:9.5px}
+  .an-ms{display:none}
+
   #mt-body>div{grid-template-columns:1fr!important} /* v7.92: ценники матрасов — список над предпросмотром */
   /* v7.58: на 375 px кнопка «Выход» начиналась на 379-й точке — нажать её было
      нельзя, и вся страница из-за неё ездила вбок на 44 px. Шапка теперь
@@ -411,7 +480,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.24</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.25</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -1124,22 +1193,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     </div>
   </div>
   <div id="stats-period-note" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
-  <div class="stats-grid" id="stats-kpis"></div>
+  <div class="an-kpis" id="stats-kpis"></div>
 
-  <!-- v7.7: секции сворачиваются, чтобы не листать всё сразу (клик по заголовку) -->
-  <details open><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">💰 Деньги</summary>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-    <div class="card"><div class="card-title">📅 По месяцам — каждый месяц отдельно (последние 12)</div><div id="chart-months"></div></div>
-    <div class="card"><div class="card-title">По поставщикам (выручка · прибыль)</div><div id="chart-suppliers"></div></div>
-  </div>
-  </details>
+  <!-- v8.25: наглядная аналитика (28d_stats_dash.js). Блок «Продавцы» со сменами,
+       зарплатой и отпускными — прежний, владелец просил его не трогать. -->
+  <div id="an-dash-a"></div>
 
-  <!-- v7.98: продажи с витрины -->
-  <details open><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🏬 Витрина</summary>
-    <div class="card"><div id="chart-showroom"></div></div>
-  </details>
-
-  <details open><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🧑‍💼 Менеджеры</summary>
+  <details open><summary class="an-sec an-sum">4 · Продавцы: смены, зарплата, отпускные</summary>
+  <div id="an-mgr"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card"><div class="card-title">Эффективность менеджеров</div><div id="chart-managers"></div></div>
     <div class="card"><div class="card-title">📅 Отработанные дни — по месяцам</div><div id="chart-workdays"></div></div>
@@ -1151,17 +1212,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div id="chart-vacations" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)"></div></div>
   </details>
 
-  <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🏆 Товары и клиенты <span style="font-weight:400;font-size:11px">(нажмите, чтобы развернуть)</span></summary>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div id="an-dash-b"></div>
+
+  <!-- v7.98: продажи с витрины -->
+  <details open><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">🏬 Витрина</summary>
+    <div class="card"><div id="chart-showroom"></div></div>
+  </details>
+
+  <!-- v8.25: прежние таблицы — целиком, свёрнуты -->
+  <details><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">📋 Подробные таблицы <span style="font-weight:400;font-size:11px">(как было раньше: по месяцам, поставщики, топ товаров и клиентов, должники, оплаты, доставка, география)</span></summary>
+  <div class="an-old">
+    <div class="card"><div class="card-title">📅 По месяцам — каждый месяц отдельно (последние 12)</div><div id="chart-months"></div></div>
+    <div class="card"><div class="card-title">По поставщикам (выручка · прибыль)</div><div id="chart-suppliers"></div></div>
     <div class="card"><div class="card-title">Топ товаров</div><div id="chart-topgoods"></div></div>
     <div class="card"><div class="card-title">Топ клиентов</div><div id="chart-topclients"></div></div>
     <div class="card"><div class="card-title">Должники</div><div id="chart-debtors"></div></div>
     <div class="card"><div class="card-title">По статусам</div><div id="chart-statuses"></div></div>
-  </div>
-  </details>
-
-  <details open><summary style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text2);cursor:pointer">💳 Финансы и операции</summary>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card"><div class="card-title">Способы оплаты (получено)</div><div id="chart-payments"></div></div>
     <div class="card"><div class="card-title">Доставка и операции</div><div id="chart-delivery"></div></div>
     <div class="card"><div class="card-title">География заказов</div><div id="chart-geo"></div></div>
@@ -16804,6 +16870,7 @@ function renderStats(){
   if(typeof renderShowroomStats==='function')renderShowroomStats(orders); // v7.98
   _renderSalary(orders,range); // v7.40: зарплата — до раннего выхода «нет данных»
   _renderVacations();          // v7.69: отпуска и отпускные — рядом с зарплатой
+  if(typeof anRender==='function')anRender(all,orders,range,prevOrders,prevR,cancelled,cancelSum); // v8.25: наглядная аналитика
   // ── ПО МЕСЯЦАМ: таблица за последние 12 месяцев (НЕ зависит от выбранного периода) ──
   (function(){
     var el=document.getElementById('chart-months');if(!el)return;
@@ -17027,6 +17094,7 @@ function _renderWorkdays(){
     var dupM={};
     Object.keys(byDay).forEach(function(d){if(byDay[d].length>1)(dupM[d.slice(0,7)]=dupM[d.slice(0,7)]||[]).push(d);});
     window._wdDup={byDay:byDay,dupM:dupM};
+    window._wdByM=byM;if(typeof anRenderMgr==='function')anRenderMgr(); // v8.25: «за смену» в карточках продавцов
     var names=Object.keys(mgrs).sort();
     var months=Object.keys(byM).sort();
     if(!names.length){
@@ -19015,6 +19083,336 @@ function deleteClaim(id){
     toast('🗑 Претензия удалена','ok',3000);
     _claimsAfterChange();
   }).catch(function(e){toast('❌ Не удалилось: '+String((e&&e.message)||'').slice(0,140),'err',6000);});
+}
+// ═══ v8.25: НАГЛЯДНАЯ АНАЛИТИКА ═══════════════════════════════════════
+// Владелец 11.11.2026: «сделать аналитику нагляднее, чтобы по ней принимать
+// решения». Блоки построены вокруг вопросов хозяина: как идут продажи, что
+// продаётся, когда покупают, кто продаёт, кто должен, у кого берём и как
+// долго везут. Под каждым графиком — короткий вывод на живых цифрах.
+// Смены, зарплата и отпускные (блок «Менеджеры») НЕ тронуты — владелец
+// сказал, что это обязательно. Старые таблицы — в «Подробных таблицах».
+// Рисуется из renderStats() — тот же выбранный период, те же формулы
+// (orderGoods, orderDebt, закупка = price_opt × кол-во).
+
+var _anMM='rev',_anDM='rev',_anCtx=null;
+
+function _anK(n){
+  n=Math.round(+n||0);var a=Math.abs(n);
+  if(a>=1e6)return(n/1e6).toFixed(2).replace(/0$/,'').replace('.',',')+' млн';
+  if(a>=1e5)return Math.round(n/1000)+' тыс.';
+  if(a>=1000)return(n/1000).toFixed(1).replace('.0','').replace('.',',')+' тыс.';
+  return String(n);
+}
+function _anPct(a,b){return b?Math.round(a/b*100):0;}
+function _anSell(it){return (it.price_discounted||it.price_retail||0)*(it.qty||1);}
+function _anCost(it){return (it.price_opt||0)*(it.qty||1);}
+function _anDays(a,b){return Math.round((new Date(String(b).slice(0,10)+'T12:00:00')-new Date(String(a).slice(0,10)+'T12:00:00'))/864e5);}
+function _anMed(a){if(!a.length)return null;a=a.slice().sort(function(x,y){return x-y;});return a[Math.floor(a.length/2)];}
+var _AN_MON=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+function _anMonLbl(m){var p=m.split('-');return _AN_MON[+p[1]-1]+(p[0]!==String(new Date().getFullYear())?' '+p[0].slice(2):'');}
+
+// Вид мебели по названию позиции. Порядок важен: «кухонный уголок» — кухня,
+// а не «угловой диван»; «столешница» — не стол.
+var _AN_CATS=[['кухн|уголок|обеденн','Кухни, уголки'],['матрас|матрац|наматрас|топпер','Матрасы'],['кроват|тахт','Кровати'],
+  ['диван|софа|канапе','Диваны'],['кресл','Кресла'],['шкаф|купе|пенал','Шкафы'],['комод','Комоды'],['стул|табурет','Стулья'],
+  ['стол(?!еш)','Столы'],['тумб','Тумбы'],['прихож|вешалк|обувн','Прихожие'],['стенк|горк|гостин','Гостиные'],
+  ['пуф|банкетк','Пуфы'],['детск|двухъяр|подрост','Детская'],['зеркал','Зеркала']];
+function _anCat(n){n=String(n||'').toLowerCase();for(var i=0;i<_AN_CATS.length;i++)if(new RegExp(_AN_CATS[i][0]).test(n))return _AN_CATS[i][1];return 'Прочее';}
+// Один товар записывают по-разному: «Диван "Эльба-2"», «Диван Эльба-2»,
+// «Диван-книжка Алиса» и «Диван Алиса». Склеиваем по модели.
+function _anModelKey(n){
+  return String(n||'').replace(/\s*·.*$/,'').toLowerCase().replace(/ё/g,'е')
+    .replace(/["«»“”„']/g,'').replace(/\s*-\s*/g,'-')
+    .replace(/^диван-(книжка|кровать|угловой)\s+/,'диван ').replace(/^диван угловой\s+/,'диван ')
+    .replace(/\s+/g,' ').trim().slice(0,40);
+}
+function _anSupKey(it){var raw=String(it.supplier_manual||it.supplier||'').trim();if(!raw)return'';var k=_supNorm(raw);if(k==='меб рум')k='мебель рум';return k;}
+
+// ── мелкие кирпичики разметки ──
+function _anCard(title,q,body,extra){return '<div class="card an-card">'+(extra||'')+'<div class="an-ct">'+title+'</div>'+(q?'<div class="an-cq">'+q+'</div>':'')+body+'</div>';}
+function _anHint(txt,warn){return '<div class="an-hint'+(warn?' an-warn':'')+'">'+txt+'</div>';}
+function _anRow(label,pct,val,color,lw){
+  return '<div class="an-row"><div class="an-rl" style="width:'+(lw||112)+'px">'+label+'</div><div class="an-track"><div class="an-fill" style="width:'+Math.max(pct>0?1.5:0,Math.min(100,pct))+'%;'+(color?'background:'+color:'')+'"></div></div><div class="an-rv">'+val+'</div></div>';
+}
+function _anSeg(cur,opts,fn){
+  return '<div class="an-seg" role="group">'+opts.map(function(o){return '<button type="button" class="'+(o[0]===cur?'on':'')+'" onclick="'+fn+'(\''+o[0]+'\')">'+o[1]+'</button>';}).join('')+'</div>';
+}
+function _anSec(n,t,sub){return '<div class="an-sec">'+n+' · '+t+'</div><div class="an-secsub">'+sub+'</div>';}
+
+// ── точка входа: зовётся из renderStats ──
+function anRender(all,orders,range,prevOrders,prevR,cancelled,cancelSum){
+  _anCtx={all:all,orders:orders,range:range,prevOrders:prevOrders,prevR:prevR,cancelled:cancelled||[],cancelSum:cancelSum||0};
+  try{_anPulse();}catch(e){console.error('anPulse',e);}
+  var a=document.getElementById('an-dash-a'),b=document.getElementById('an-dash-b');
+  try{if(a)a.innerHTML=_anPartA();}catch(e){console.error('anA',e);if(a)a.innerHTML='';}
+  try{anRenderMgr();}catch(e){console.error('anMgr',e);}
+  try{if(b)b.innerHTML=_anPartB();}catch(e){console.error('anB',e);if(b)b.innerHTML='';}
+}
+function anSetMM(v){_anMM=v;var el=document.getElementById('an-months');if(el&&_anCtx)el.outerHTML=_anMonthsCard();}
+function anSetDM(v){_anDM=v;var el=document.getElementById('an-dows');if(el&&_anCtx)el.outerHTML=_anDowCard();}
+
+// ── ПУЛЬС: карточки сверху ──
+function _anMetr(list){
+  var rev=0,cost=0,n=list.length;
+  list.forEach(function(o){rev+=orderGoods(o);(o.order_items||[]).forEach(function(it){if((it.price_opt||0)>0)cost+=_anCost(it);});});
+  return{n:n,rev:rev,cost:cost,profit:rev-cost,avg:n?rev/n:0};
+}
+function _anPace(){
+  // темп текущего месяца: только когда выбран текущий месяц и прошло ≥5 дней
+  var c=_anCtx,r=c.range,now=new Date();
+  if(!r||r.len!=='m'||r.from.getFullYear()!==now.getFullYear()||r.from.getMonth()!==now.getMonth())return null;
+  var day=now.getDate(),dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  if(day<5||day>=dim)return null;
+  var rev=_anMetr(c.orders).rev;return{day:day,dim:dim,proj:Math.round(rev/day*dim)};
+}
+function _anPulse(){
+  var c=_anCtx,M=_anMetr(c.orders),P=c.prevR?_anMetr(c.prevOrders):null;
+  function d(cur,prev,suffix){
+    if(!P||!prev)return'';var x=Math.round((cur-prev)/Math.abs(prev)*100);
+    return '<span style="color:'+(x>=0?'#2E7D32':'#9c3b2e')+'">'+(x>=0?'▲ ':'▼ ')+Math.abs(x)+' %</span> '+(suffix||'к пред. периоду');
+  }
+  var pace=_anPace(),k=[];
+  var revSub=pace?('темп: ~'+_anK(pace.proj)+' за месяц'+(P&&P.rev?' · '+d(pace.proj,P.rev,'к пред. месяцу'):'')):d(M.rev,P&&P.rev);
+  k.push(['Выручка',_anK(M.rev),revSub]);
+  var mk=M.cost?Math.round(M.profit/M.cost*100):0,mg=M.rev?Math.round(M.profit/M.rev*100):0;
+  k.push(['Прибыль',_anK(M.profit),'наценка '+mk+' % · маржа '+mg+' %']);
+  var days=c.range?Math.max(1,Math.min(_anDays(_ymd(c.range.from),_ymd(new Date())),_anDays(_ymd(c.range.from),_ymd(new Date(c.range.to.getTime()-1)))+1)):0;
+  var ns=[];if(days)ns.push((M.n/days).toFixed(1).replace('.',',')+' в день');if(c.cancelled.length)ns.push('отменено '+c.cancelled.length);if(P&&P.n&&!pace)ns.push(d(M.n,P.n,''));
+  k.push(['Заказов',String(M.n),ns.join(' · ')]);
+  k.push(['Средний чек',_anK(M.avg),d(M.avg,P&&P.avg)]);
+  var debt=0,open=0,old=0;
+  (c.all||[]).forEach(function(o){if(isClosed(o))return;var x=orderDebt(o);if(x>0){debt+=x;open++;if(_anDays(o.order_date,_ymd())>60)old++;}});
+  k.push(['Долг клиентов',_anK(debt),open+' заказ'+(open%10===1&&open%100!==11?'':(open%10>=2&&open%10<=4&&(open%100<10||open%100>=20)?'а':'ов'))+(old?' · '+old+' старше 60 дн.':''),'#9c3b2e']);
+  var sr=_anShowroomVal();
+  if(sr)k.push(['В зале',_anK(sr.val),sr.units+' шт. по закупке']);
+  else if(typeof _srLoad==='function'&&!window._anSrAsked){window._anSrAsked=1;_srLoad().then(function(){if(_anCtx)_anPulse();}).catch(function(){});}
+  var el=document.getElementById('stats-kpis');if(!el)return;
+  el.className='an-kpis';
+  el.innerHTML=k.map(function(x){return '<div class="card an-kpi"><div class="an-ct">'+x[0]+'</div><div class="an-kv"'+(x[3]?' style="color:'+x[3]+'"':'')+'>'+x[1]+'</div><div class="an-ks">'+x[2]+'</div></div>';}).join('');
+}
+function _anShowroomVal(){
+  if(typeof _srItems==='undefined'||!_srItems||!_srItems.length||!_srStock)return null;
+  var val=0,units=0;
+  _srItems.forEach(function(it){if(it.active===false)return;var st=_srStock[it.id];if(!st||!(st.qty>0))return;units+=st.qty;
+    var v=0;(st.batches||[]).forEach(function(b){if(b.left>0)v+=b.left*(+b.opt||0);});val+=v||st.qty*(+st.lastOpt||+it.opt||0);});
+  return units?{val:val,units:units}:null;
+}
+
+// ── 1–3: продажи, что продаётся, когда покупают ──
+function _anPartA(){
+  var c=_anCtx;
+  var h=_anSec(1,'Как идут продажи','Выручка и прибыль по месяцам (последние 12, не зависят от периода), выручка по неделям.');
+  h+='<div class="an-grid"><div class="an-span2">'+_anMonthsCard()+'</div>'+_anWeeksCard()+'</div>';
+  h+=_anSec(2,'Что продаётся','За выбранный период. Что держать в зале и на что давать рекламу.');
+  h+='<div class="an-grid">'+_anCatsCard()+_anTopCard()+'</div>';
+  h+=_anSec(3,'Когда и как покупают','За выбранный период. Кого ставить на смену и на чём делать акцент.');
+  h+='<div class="an-grid">'+_anDowCard()+_anChecksCard()+'</div>';
+  return h;
+}
+function _anMonthsCard(){
+  var c=_anCtx,bm={},now=new Date(),cur=_ymd(now).slice(0,7);
+  (c.all||[]).forEach(function(o){if(!o.order_date)return;var m=o.order_date.slice(0,7);var b=bm[m]=bm[m]||{n:0,rev:0,cost:0,real:0,realCost:0,tot:0};
+    b.n++;b.rev+=orderGoods(o);(o.order_items||[]).forEach(function(it){b.tot+=_anSell(it);if((it.price_opt||0)>0){b.cost+=_anCost(it);
+      if(!(typeof _optLooksEstimated==='function'&&_optLooksEstimated(it))){b.real+=_anSell(it);b.realCost+=_anCost(it);}}});});
+  var keys=Object.keys(bm).sort().slice(-12);
+  if(!keys.length)return '<div id="an-months">'+_anCard('По месяцам','','<p class="an-empty">Пока нет заказов</p>')+'</div>';
+  var pace=null;
+  if(keys[keys.length-1]===cur){var day=now.getDate(),dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();if(day>=5&&day<dim)pace=Math.round(bm[cur].rev/day*dim);}
+  var H=170,max=1,vals=keys.map(function(k){var b=bm[k];return _anMM==='rev'?Math.max(b.rev,k===cur&&pace?pace:0):_anMM==='n'?b.n:(b.n?b.rev/b.n:0);});
+  vals.forEach(function(v){if(v>max)max=v;});
+  var bars='',labels='';
+  keys.forEach(function(k,i){
+    var b=bm[k],top,body;
+    if(_anMM==='rev'){
+      var hRev=Math.round(b.rev/max*H),hPr=Math.max(0,Math.round((b.rev-b.cost)/max*H)),hProj=k===cur&&pace?Math.round(pace/max*H):0;
+      top=_anK(b.rev)+(hProj?' → ~'+_anK(pace):'');
+      body='<div class="an-bar" style="height:'+Math.max(hRev,hProj)+'px">'
+        +(hProj?'<div class="an-proj" style="height:'+hProj+'px"></div>':'')
+        +'<div class="an-cost" style="height:'+hRev+'px"></div><div class="an-prof" style="height:'+hPr+'px"></div></div>';
+    }else{
+      var v=_anMM==='n'?b.n:(b.n?b.rev/b.n:0);top=_anMM==='n'?String(b.n):_anK(v);
+      body='<div class="an-bar" style="height:'+Math.round(v/max*H)+'px"><div class="an-prof" style="height:100%"></div></div>';
+    }
+    var mk=b.cost?Math.round((b.rev-b.cost)/b.cost*100):0;
+    bars+='<div class="an-col" title="'+esc(_anMonLbl(k)+': '+fmt(b.rev)+' ₽, заказов '+b.n+', закупка '+fmt(b.cost)+' ₽')+'"><div class="an-top">'+top+'</div>'+body+'</div>';
+    labels+='<div class="an-col"><div class="an-ml">'+_anMonLbl(k)+'</div><div class="an-ms">'+(k===cur?'по '+now.getDate()+'-е':(_anMM==='rev'?'нац. '+mk+' %':''))+'</div></div>';
+  });
+  var legend=_anMM==='rev'?'<div class="an-legend"><span><i style="background:#9DB8D3"></i>закупка</span><span><i style="background:#1F4E79"></i>прибыль</span>'+(pace?'<span><i class="an-li-proj"></i>прогноз месяца по темпу</span>':'')+'</div>':'';
+  // вывод: сравниваем два последних ПОЛНЫХ месяца — что сильнее изменилось
+  var full=keys.filter(function(k){return k!==cur;}),hint='';
+  if(full.length>=2){
+    var A=bm[full[full.length-2]],B=bm[full[full.length-1]];
+    var dr=_anPct(B.rev-A.rev,A.rev),dn=_anPct(B.n-A.n,A.n),da=_anPct((B.n?B.rev/B.n:0)-(A.n?A.rev/A.n:0),A.n?A.rev/A.n:0);
+    var cause=Math.abs(da)>Math.abs(dn)?'в основном из-за <b>среднего чека</b> ('+_anK(A.rev/(A.n||1))+' → '+_anK(B.rev/(B.n||1))+', '+(da>=0?'+':'')+da+' %), а не числа заказов ('+A.n+' → '+B.n+')'
+      :'в основном из-за <b>числа заказов</b> ('+A.n+' → '+B.n+', '+(dn>=0?'+':'')+dn+' %), средний чек изменился на '+(da>=0?'+':'')+da+' %';
+    hint='💡 <span><b>'+_anMonLbl(full[full.length-1])+' к '+_anMonLbl(full[full.length-2])+': '+(dr>=0?'+':'')+dr+' %</b> — '+cause+'.'
+      +(pace?' Темп текущего месяца — около <b>'+_anK(pace)+'</b>, это '+(pace>=B.rev?'+':'')+_anPct(pace-B.rev,B.rev)+' % к '+_anMonLbl(full[full.length-1])+'.':'')+'</span>';
+  }
+  var real=0,tot=0;keys.slice(-3).forEach(function(k){real+=bm[k].real;tot+=bm[k].tot;});
+  var rr=0,rc=0;keys.slice(-2).forEach(function(k){rr+=bm[k].real;rc+=bm[k].realCost;});
+  var note=(tot&&real/tot<0.9)?_anHint('ℹ️ <span>Настоящая закупка известна для <b>'+_anPct(real,tot)+' %</b> продаж за 3 последних месяца; у остальных позиций она когда-то посчитана «по наценке», и прибыль там ровно равна наценке.'+(rc?' По позициям с настоящей закупкой наценка за 2 последних месяца — <b>'+Math.round((rr-rc)/rc*100)+' %</b>.':'')+' Исправить старые позиции — «Проверка данных» внизу.</span>',true):'';
+  var head='<div class="an-head"><div><div class="an-ct">По месяцам</div><div class="an-cq">'+({rev:'Выручка и прибыль',n:'Число заказов',avg:'Средний чек'}[_anMM])+'</div></div>'
+    +_anSeg(_anMM,[['rev','Выручка и прибыль'],['n','Заказы'],['avg','Средний чек']],'anSetMM')+'</div>';
+  return '<div id="an-months" class="card an-card">'+head+'<div class="an-bars" style="height:'+(H+24)+'px">'+bars+'</div><div class="an-labels">'+labels+'</div>'+legend+(hint?_anHint(hint):'')+note+'</div>';
+}
+function _anWeeksCard(){
+  var c=_anCtx,wk={},now=new Date();
+  function monday(d){var x=new Date(d);x.setHours(12,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));return _ymd(x);}
+  var thisMon=monday(now),list=[];
+  for(var i=7;i>=0;i--){var d=new Date(thisMon+'T12:00:00');d.setDate(d.getDate()-i*7);list.push(_ymd(d));}
+  (c.all||[]).forEach(function(o){if(!o.order_date)return;var m=monday(new Date(o.order_date+'T12:00:00'));if(list.indexOf(m)>=0)wk[m]=(wk[m]||0)+orderGoods(o);});
+  var max=1;list.forEach(function(m){if((wk[m]||0)>max)max=wk[m];});
+  function lbl(m){var a=new Date(m+'T12:00:00'),b=new Date(a);b.setDate(b.getDate()+6);
+    return a.getDate()+(a.getMonth()!==b.getMonth()?' '+_AN_MON[a.getMonth()]:'')+'–'+b.getDate()+' '+_AN_MON[b.getMonth()];}
+  var rows=list.map(function(m){return _anRow(lbl(m)+(m===thisMon?' <span class="an-muted">(идёт)</span>':''),_anPct(wk[m]||0,max),'<b>'+_anK(wk[m]||0)+'</b>',m===thisMon?'#9DB8D3':'',118);}).join('');
+  var full=list.slice(0,7),best=full.reduce(function(a,m){return (wk[m]||0)>(wk[a]||0)?m:a;},full[0]);
+  var last=full[full.length-1],avg=full.reduce(function(s,m){return s+(wk[m]||0);},0)/full.length;
+  var hint='📈 <span>Прошлая неделя — <b>'+_anK(wk[last]||0)+'</b>, это '+((wk[last]||0)>=avg?'выше':'ниже')+' среднего за 7 недель ('+_anK(avg)+')'+(best===last?' и <b>лучшая за 7 недель</b>':'')+'.</span>';
+  return _anCard('Последние недели','Выручка по неделям','<div class="an-list">'+rows+'</div>'+_anHint(hint));
+}
+function _anCatsCard(){
+  var c=_anCtx,by={},tot=0;
+  c.orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var k=_anCat(it.product_name),s=_anSell(it);by[k]=by[k]||{rev:0,cost:0,q:0};by[k].rev+=s;by[k].q+=(it.qty||1);if((it.price_opt||0)>0)by[k].cost+=_anCost(it);tot+=s;});});
+  var keys=Object.keys(by).sort(function(a,b){return by[b].rev-by[a].rev;});
+  if(!keys.length)return _anCard('По видам мебели','Доля выручки','<p class="an-empty">Нет продаж за период</p>');
+  var max=by[keys[0]].rev;
+  var rows=keys.map(function(k,i){return _anRow(k,_anPct(by[k].rev,max),'<b>'+_anK(by[k].rev)+'</b> <span class="an-muted">'+_anPct(by[k].rev,tot)+' %</span>',i<3?'':'#9DB8D3');}).join('');
+  var top3=keys.slice(0,3),s3=top3.reduce(function(s,k){return s+by[k].rev;},0);
+  var small=keys.filter(function(k){return k!=='Прочее'&&by[k].rev/tot<0.05;}),ss=small.reduce(function(s,k){return s+by[k].rev;},0);
+  var hint='💡 <span><b>'+top3.join(', ')+' — '+_anPct(s3,tot)+' % выручки.</b> Это группа «А»: их всегда держать в зале и в рекламе.'
+    +(small.length>=2?' '+small.join(', ')+' вместе — '+_anPct(ss,tot)+' %: их лучше возить под заказ, место в зале не занимать.':'')+'</span>';
+  return _anCard('По видам мебели','Доля выручки','<div class="an-list">'+rows+'</div>'+_anHint(hint));
+}
+function _anTopCard(){
+  var c=_anCtx,by={};
+  c.orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var k=_anModelKey(it.product_name);if(!k)return;var g=by[k]=by[k]||{rev:0,q:0,names:{}};
+    g.rev+=_anSell(it);g.q+=(it.qty||1);var nm=String(it.product_name||'').replace(/\s*·.*$/,'').trim();g.names[nm]=(g.names[nm]||0)+1;});});
+  var keys=Object.keys(by).sort(function(a,b){return by[b].rev-by[a].rev;}).slice(0,8);
+  if(!keys.length)return _anCard('Хиты','Топ товаров по выручке','<p class="an-empty">Нет продаж за период</p>');
+  var merged=0;
+  var rows=keys.map(function(k,i){var g=by[k],nm=Object.keys(g.names).sort(function(a,b){return g.names[b]-g.names[a];})[0],vars=Object.keys(g.names).length;if(vars>1)merged++;
+    return '<div class="an-top-row"><span><span class="an-muted an-ix">'+(i+1)+'</span>'+esc(nm.length>46?nm.slice(0,45)+'…':nm)+(vars>1?' <span class="an-tag" title="'+esc(Object.keys(g.names).join(' · '))+'">+'+(vars-1)+' написан.</span>':'')+'</span><span class="an-nw"><b>'+_anK(g.rev)+'</b> <span class="an-muted">· '+g.q+' шт.</span></span></div>';}).join('');
+  var byQ=Object.keys(by).sort(function(a,b){return by[b].q-by[a].q;})[0],gq=by[byQ];
+  var nmQ=Object.keys(gq.names).sort(function(a,b){return gq.names[b]-gq.names[a];})[0];
+  var hint='💡 <span>Больше всего штук продано: <b>'+esc(nmQ)+'</b> — '+gq.q+' шт.'+(merged?' Товары, записанные по-разному (с кавычками и без, «диван-книжка» и «диван»), собраны в одну строку — наведите на «+N написан.», чтобы увидеть варианты.':'')+'</span>';
+  return _anCard('Хиты','Топ-8 товаров по выручке','<div>'+rows+'</div>'+_anHint(hint));
+}
+var _AN_DOW=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+function _anDowCard(){
+  var c=_anCtx,d=[];for(var i=0;i<7;i++)d.push({n:0,rev:0});var tot=0;
+  c.orders.forEach(function(o){if(!o.order_date)return;var x=new Date(o.order_date+'T12:00:00'),k=(x.getDay()+6)%7;d[k].n++;var g=orderGoods(o);d[k].rev+=g;tot+=g;});
+  var vals=d.map(function(x){return _anDM==='rev'?x.rev:_anDM==='n'?x.n:(x.n?x.rev/x.n:0);}),max=Math.max.apply(null,vals.concat([1]));
+  var H=130,bars='',labels='';
+  d.forEach(function(x,i){var v=vals[i],top=_anDM==='n'?String(x.n):_anK(v);
+    bars+='<div class="an-col"><div class="an-top">'+top+'</div><div class="an-bar" style="height:'+Math.round(v/max*H)+'px"><div class="an-prof" style="height:100%;'+(i<5?'background:#9DB8D3':'')+'"></div></div></div>';
+    labels+='<div class="an-col"><div class="an-ml">'+_AN_DOW[i]+'</div></div>';});
+  var we=d[5].rev+d[6].rev,avgs=d.map(function(x){return x.n?x.rev/x.n:0;}),bi=avgs.indexOf(Math.max.apply(null,avgs));
+  var wd=0,wn=0;for(var j=0;j<5;j++){wd+=d[j].rev;wn+=d[j].n;}
+  var hint=tot?'💡 <span><b>Суббота и воскресенье — '+_anPct(we,tot)+' % выручки.</b> Самый крупный средний чек — '+['в понедельник','во вторник','в среду','в четверг','в пятницу','в субботу','в воскресенье'][bi]+': <b>'+_anK(avgs[bi])+'</b>'+(wn?' (в будни в среднем '+_anK(wd/wn)+')':'')+'.'+(_anPct(we,tot)>=35?' В выходные лучше работать вдвоём и ставить опытного продавца.':'')+'</span>':'';
+  var head='<div class="an-head"><div><div class="an-ct">Дни недели</div><div class="an-cq">'+({rev:'Выручка',n:'Заказы',avg:'Средний чек'}[_anDM])+' по дням недели</div></div>'
+    +_anSeg(_anDM,[['rev','Выручка'],['n','Заказы'],['avg','Ср. чек']],'anSetDM')+'</div>';
+  return '<div id="an-dows" class="card an-card">'+head+'<div class="an-bars" style="height:'+(H+22)+'px">'+bars+'</div><div class="an-labels">'+labels+'</div>'+(hint?_anHint(hint):'')+'</div>';
+}
+function _anChecksCard(){
+  var c=_anCtx,B=[['до 10 тыс.',0,1e4],['10–25 тыс.',1e4,25e3],['25–50 тыс.',25e3,5e4],['50–100 тыс.',5e4,1e5],['100 тыс. и выше',1e5,Infinity]];
+  var n=B.map(function(){return 0;}),r=B.map(function(){return 0;}),N=0,T=0;
+  c.orders.forEach(function(o){var g=orderGoods(o);for(var i=0;i<B.length;i++)if(g>=B[i][1]&&g<B[i][2]){n[i]++;r[i]+=g;}N++;T+=g;});
+  if(!N)return _anCard('Размер покупки','','<p class="an-empty">Нет продаж за период</p>');
+  var rows=B.map(function(b,i){return '<div class="an-chk"><div class="an-chk-h"><b>'+b[0]+'</b><span class="an-muted">'+n[i]+' зак. · '+_anK(r[i])+'</span></div>'
+    +'<div class="an-row" style="gap:4px"><div class="an-track an-thin"><div class="an-fill" style="width:'+_anPct(n[i],N)+'%;background:#9DB8D3"></div></div><div class="an-track an-thin"><div class="an-fill" style="width:'+_anPct(r[i],T)+'%"></div></div></div></div>';}).join('');
+  var bn=n[3]+n[4],br=r[3]+r[4];
+  var hint=bn?'💡 <span><b>'+bn+' заказ'+(bn%10===1&&bn%100!==11?'':(bn%10>=2&&bn%10<=4&&(bn%100<10||bn%100>=20)?'а':'ов'))+' дороже 50 тыс. ('+_anPct(bn,N)+' %) дали '+_anPct(br,T)+' % выручки.</b> Таким клиентам стоит позвонить через месяц после доставки — так появляются повторные покупки и отзывы.</span>':'';
+  return _anCard('Размер покупки','Сколько заказов и денег в каждой «весовой категории»','<div class="an-list">'+rows+'</div><div class="an-legend"><span><i style="background:#9DB8D3"></i>доля заказов</span><span><i style="background:#1F4E79"></i>доля выручки</span></div>'+(hint?_anHint(hint):''));
+}
+
+// ── 4: продавцы — карточки над старым блоком «Менеджеры» ──
+// Смены — из «Отработанных дней» (_renderWorkdays кладёт их в window._wdByM).
+function anRenderMgr(){
+  var el=document.getElementById('an-mgr');if(!el||!_anCtx)return;
+  var c=_anCtx,byM=window._wdByM||null,r=c.range;
+  function monIn(mon){if(!r)return true;var d=new Date(mon+'-01T12:00:00');return d>=new Date(r.from.getFullYear(),r.from.getMonth(),1)&&d<r.to;}
+  var m={};
+  c.orders.forEach(function(o){var n=(o.manager||'').trim();if(!n)return;var mon=(o.order_date||'').slice(0,7);var x=m[n]=m[n]||{n:0,rev:0,nS:0,revS:0};
+    x.n++;var g=orderGoods(o);x.rev+=g;if(byM&&byM[mon]&&byM[mon][n]){x.nS++;x.revS+=g;}});
+  var sh={};if(byM)Object.keys(byM).forEach(function(mon){if(!monIn(mon))return;Object.keys(byM[mon]).forEach(function(n){sh[n]=(sh[n]||0)+byM[mon][n];});});
+  var names=Object.keys(m).sort(function(a,b){return m[b].rev-m[a].rev;});
+  if(!names.length){el.innerHTML='';return;}
+  var cards=names.map(function(n){var x=m[n],s=sh[n]||0;
+    return '<div class="card an-card an-mgr"><div class="an-mgr-h"><b>'+esc(n)+'</b>'+(s?'<span class="an-tag">'+s+' смен</span>':'')+'</div>'
+      +'<div class="an-mgr-g"><div><div class="an-muted">Выручка</div><div class="an-mv">'+_anK(x.rev)+'</div></div>'
+      +'<div><div class="an-muted">За смену</div><div class="an-mv" style="color:#1F4E79">'+(s&&x.revS?_anK(x.revS/s):'—')+'</div></div>'
+      +'<div><div class="an-muted">Ср. чек</div><div class="an-mv">'+_anK(x.n?x.rev/x.n:0)+'</div></div></div>'
+      +'<div class="an-muted" style="margin-top:6px">'+x.n+' заказов'+(s&&x.nS?' · '+(x.nS/s).toFixed(1).replace('.',',')+' за смену':'')+'</div></div>';}).join('');
+  el.innerHTML='<div class="an-grid an-grid-s">'+cards+'</div><div class="an-muted" style="margin:-4px 0 10px;font-size:12px">«За смену» — выручка в месяцах, где отмечены смены, делённая на число смен. Смены — по утренней отметке «кто сегодня работает».</div>';
+}
+
+// ── 5–6: деньги, клиенты, поставщики и сроки ──
+function _anPartB(){
+  var h=_anSec(5,'Долги и клиенты','Долг — на сегодня по всем открытым заказам. Клиенты — за всё время.');
+  h+='<div class="an-grid">'+_anDebtCard()+_anClientsCard()+'</div>';
+  h+=_anSec(6,'Поставщики и сроки','За выбранный период. У кого берём, какая наценка и сколько ждёт клиент.');
+  h+='<div class="an-grid">'+_anSupCard()+_anLeadCard()+'</div>';
+  return h;
+}
+function _anDebtCard(){
+  var c=_anCtx,B=[['до 14 дней',0,14],['15–30 дней',15,30],['31–60 дней',31,60],['больше 60 дней',61,1e9]],s=B.map(function(){return 0;}),n=B.map(function(){return 0;}),tot=0,cnt=0,old=[],today=_ymd();
+  (c.all||[]).forEach(function(o){if(isClosed(o))return;var d=orderDebt(o);if(!(d>0))return;var a=_anDays(o.order_date,today);tot+=d;cnt++;
+    for(var i=0;i<B.length;i++)if(a>=B[i][1]&&a<=B[i][2]){s[i]+=d;n[i]++;}if(a>60)old.push({o:o,d:d,a:a});});
+  var max=Math.max.apply(null,s.concat([1]));
+  var rows=B.map(function(b,i){return _anRow(b[0],_anPct(s[i],max),(n[i]?n[i]+' · ':'')+'<b>'+fmt(Math.round(s[i]))+' ₽</b>',i===3?'#9c3b2e':'',104);}).join('');
+  old.sort(function(a,b){return b.a-a.a;});
+  var hint=old.length?_anHint('⚠️ <span><b>Дольше 60 дней: '+old.length+' на '+fmt(Math.round(s[3]))+' ₽.</b> '+old.slice(0,5).map(function(x){return '<a href="#" onclick="event.preventDefault();openOrderByNumber(\''+esc(x.o.order_number)+'\')">№'+esc(x.o.order_number)+'</a> · '+esc(x.o.client_name||'')+' · '+fmt(Math.round(x.d))+' ₽ ('+x.a+' дн.)';}).join('; ')+'</span>',true)
+    :(cnt?_anHint('✅ <span>Заказов с долгом старше 60 дней нет.</span>'):'');
+  return _anCard('Долг клиентов','<span style="color:#9c3b2e" class="an-big">'+fmt(Math.round(tot))+' ₽</span> <span class="an-muted">· '+cnt+' открыт. заказ'+(cnt%10===1&&cnt%100!==11?'':'ов')+', по давности заказа</span>','<div class="an-list">'+rows+'</div>'+hint);
+}
+function _anClientsCard(){
+  var c=_anCtx,cl={},tot=0;
+  (c.all||[]).filter(function(o){return !isCancelled(o);}).forEach(function(o){var p=String(o.client_phone||'').replace(/\D/g,'').slice(-10)||('имя:'+String(o.client_name||'').toLowerCase().trim());var g=orderGoods(o);(cl[p]=cl[p]||{n:0,rev:0});cl[p].n++;cl[p].rev+=g;tot+=g;});
+  var keys=Object.keys(cl),rep=keys.filter(function(k){return cl[k].n>1;}),rr=rep.reduce(function(s,k){return s+cl[k].rev;},0);
+  if(!keys.length)return _anCard('Клиенты','','<p class="an-empty">Пока нет заказов</p>');
+  var newAvg=(tot-rr)/Math.max(1,keys.length-rep.length),repAvg=rep.length?rr/rep.length:0;
+  var body=_anRow('Вернулись',_anPct(rep.length,keys.length),'<b>'+rep.length+'</b> из '+keys.length,'',120)+_anRow('Их доля выручки',_anPct(rr,tot),'<b>'+_anPct(rr,tot)+' %</b>','',120);
+  var one=rep.length?Math.round(keys.length/rep.length):0;
+  var hint=rep.length?'💡 <span><b>Возвращается каждый '+one+'-й клиент и приносит '+_anPct(rr,tot)+' % денег</b> ('+_anK(rr)+').'+(newAvg>0&&repAvg>newAvg*1.3?' Повторный покупатель тратит в '+(repAvg/newAvg).toFixed(1).replace('.',',')+' раза больше нового.':'')+' Сообщение о новой коллекции или поздравление — дешёвый способ вернуть ещё нескольких.</span>':'';
+  return _anCard('Клиенты','<span class="an-big">'+keys.length+'</span> <span class="an-muted">разных покупателей (по телефону)</span>','<div class="an-list">'+body+'</div>'+(hint?_anHint(hint):''));
+}
+function _anSupCard(){
+  var c=_anCtx,by={},lbl={},tot=0,known=0;
+  c.orders.forEach(function(o){(o.order_items||[]).forEach(function(it){var k=_anSupKey(it),s=_anSell(it);tot+=s;if(!k)return;known+=s;
+    var raw=String(it.supplier_manual||it.supplier||'').trim();(lbl[k]=lbl[k]||{})[raw]=(lbl[k][raw]||0)+1;
+    var x=by[k]=by[k]||{rev:0,cost:0,costRev:0};x.rev+=s;if((it.price_opt||0)>0){x.cost+=_anCost(it);x.costRev+=s;}});});
+  var keys=Object.keys(by).sort(function(a,b){return by[b].rev-by[a].rev;});
+  if(!keys.length)return _anCard('Поставщики','','<p class="an-empty">Нет данных за период</p>');
+  function title(k){var v=lbl[k];return Object.keys(v).sort(function(a,b){return v[b]-v[a];})[0];}
+  var max=by[keys[0]].rev,show=keys.slice(0,10);
+  var rows=show.map(function(k){var x=by[k],mk=x.cost?Math.round((x.costRev-x.cost)/x.cost*100):null;
+    return _anRow(esc(title(k)),_anPct(x.rev,max),'<b>'+_anK(x.rev)+'</b>'+(mk!=null?' <span class="an-muted">· '+mk+' %</span>':''),/^(с магазина|из зала|с витрины)$/.test(k)?'#9DB8D3':'',138);}).join('');
+  var rest=keys.length-show.length;
+  return _anCard('Поставщики','Выручка и наценка','<div class="an-list">'+rows+'</div>'+(rest>0?'<div class="an-muted" style="margin-top:6px">ещё '+rest+' — в «Подробных таблицах»</div>':'')
+    +(tot&&known/tot<0.95?_anHint('ℹ️ <span>Поставщик не указан у '+_anPct(tot-known,tot)+' % продаж периода.</span>',true):''));
+}
+// Срок выполнения: от даты заказа до нажатия «Выполнен» (closed_at). Владелец
+// 11.11.2026: «фабрика выполняет немного раньше, плюс наши пару дней, пока
+// отвезём». Считаем только заказы, где есть позиция ПОД ЗАКАЗ (не «Есть» и
+// не с витрины) — товар из наличия уходит за день-два и средний срок портит.
+function _anLeadCard(){
+  var c=_anCtx,all=[],by={},lbl={};
+  c.orders.forEach(function(o){if(!o.closed_at||!o.order_date||!isDone(o))return;
+    var po=(o.order_items||[]).filter(function(it){return !it.showroom_item_id&&it.availability!=='Есть';});if(!po.length)return;
+    var d=_anDays(o.order_date,o.closed_at);if(d<0||d>365)return;all.push(d);
+    var seen={};po.forEach(function(it){var k=_anSupKey(it)||'—';if(seen[k])return;seen[k]=1;(by[k]=by[k]||[]).push(d);var raw=String(it.supplier_manual||it.supplier||'—').trim();(lbl[k]=lbl[k]||{})[raw]=(lbl[k][raw]||0)+1;});});
+  if(!all.length)return _anCard('Срок выполнения заказа','','<p class="an-empty">За период нет закрытых заказов «под заказ».</p>');
+  all.sort(function(a,b){return a-b;});
+  var med=_anMed(all),p75=all[Math.floor(all.length*0.75)],p90=all[Math.floor(all.length*0.9)];
+  function title(k){var v=lbl[k];return Object.keys(v).sort(function(a,b){return v[b]-v[a];})[0];}
+  var keys=Object.keys(by).filter(function(k){return by[k].length>=2;}).sort(function(a,b){return _anMed(by[b])-_anMed(by[a]);});
+  var max=Math.max.apply(null,keys.map(function(k){return _anMed(by[k]);}).concat([1]));
+  var rows=keys.slice(0,8).map(function(k){var m=_anMed(by[k]);return _anRow(esc(title(k)),_anPct(m,max),'<b>'+m+' дн.</b> <span class="an-muted">· '+by[k].length+' зак.</span>',m>med*1.3?'#9c3b2e':'',138);}).join('');
+  var slow=keys[0];
+  var hint='💡 <span>Заказ «под заказ» обычно закрывается через <b>'+med+' дн.</b>'+(p75>med?' Четверть заказов — дольше '+p75+' дн.':'')+(p90>p75?', каждый десятый — дольше '+p90+' дн.':(p75>med?'.':''))
+    +(slow&&_anMed(by[slow])>med?' Дольше всех — <b>'+esc(title(slow))+'</b> ('+_anMed(by[slow])+' дн.).':'')
+    +' Срок считается до кнопки «Выполнен», поэтому включает и наши день-два на доставку.</span>';
+  return _anCard('Срок выполнения заказа','<span class="an-big">'+med+' дн.</span> <span class="an-muted">обычно · '+all.length+' закрытых заказов с товаром под заказ</span>',(rows?'<div class="an-list">'+rows+'</div>':'')+_anHint(hint));
 }
 // ═══ v6.6: PWA — регистрация service worker ═══
 // Работает только по HTTPS (GitHub Pages) или на localhost; при открытии файла
