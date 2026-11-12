@@ -495,7 +495,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.27.1</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.28</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -5385,6 +5385,17 @@ var _PL_PRICE_MAX=5000000;
 var _PL_SERVICE_RE=/^\s*(примечан|услови|инструкц|как\s+заказ|оглавлен|содержан|информац|важная|маркетинг|позиции\s+снятые|расчет|расчёт|лист\s*\d+\s*$)/i;
 function _plSelStore(){try{return JSON.parse(localStorage.getItem(_PLSEL_KEY)||'{}');}catch(e){return{};}}
 function _plSelKey(){return String((document.getElementById('pl-sup')||{}).value||'').trim().toLowerCase();}
+// v8.28: имя листа без даты — «ММ.кровати СТАНДАРТ 19.10.26» и «… 09.11.2026»
+// один и тот же лист. Иначе с каждым новым прайсом запомненные галочки слетали.
+function _plSheetBase(n){
+  return String(n||'').toLowerCase().replace(/ё/g,'е').replace(/\d{1,2}[.\/-]\d{1,2}(?:[.\/-]\d{2,4})?(?:\s*г\.?)?/g,' ')
+    .replace(/[.\s]+$/,'').replace(/\s+/g,' ').trim();
+}
+function _plSavedHas(saved,n){
+  if(saved.indexOf(n)>=0)return true;
+  var b=_plSheetBase(n);for(var i=0;i<saved.length;i++)if(_plSheetBase(saved[i])===b)return true;
+  return false;
+}
 function _plBuildSheetPicker(){
   var wrap=document.getElementById('pl-sheetpick-wrap'),box=document.getElementById('pl-sheetpick');
   if(!wrap||!box||!_plWB)return;
@@ -5396,7 +5407,7 @@ function _plBuildSheetPicker(){
     // v7.72: лист «ПРАЙС-ЛИСТ» раньше считался служебным и снимался сам, и
     // запомненный выбор хранит его снятым. Включаем обратно: если это обложка
     // без товаров, её отсеет проверка содержимого при загрузке.
-    var on=saved?(saved.indexOf(n)>=0||/^\s*прайс-лист\s*$/i.test(String(n))):!service;
+    var on=saved?(_plSavedHas(saved,n)||/^\s*прайс-лист\s*$/i.test(String(n))):!service;
     return '<label class="pl-sheetrow" data-name="'+esc(n).toLowerCase()+'" style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:2px 3px;cursor:pointer">'
       +'<input type="checkbox" class="pl-sheetcb" value="'+esc(n)+'" '+(on?'checked':'')+' onchange="plSheetPickCount()" style="width:auto;margin:0">'
       +'<span'+(service?' style="color:var(--text2)"':'')+'>'+esc(n)+(service?' <span style="font-size:10.5px">· служебный</span>':'')+'</span></label>';
@@ -5415,7 +5426,7 @@ function _plReapplySheetSel(){
   var saved=_plSelStore()[_plSelKey()];
   if(!saved)return;
   Array.prototype.forEach.call(document.querySelectorAll('.pl-sheetcb'),function(cb){
-    cb.checked=saved.indexOf(cb.value)>=0;
+    cb.checked=_plSavedHas(saved,cb.value);
   });
   plSheetPickCount();
 }
@@ -5932,6 +5943,24 @@ function _extractAttrs(name,article,dims,order){
 function _plHasGoodsWord(s){return /кроват|диван|шкаф|стол|комод|тумб|кресл|стеллаж|полк|пуф|матрас|стул|прихож|горк|витрин|банкет|вешалк|зеркал|наматрасник|спинк|изголов|царг/i.test(String(s||''));} // v8.15: «ДЖАЛИ (спинка головная)» — цвета обивки под ней это варианты, а не товары
 // Строка под заголовком-товаром считается вариантом, если сам заголовок — товар (есть тип),
 // а строка — нет (напр. цвет обивки «СВЕТЛО-СЕРЫЙ» под «БЕЛИСТА кровать двойная»).
+// v8.28: сразу под строкой (через 1–3 непустые строки) идёт «Комплектующие с …» —
+// значит, это кровать со своим комплектом. Без этого правило не срабатывает:
+// у других листов кровати с ценой бывают и без комплектов (там ничего не меняем).
+function _plKitFollows(data,i,colName){
+  for(var j=i+1,seen=0;j<data.length&&seen<3;j++){
+    var row=data[j]||[];if(!row.some(function(x){return String(x==null?'':x).trim()!=='';}))continue;
+    seen++;if(_plKitHdr(_plClean(row[colName])))return true;
+  }
+  return false;
+}
+// v8.28: строка — сама кровать (не её часть: опора, ПФ, траверса, ножки, ящик…)
+function _plIsBedRow(n){
+  n=String(n||'').trim();
+  if(!/кроват|спинк[аи]\s+головн|царгов\w*\s+пояс/i.test(n))return false;
+  // примечание-список («Для кроватей: Карина-5 с ЦТ, Джали с ЦТ, …») — не кровать
+  if(_plIsNoteRow(n)||/^(для|только|подходит|\*)/i.test(n)||(n.match(/,/g)||[]).length>=2)return false;
+  return !/^(пф\b|опора|комплект|траверс|ножк|фурнитур|ящик|дно\b|основани|ламел|механизм|матрас|наматрас|подушк|\d{3,4}\s*-\s*\d{3,4})/i.test(n);
+}
 function _isVariantUnder(group,name){return _plHasGoodsWord(group)&&!_plHasGoodsWord(name);}
 // Собирает товары из данных листа по настройкам колонок
 // v7.41: считаем, сколько строк листа разборщик выбросил и почему. Раньше
@@ -6003,6 +6032,15 @@ function _collectRows(data,cfg){
       }
     }
     if(cfg.cascade){
+      // v8.28: кровать (или спинка/пояс) СО СВОЕЙ ЦЕНОЙ — отдельный товар, а
+      // «Комплектующие с …» под ней — её комплект. Так устроен лист Браво
+      // «Кровати в резовых тканях» 09.11.2026: у кровати цена в строке, без цветов.
+      // Раньше комплект привязывался только к кровати-заголовку без цены.
+      if(nameVal&&optNum&&_plIsBedRow(nameVal)&&_plKitFollows(data,i,cfg.colName)){
+        _kcFlush();
+        currentGroupName=nameVal;groupIsHeader=false;noteBuf='';groupStart=rows.length;_noteRun=false;
+        _kc={start:rows.length,bedEnd:null,groups:[],cur:null};
+      }
       // v7.93: начало варианта комплектации под кроватью — сама строка не товар
       if(nameVal&&_kc&&_plKitHdr(nameVal)){
         if(_kc.bedEnd==null)_kc.bedEnd=rows.length;
@@ -6602,6 +6640,17 @@ function _autoDetectModSys(data){
       if(both>=5&&same>=both*0.95)return false;
     }
     return true;
+  });
+  // v8.28: колонка, где числа стоят почти только в строках «Комплектующие с …»
+  // (Браво, «Кровати в резовых тканях» 09.11.2026: сумма комплекта в колонке C,
+  // цена кровати — в D), — это не вторая цена, а итог комплекта. Раньше из-за неё
+  // лист разбирался как «модульная система» и все кровати приклеивались к первой
+  // («БЕРН … · БЕЛИСТА кровать …»).
+  pc=pc.filter(function(c3){
+    var n=0,kit=0;
+    for(var rr=0;rr<data.length;rr++){var row=data[rr]||[];if(!(_plToNum(row[c3])>0))continue;n++;
+      for(var cc=0;cc<c3;cc++){if(_plKitHdr(_plClean(row[cc]))){kit++;break;}}}
+    return !(n>=5&&kit>=n*0.8);
   });
   if(!pc.length||pc.length>8||pc[0]<1)return null;
   // 2) слева от цен разбираем текстовые колонки: габариты («400*520*2150мм»,
