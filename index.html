@@ -495,7 +495,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <button class="nav-btn" onclick="openDelivBook('')">💵 Прейскурант</button>
   <!-- v8.3: бланки для печати (замер кухни) — без страницы, открывается окно -->
   <button class="nav-btn" onclick="openBlanks()">📐 Бланки</button>
-  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.29</span>
+  <span id="tb-version" style="margin-left:auto;align-self:center;padding:0 14px;font-size:11px;color:#9e9e9e;white-space:nowrap" title="Версия приложения — сверяйте после деплоя">v8.31</span>
 </div>
 <div class="toast" id="toast"></div>
 <div class="content">
@@ -9667,7 +9667,9 @@ function _ssLoadFactories(){
 
 // Основа слова: отрезаем падежное окончание. «компьютерного» → «компьютерн»,
 // «шкафы» → «шкаф», «белую» → «бел». Основу короче трёх букв не режем.
-var _SS_ENDS=['иями','ями','ами','его','ого','ему','ому','ыми','ими','ая','яя','ое','ее','ые','ие','ый','ий','ой','ей','ую','юю','ов','ев','ам','ям','ах','ях','ом','ем','ью','а','я','о','е','ы','и','у','ю','ь','й'];
+// v8.31: + окончания -ым/-им/-ых/-их: «подъёмным» раньше оставалось целым
+// словом и не находило «подъёмный», «подъёмным механизмом» — находило «с подъёмным».
+var _SS_ENDS=['иями','ями','ами','его','ого','ему','ому','ыми','ими','ым','им','ых','их','ая','яя','ое','ее','ые','ие','ый','ий','ой','ей','ую','юю','ов','ев','ам','ям','ах','ях','ом','ем','ью','а','я','о','е','ы','и','у','ю','ь','й'];
 function _ssStem(w){
   w=String(w||'').toLowerCase().replace(/ё/g,'е');
   if(w.length<=4)return w;
@@ -9684,13 +9686,71 @@ var _SS_KINDS=[
   {name:'обеденный / кухонный',re:/обеденн|кухонн\S*\s+стол/,any:['обеденн','кухонн']},
   {name:'журнальный',re:/журнальн|кофейн/,any:['журнальн','кофейн']},
   {name:'туалетный',re:/туалетн|косметич|трюмо/,any:['туалетн','косметич','трюмо']},
-  {name:'под ТВ',re:/(^|\s)(тв|tv)(\s|$)|телевиз/,any:[' тв','тв ',' tv','телевиз']},
+  // v8.31: «ТВ-тумба», «тумба-тв» — через дефис тоже. И после «тв» больше не
+  // съедается следующее слово: «тумба тв дуб сонома» теряла цвет «дуб».
+  {name:'под ТВ',re:/(^|[\s\-])(тв|tv)(?=[\s\-]|$)|телевиз/,any:[' тв','тв ',' tv','телевиз']},
   {name:'угловой',re:/углов/,any:['углов']},
   {name:'распашной',re:/распашн/,any:['распашн','ств']},
   {name:'детский / подростковый',re:/детск|подростк/,any:['детск','подростк','юниор']},
   {name:'двуспальный',re:/двуспальн|двухспальн/,any:['двуспальн','двухспальн','двойн']},
-  {name:'односпальный',re:/односпальн/,any:['односпальн','одинарн']}
+  {name:'односпальный',re:/односпальн/,any:['односпальн','одинарн']},
+  // v8.31: «с подъёмным», «с подъёмным механизмом», «с подъёмом», «ПМ», «п/м»
+  // — одно и то же. Раньше «ПМ» (2 буквы) выбрасывалось, а «подъёмным»
+  // искалось целым словом и не находило «подъёмный механизм», «с ПМ».
+  {name:'с подъёмным механизмом',re:/подъем[а-яе]*(?:\s+механизм[а-яе]*)?|(^|[\s\-(])п\/?м(?=[\s\-).,]|$)/,any:['подъем','пм','п/м']} // «пм» внутри слова — это «ГПМ» (газовый ПМ), тоже подходит
 ];
+// ═══ v8.31: ЦВЕТ В ЗАПРОСЕ — В ЛЮБОМ РОДЕ И ЧИСЛЕ, С СИНОНИМАМИ ═══════════
+// Словарь _COLORS (импорт) знает «белый», и «прихожая белая» раньше не
+// понималась как цвет: «белая» уходила в слово названия, и находились 2
+// прихожие вместо сотен. Теперь прилагательное в словаре («белый», «серый»,
+// «дуб молочный») узнаётся в любой форме: белая, белое, белые, белой, белую…
+// Сам словарь _COLORS не трогаем — он нужен импорту прайсов.
+var _SS_ADJ='(?:ыми|ими|ого|его|ому|ему|ый|ий|ой|ая|яя|ое|ее|ые|ие|ым|им|ом|ем|ую|юю|ых|их)';
+// Синонимы: [что сказал клиент (регулярка), цвет словаря, как ещё пишут в названиях].
+// Только однозначные — чтобы не было ложных срабатываний.
+var _SS_COLOR_SYN=[
+  ['sonoma|сонома','дуб сонома',['соном','sonoma']],
+  ['белоснежн[а-яе]*|snow ?white|white','белый',['белоснеж']],
+  ['wenge','венге',['wenge']],
+  ['black','черн',[]],
+  ['графитов[а-яе]*','графит',[]]
+];
+// слово цвета из словаря → регулярка для запроса
+function _ssColorRe(c){
+  return c.replace(/ё/g,'е').split(/\s+/).map(function(w){
+    var e=w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    return /(ый|ий|ой)$/.test(w)&&w.length>=5?e.slice(0,-2)+_SS_ADJ:e+'[а-яе]*';
+  }).join('\\s+');
+}
+// как цвет может быть написан в названии товара (для поиска по названию):
+// «белый» → бел-ы(й/е), белая, белое, белой, белую, белого
+function _ssColorNames(c){
+  var n=c.replace(/ё/g,'е'),out=[_ssStem(n)];
+  if(!/\s/.test(n)&&/(ый|ой)$/.test(n)&&n.length>=5){var r=n.slice(0,-2);['ы','ая','ое','ой','ую','ого'].forEach(function(e){if(out.indexOf(r+e)<0)out.push(r+e);});}
+  _SS_COLOR_SYN.forEach(function(s){if(s[1]===c)s[2].forEach(function(a){if(out.indexOf(a)<0)out.push(a);});});
+  return out;
+}
+// найти цвет в запросе: {color, m — что убрать из запроса} или null
+function _ssColorFind(low){
+  var i,m;
+  for(i=0;i<_COLORS.length;i++){m=low.match(new RegExp('(^|[^а-яе])('+_ssColorRe(_COLORS[i])+')(?![а-яе])'));if(m)return{color:_COLORS[i],m:m[2]};}
+  for(i=0;i<_SS_COLOR_SYN.length;i++){m=low.match(new RegExp('(^|[^а-яеa-z])('+_SS_COLOR_SYN[i][0]+')(?![а-яеa-z])'));if(m)return{color:_SS_COLOR_SYN[i][1],m:m[2]};}
+  return null;
+}
+// ═══ v8.31: КАКОЙ РАЗМЕР ИМЕЛ В ВИДУ КЛИЕНТ ═════════════════════════════
+// «шкаф-купе 2 м», «прихожая до 1 м», «тумба 160» — это ширина, а не любой
+// размер (раньше «2 м» находило и шкафы высотой 2 м). У кровати «160» —
+// спальное место (см. _ssBedW и _ssCheck: правило габарита).
+var _SS_WIDTH_TYPES={'шкаф':1,'шкаф-купе':1,'прихожая':1,'комод':1,'тумба':1,'гостиная':1,'диван':1};
+// Спальное место кровати из названия: «Кровать 1,6 м», «160х200», «1600»,
+// «90 см». Коды вида «КР-16» не путаем (перед числом буква или дефис).
+function _ssBedW(name){
+  var s=' '+String(name||'').toLowerCase().replace(/ё/g,'е')+' ';
+  var m=s.match(/(^|[^0-9a-zа-яе\-])(?:([012])[.,]([0-9])\s*(?:м(?![а-яе]))?|(80|90|120|140|160|180|200)(?:\s*см)?|(800|900|1200|1400|1600|1800|2000))(?![0-9.,])/);
+  if(!m)return null;
+  var v=m[2]!=null?(+m[2])*1000+(+m[3])*100:m[4]?(+m[4])*10:+m[5];
+  return(v>=800&&v<=2000)?v:null;
+}
 // Служебные слова запроса — не ищем их в названиях товаров
 var _SS_STOP=/^(не|нужен|нужна|нужно|нужны|надо|хочу|ищу|есть|клиент|клиенту|для|под|с|со|и|или|в|во|на|по|из|к|от|до|мм|см|м|мин|макс|минимум|максимум|менее|меньше|более|больше|свыше|около|примерно|где|то|какой|какая|какие|размер|размером|размеры|цвет|цвета|цветом|шириной|ширина|ширину|высотой|высота|высоту|глубиной|глубина|глубину|длиной|длина|длину|шире|уже|выше|ниже|глубже|пожалуйста|недорого|метр|метра|метров|дешевле|дороже|чтобы|был|была|было|были)$/;
 // Число из запроса → миллиметры: «140 см» → 1400, «1,4 м» → 1400, «1400» → 1400.
@@ -9791,10 +9851,16 @@ function _parseSmartQuery(q){
     }
   }
   // ── цвет, материал, двери ──
-  for(i=0;i<_COLORS.length;i++){var cw=_COLORS[i].replace(/ё/g,'е').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');m=low.match(new RegExp('(^|[^а-яе])('+cw+'[а-яе]*)'));if(m){res.color=_COLORS[i];low=low.replace(m[2],' ');break;}}
+  var cf=_ssColorFind(low);if(cf){res.color=cf.color;low=low.replace(cf.m,' ');} // v8.31: любые формы и синонимы
   for(i=0;i<_MATERIALS.length;i++){var mw=_MATERIALS[i].replace(/ё/g,'е').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');m=low.match(new RegExp('(^|[^а-яе])('+mw+'[а-яе]*)'));if(m){res.material=_MATERIALS[i];low=low.replace(m[2],' ');break;}}
   // ── всё остальное — слова для поиска по основе ──
   res.free=low.split(/[^а-яеa-z0-9]+/i).filter(function(w){return w.length>=3&&!_SS_STOP.test(w)&&!/^\d+$/.test(w);}).map(_ssStem);
+  // v8.31: размер без названия — по виду мебели: у шкафов, прихожих, комодов,
+  // тумб — ширина; у кровати — спальное место (и «шириной 160» тоже)
+  res.cons.forEach(function(c){
+    if(res.ptype==='кровать'&&(c.col==='any'||c.col==='dim_w')){c.col='sleep_w';if(c.op==='near')c.tol=60;}
+    else if(_SS_WIDTH_TYPES[res.ptype]&&c.col==='any')c.col='dim_w';
+  });
   return res;
 }
 // Какие размеры у товара: из базы, а если там пусто — разбираем название на
@@ -9805,7 +9871,9 @@ function _ssDims(p){
     var a=_extractAttrs(p.product_name||'',[p.article||'',p.category||''].join(' '),'');
     w=a.dim_w;h=a.dim_h;d=a.dim_d;guess=(w!=null||h!=null||d!=null);
   }
-  return{w:w,h:h,d:d,guess:guess};
+  // v8.31: у кровати — спальное место из названия («1,6 м», «160х200»)
+  var nsw=(p.ptype==='кровать'||/кроват/i.test(p.product_name||''))?_ssBedW(p.product_name):null;
+  return{w:w,h:h,d:d,guess:guess,nsw:nsw};
 }
 // Сверка одного условия: 1 — подходит, 0 — размер неизвестен, -1 — не подходит
 function _ssCheck(c,D){
@@ -9814,10 +9882,16 @@ function _ssCheck(c,D){
   else if(c.col==='dim_h')vals=[D.h];
   else if(c.col==='dim_d')vals=[D.d];
   else if(c.col==='dim_hl')vals=[D.h,D.d];   // «160х200»: второе число — длина или высота
+  else if(c.col==='sleep_w')vals=[D.nsw!=null?D.nsw:D.w];
   else vals=[D.w,D.h,D.d];
   vals=vals.filter(function(v){return v!=null;});
   if(!vals.length)return 0;
   var tol=c.tol||(c.col==='any'?100:60);
+  // v8.31 ПРАВИЛО ГАБАРИТА КРОВАТИ: спального места в названии нет, а в базе
+  // ширина больше запрошенного на 40–190 мм — это общий габарит (место +
+  // спинки/царги), кровать подходит. 200 мм и больше — уже другое место
+  // (1800 при запросе 1600), не берём. Пометка D.gab — для подписи в списке.
+  if(c.col==='sleep_w'&&D.nsw==null&&c.op==='near'&&D.w!=null){var g=D.w-c.val;if(g>=40&&g<=190){D.gab=c.val;return 1;}}
   var ok=vals.some(function(v){
     if(c.op==='range')return v>=c.val&&v<=c.hi;
     if(c.op==='gte')return v>=c.val;
@@ -9831,7 +9905,7 @@ function _ssRun(q){
   var box=document.getElementById('ss-results'),pb=document.getElementById('ss-parsed');
   var P0=_parseSmartQuery(q);_ssOvSync(q);
   var DF=_ssDimFilters();
-  var nmMap={dim_w:'ширина',dim_h:'высота',dim_d:'глубина',dim_hl:'длина',any:'размер'},opMap={lte:'≤',gte:'≥',eq:'=',near:'≈'};
+  var nmMap={sleep_w:'спальное место',dim_w:'ширина',dim_h:'высота',dim_d:'глубина',dim_hl:'длина',any:'размер'},opMap={lte:'≤',gte:'≥',eq:'=',near:'≈'};
   var OFF=_ssOv.off;
   var doorsField=_ssNum('ss-doors');
   var pmin=_ssNum('ss-pmin'),pmax=_ssNum('ss-pmax');
@@ -9870,7 +9944,7 @@ function _ssRun(q){
   var conds=[];
   if(P.ptype)conds.push('or(ptype.eq.'+encodeURIComponent('"'+P.ptype+'"')+','+[P.ptypeStem||P.ptype].concat(gsSynAlts(P.ptypeStem||P.ptype)).map(_nm).join(',')+')'); // v8.15: + синонимы
   P.kinds.forEach(function(k){conds.push('or('+k.any.map(_nm).join(',')+')');});
-  if(P.color)conds.push('or(color.ilike.'+_ilikePat(P.color)+','+_nm(_ssStem(P.color))+')');
+  if(P.color)conds.push('or(color.ilike.'+_ilikePat(P.color)+','+_ssColorNames(P.color).map(_nm).join(',')+')'); // v8.31: + формы и синонимы в названии
   if(P.material)conds.push('or(material.ilike.'+_ilikePat(P.material)+','+_nm(P.material)+')');
   // код ищем в трёх написаниях: «св-20», «св20», «св 20»
   P.codes.forEach(function(c){var k=c.split('-'),L=k.shift(),N=k.join('-');conds.push('or('+[L+'-'+N,L+N,L+' '+N].map(_nm).join(',')+')');});
@@ -9953,7 +10027,8 @@ function _ssList(rows,arr,from){
     var opt=p.price_opt||0;var ret=opt?retailFromOpt(opt):(p.price_retail||0);
     var D=p._D||_ssDims(p);
     var dparts=[];if(D.w)dparts.push('Ш'+D.w);if(D.h)dparts.push('В'+D.h);if(D.d)dparts.push('Г'+D.d);
-    var dstr=dparts.length?(dparts.join('×')+' мм'+(D.guess?' <span title="Размер взят из названия товара — сверьте с поставщиком" style="color:#8a5a18">(из названия)</span>':'')):'';
+    var dstr=dparts.length?(dparts.join('×')+' мм'+(D.guess?' <span title="Размер взят из названия товара — сверьте с поставщиком" style="color:#8a5a18">(из названия)</span>':'')
+      +(D.gab?' <span title="В прайсе записан общий габарит кровати, спальное место — '+D.gab+' мм" style="color:#8a5a18">(габарит, место '+D.gab+')</span>':'')):'';
     var sub=[(p.factory||''),esc(p.supplier||''),esc(p.ptype||''),(p.doors?p.doors+'-дв.':''),dstr,esc(p.color||''),esc(p.material||'')].filter(Boolean).join(' · ');
     var tip=goodsTipHtml('ss-tip-'+arr+'-'+i,p.product_name,p.article);
     html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:'+(i%2?'var(--alt)':'#fff')+'">'
@@ -10337,7 +10412,7 @@ function ssChipEdit(k){
   var box=document.getElementById('ss-chip-ed');if(!box)return;
   var o=function(v,t,cur){return '<option value="'+v+'"'+(v===cur?' selected':'')+'>'+t+'</option>';};
   box.innerHTML='<div class="ss-chip-edit">'
-    +'<select id="ssce-col">'+o('dim_w','ширина',c.col)+o('dim_h','высота',c.col)+o('dim_d','глубина',c.col)+o('dim_hl','длина',c.col)+o('any','любой размер',c.col)+'</select>'
+    +'<select id="ssce-col">'+o('dim_w','ширина',c.col)+o('dim_h','высота',c.col)+o('dim_d','глубина',c.col)+o('dim_hl','длина',c.col)+o('sleep_w','спальное место (кровать)',c.col)+o('any','любой размер',c.col)+'</select>'
     +'<select id="ssce-op" onchange="document.getElementById(\'ssce-hi\').style.display=this.value===\'range\'?\'\':\'none\'">'+o('near','около',c.op)+o('gte','не меньше',c.op)+o('lte','не больше',c.op)+o('range','от … до',c.op)+'</select>'
     +'<input id="ssce-val" type="number" value="'+(c.val||'')+'" style="width:80px"> '
     +'<input id="ssce-hi" type="number" value="'+(c.hi||'')+'" placeholder="до" style="width:80px;'+(c.op==='range'?'':'display:none')+'"> мм '
@@ -10360,10 +10435,10 @@ function ssChipApply(i){
 function _ssMiss(c,D){
   var vals;
   if(c.col==='dim_w')vals=[D.w];else if(c.col==='dim_h')vals=[D.h];else if(c.col==='dim_d')vals=[D.d];
-  else if(c.col==='dim_hl')vals=[D.h,D.d];else vals=[D.w,D.h,D.d];
+  else if(c.col==='dim_hl')vals=[D.h,D.d];else if(c.col==='sleep_w')vals=[D.nsw!=null?D.nsw:D.w];else vals=[D.w,D.h,D.d];
   vals=vals.filter(function(v){return v!=null;});if(!vals.length)return null;
   var ref=c.op==='range'?(c.val+c.hi)/2:c.val,lim=Math.max(50,Math.round(ref*0.07)),tol=c.tol||(c.col==='any'?100:60);
-  var words={dim_w:['уже','шире'],dim_h:['ниже','выше'],dim_d:['мельче','глубже'],dim_hl:['короче','длиннее'],any:['меньше','больше']}[c.col]||['меньше','больше'];
+  var words={sleep_w:['уже','шире'],dim_w:['уже','шире'],dim_h:['ниже','выше'],dim_d:['мельче','глубже'],dim_hl:['короче','длиннее'],any:['меньше','больше']}[c.col]||['меньше','больше'];
   var best=null;
   vals.forEach(function(v){
     var d=0,dir=0;
@@ -11675,7 +11750,7 @@ function kitCompatText(c){return String(c||'').replace(/🧩[\s\S]*?¶\s*(·\s*)
 //   части есть список кроватей, модель должна в нём быть; models — часть только для
 //   этих моделей; qty — сколько штук; group/variant — выбор одного варианта;
 //   opt — 'need' (обязательно) | 'on' (включено) | 'off' (по желанию).
-var KIT_RULES_V=5;
+var KIT_RULES_V=6;
 var KIT_DEFAULTS=[
  {id:'bravo-ct',on:true,name:'Браво · кровати из массива с центральной траверсой (ЦТ)',
   // v8.21: «(РАЗБОРНАЯ ЦТ)» — тоже ЦТ (Грация, Карина-7, Лаура разборные)
@@ -11738,6 +11813,65 @@ var KIT_DEFAULTS=[
  {id:'bts-sakura',on:true,name:'БТС-Мебелони · «Сакура» — проложки ДСП',
   when:{sup:'мтк|бтс|мебелони',all:['кровать','сакура']},
   parts:[{label:'проложки ДСП',find:['проложки дсп'],size:'need',opt:'need'}]},
+ // v8.30: корпусные кровати Мебелони — основание по сайту mebelony.ru (13.11.2026). У каждой
+ // модели свой набор вариантов; списки «Для кроватей: …» в прайсе устарели — без compat.
+ // Эти правила стоят ДО bts-nastil (у владельца — вставляются перед ним при загрузке).
+ {id:'bts-bed-4',on:true,name:'БТС-Мебелони · кровати без основания: основание с ПМ, настил, проложки, реечный',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать'],any:['"монако" кр-08','"монако" кр-13','"монако" кр-16','"инстайл" кр-04','"камилла"','"прима"','"фьюжн"'],none:['0,9 м']},
+  parts:[
+   {label:'ортопедическое основание с подъёмным механизмом',find:['ортопедическое основание с подъемным'],size:'need',group:'Основание',variant:'Орт. основание с подъёмным механизмом'},
+   {label:'настил ЛДСП (5 шт.)',find:['настил лдсп'],size:'need',group:'Основание',variant:'Настил ЛДСП'},
+   {label:'проложки ДСП (4 шт.)',find:['проложки дсп'],size:'need',group:'Основание',variant:'Проложки ДСП'},
+   {label:'реечный настил',find:['настил реечный'],size:'need',group:'Основание',variant:'Реечный настил'}
+  ]},
+ {id:'bts-bed-sharm',on:true,name:'БТС-Мебелони · Шарм: основание с ПМ, настил или проложки',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать','"шарм"']},
+  parts:[
+   {label:'ортопедическое основание с подъёмным механизмом',find:['ортопедическое основание с подъемным'],size:'need',group:'Основание',variant:'Орт. основание с подъёмным механизмом'},
+   {label:'настил ЛДСП (5 шт.)',find:['настил лдсп'],size:'need',group:'Основание',variant:'Настил ЛДСП'},
+   {label:'проложки ДСП (4 шт.)',find:['проложки дсп'],size:'need',group:'Основание',variant:'Проложки ДСП'}
+  ]},
+ {id:'bts-bed-3',on:true,name:'БТС-Мебелони · кровати без основания: настил, проложки, реечный',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать'],any:['"фиеста"','"монако" кр-17','"софт" кр-01','0,9 м "фьюжн"']},
+  parts:[
+   {label:'проложки ДСП (4 шт.)',find:['проложки дсп'],size:'need',group:'Основание',variant:'Проложки ДСП'},
+   {label:'настил ЛДСП (5 шт.)',find:['настил лдсп'],size:'need',group:'Основание',variant:'Настил ЛДСП'},
+   {label:'реечный настил',find:['настил реечный'],size:'need',group:'Основание',variant:'Реечный настил'},
+   {label:'ящик выкатной «Софт»',find:['ящик','софт','кр-01'],opt:'off',models:['кр-01']}
+  ]},
+ {id:'bts-bed-soft',on:true,name:'БТС-Мебелони · Софт 1,2–1,6: настил ЛДСП или проложки',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать','"софт"'],any:['кр-06','кр-11','кр-16']},
+  parts:[
+   {label:'настил ЛДСП (5 шт.)',find:['настил лдсп'],size:'need',group:'Основание',variant:'Настил ЛДСП'},
+   {label:'проложки ДСП (4 шт.)',find:['проложки дсп'],size:'need',group:'Основание',variant:'Проложки ДСП'},
+   {label:'ящик выкатной «Софт»',find:['ящик','софт','кр-01'],opt:'off',models:['кр-06']},
+   {label:'ящик выкатной «Софт»',find:['ящик','софт','кр-11'],opt:'off',models:['кр-11','кр-16']}
+  ]},
+ {id:'bts-bed-simpl',on:true,name:'БТС-Мебелони · Симпл: настил ЛДСП или реечный',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать','"симпл"'],any:['кр-07','кр-12','кр-17']},
+  parts:[
+   {label:'настил ЛДСП (5 шт.)',find:['настил лдсп'],size:'need',group:'Основание',variant:'Настил ЛДСП'},
+   {label:'реечный настил',find:['настил реечный'],size:'need',group:'Основание',variant:'Реечный настил'}
+  ]},
+ {id:'bts-bed-bella',on:true,name:'БТС-Мебелони · Белла: проложки ДСП',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать','"белла"']},
+  // ширина в названии без «м» («Кровать 1.4 "Белла"») — размер проложек задан прямо
+  parts:[
+   {label:'проложки ДСП 1,4 (4 шт.)',find:['проложки дсп 1,4'],opt:'need',models:['кр-11']},
+   {label:'проложки ДСП 1,6 (4 шт.)',find:['проложки дсп 1,6'],opt:'need',models:['кр-16']}
+  ]},
+ {id:'bts-bed-urban',on:true,name:'БТС-Мебелони · Урбан: основание с подъёмным механизмом',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать','"урбан"']},
+  parts:[{label:'ортопедическое основание с подъёмным механизмом',find:['ортопедическое основание с подъемным'],size:'need',opt:'need'}]},
+ {id:'bts-bed-skandika',on:true,name:'БТС-Мебелони · Скандика: проложки в комплекте, ящики и накладка по желанию',
+  when:{sup:'мтк|бтс|мебелони',all:['кровать','"скандика"']},
+  parts:[
+   {label:'ящики «Скандика»',find:['ящики','скандика'],opt:'off'},
+   {label:'мягкая накладка «Скандика»',find:['мягкая накладка','скандика','(кр-04)'],opt:'off',models:['кр-04']},
+   {label:'мягкая накладка «Скандика»',find:['мягкая накладка','скандика','(кр-09)'],opt:'off',models:['кр-09']},
+   {label:'мягкая накладка «Скандика»',find:['мягкая накладка','скандика','(кр-14)'],opt:'off',models:['кр-14']},
+   {label:'мягкая накладка «Скандика»',find:['мягкая накладка','скандика','(кр-19)'],opt:'off',models:['кр-19']}
+  ]},
  {id:'bts-nastil',on:true,name:'БТС-Мебелони · кровати без настила',
   when:{sup:'мтк|бтс|мебелони',all:['кровать'],any:['не входит настил','без настила','без орт']},
   parts:[
@@ -11820,6 +11954,7 @@ var KIT_DEFAULTS=[
 // v8.0: правила, добавленные в программу позже. У владельца, который уже
 // сохранял свои правила, их нет — дописываем один раз (по номеру версии
 // сохранённых правил), чтобы удалённое владельцем потом не воскресало.
+var KIT_BEFORE_NASTIL=['bts-bed-4','bts-bed-sharm','bts-bed-3','bts-bed-soft','bts-bed-simpl','bts-bed-bella','bts-bed-urban','bts-bed-skandika'];
 var KIT_ADDED={2:['bravo-domino','bravo-nsm-shr2','bravo-nsm-shr3'],3:['bravo-jali-head','bravo-jali-belt'],4:['bravo-lotos'],5:['bts-soft-pm','bts-soft']};
 var _kitRules=null,_kitRulesSrc='',_kitRulesP=null;
 function _kitCopy(x){return JSON.parse(JSON.stringify(x));}
@@ -11849,6 +11984,13 @@ function _kitMigrate(rules,ver){
       if(at<0)r.parts.push(_kitCopy(dp));else r.parts.splice(at,0,_kitCopy(dp));
     });
   });
+  // v8.30: правила корпусных кроватей БТС должны стоять ДО bts-nastil (первое подходящее правило побеждает)
+  if(ver<6){
+    var ins=KIT_BEFORE_NASTIL.filter(function(id){return !(rules||[]).some(function(r){return r.id===id;});})
+      .map(function(id){return _kitCopy(KIT_DEFAULTS.filter(function(x){return x.id===id;})[0]);}).filter(Boolean);
+    var at=(rules||[]).map(function(r){return r.id;}).indexOf('bts-nastil');
+    if(at<0)Array.prototype.push.apply(rules,ins);else Array.prototype.splice.apply(rules,[at,0].concat(ins));
+  }
   Object.keys(KIT_ADDED).forEach(function(v){
     if(ver>=+v)return;
     KIT_ADDED[v].forEach(function(id){
@@ -13588,12 +13730,18 @@ async function backfillTypes(btn){
 var _spLastParam=null; // что учли — для подсказки над результатами
 function spParamPlan(q){
   var toks=String(q||'').split(/\s+/).filter(Boolean),type=null,mm=null,rest=[];
+  // v8.31: «тв-тумба», «тумба-тв» — вид мебели внутри слова через дефис
+  toks=toks.reduce(function(a,w){var pp=w.split('-');if(pp.length>1&&!spTypeOf(w)&&pp.some(function(x){return spTypeOf(x);}))return a.concat(pp.filter(Boolean));a.push(w);return a;},[]);
   toks.forEach(function(w){
     var t=type?null:spTypeOf(w),v=mm?null:spMM(w);
     if(t&&!type)type=t;else if(v&&!mm)mm=v;else rest.push(w);
   });
   if(!type||!mm)return null;
   var tol=Math.max(50,Math.round(mm*0.06));
+  // v8.31: у кровати в базе бывает записан общий габарит (место + 40–190 мм),
+  // «кровать 160» должна найти и кровать шириной 1740 (то же правило, что в
+  // умном поиске, см. _ssCheck в 23_search_calc.js)
+  if(type==='кровать')return{type:type,mm:mm,lo:mm-tol,hi:mm+190,rest:rest};
   return{type:type,mm:mm,lo:mm-tol,hi:mm+tol,rest:rest};
 }
 var _spFindBase=typeof gsFind==='function'?gsFind:null;
