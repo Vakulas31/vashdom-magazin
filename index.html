@@ -1825,6 +1825,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </div>
 </div>
 
+<script src="app/src/variant-match.js"></script>
 <script>
 var SB_URL='https://zreqzoetvfnqewqdtqsy.supabase.co';
 var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyZXF6b2V0dmZucWV3cWR0cXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0NjQzNTQsImV4cCI6MjA5NzA0MDM1NH0.2GtDtMQEIRHaCfCq2Ne37-4m7tAuV_PmoFco_pUgzW4';
@@ -9394,47 +9395,27 @@ var _GS_GENERIC_UNUSED=/^(кровать|кровати|диван|диваны|
 // названии нет — с прайсом не сопоставляем вовсе. Плюс тип изделия (первое слово:
 // комод/стол/стул…) должен совпасть, а слово модели — стоять отдельным словом
 // («Ода» не находит «комОДА»).
-function _gsSig(name){
-  var n=_eNorm(name),q=n.match(/["«“„]([^"»”“]{2,40})["»”“]/),toks;
-  if(q)toks=q[1].split(/[\s\-]+/);
-  else toks=(n.match(/[a-z][a-z0-9\-]*/g)||[]).filter(function(w){return w.length>=2;});
-  toks=toks.map(function(w){return w.replace(/[^а-яa-z0-9]/g,'');}).filter(function(w){return w.length>=2||/^\d+$/.test(w);});
-  return toks.length&&toks.some(function(w){return /[а-яa-z]{2}/.test(w);})?toks:[];
-}
-function _gsKind(name){var w=_eNorm(name).split(/[\s\-"«“„]+/)[0]||'';return w.length>=4?w.slice(0,Math.min(5,w.length-1)):'';}
-function _gsWordIn(full,w){return new RegExp('(^|[^а-яa-z0-9])'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([^а-яa-z0-9]|$)').test(full);}
+// v8.32: модель + размер. Реализация в app/src/variant-match.js
+// (витринный Prime Hit 160×200 больше не помечает все ширины прайса).
 var _gsShopIdx=null,_gsShopAt=0;
 function _gsShopList(){
   if(typeof _srItems==='undefined'||!_srItems||!_srItems.length)return [];
   if(_gsShopIdx&&_gsShopAt===_srLoadedAt)return _gsShopIdx;
   _gsShopAt=_srLoadedAt;
   _gsShopIdx=_srItems.filter(function(x){return x.active!==false&&typeof srQty==='function'&&srQty(x.id)>0;})
-    .map(function(x){return{sig:_gsSig(x.name||''),kind:_gsKind(x.name||''),qty:srQty(x.id),name:x.name};}).filter(function(x){return x.sig.length;});
+    .map(function(x){return{name:x.name||'',dims:x.dims||'',qty:srQty(x.id)};})
+    .filter(function(x){return typeof VariantMatch!=='undefined'&&VariantMatch.modelSig(x.name).length;});
   return _gsShopIdx;
 }
-var _GS_KINDS=['комод','стол','стул','шкаф','кроват','кресл','диван','тумб','матра','кухон','пуф','банкет','прихож','стенк','полк','зеркал'];
 function gsShopQty(p){
-  var L=_gsShopList();if(!L.length)return 0;
-  var full=_eNorm([p.product_name,p.article].filter(Boolean).join(' '));
-  return L.reduce(function(s,x){
-    // тип: если в строке прайса назван ДРУГОЙ тип изделия — это не тот товар
-    // («Кресло-кровать Эльба 2» ≠ витринный «Диван "Эльба 2"»)
-    if(x.kind&&full.indexOf(x.kind)<0&&_GS_KINDS.some(function(k){return full.indexOf(k)>=0&&x.kind.indexOf(k.slice(0,3))!==0;}))return s;
-    // модель целиком и подряд, и без чужого номера после неё: «Эльба» ≠ «Эльба 2»
-    var re=new RegExp('(^|[^а-яa-z0-9])'+x.sig.map(function(w){return w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}).join('[\\s\\-]*')+'(?![а-яa-z0-9]|[\\s\\-]*\\d)');
-    if(!re.test(full))return s;
-    // тип изделия в строке прайса не назван — тогда в названии не должно быть
-    // ничего, кроме модели (и размера/цвета после « · »): «Эльба 2» — да,
-    // «мс Алиса КМ-1200», «Угловой Эльба 2 НПБ», «Виктория МДФ» — нет
-    if(x.kind&&full.indexOf(x.kind)<0){
-      var rest=_eNorm(String(p.product_name||'').split(' · ')[0]).replace(re,' ');
-      if(/[а-яa-z]{2}/.test(rest.replace(/["«»“”„()]/g,' ')))return s;
-    }
-    return s+x.qty;
-  },0);
+  var L=_gsShopList();if(!L.length||typeof VariantMatch==='undefined')return 0;
+  return VariantMatch.shopQty(p,L);
 }
 var _gsSoldIdx=null,_gsSoldN=-1;
-function _gsSoldKey(n){return _eNorm(String(n||'').replace(/\s+—\s+в комплекте:.*$/,'')).replace(/\s+/g,' ').trim();}
+function _gsSoldKey(n){
+  if(typeof VariantMatch!=='undefined'&&VariantMatch.soldKey)return VariantMatch.soldKey(n);
+  return _eNorm(String(n||'').replace(/\s+—\s+в комплекте:.*$/,'')).replace(/\s+/g,' ').trim();
+}
 function gsSoldCount(p){
   if(typeof allOrders==='undefined'||!allOrders)return 0;
   if(!_gsSoldIdx||_gsSoldN!==allOrders.length){
