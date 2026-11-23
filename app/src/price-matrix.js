@@ -1,7 +1,8 @@
-// Матрица прайса: колонка без своего имени («вариант N») или колонка
-// «просто другая цена того же товара» не должна задваивать строку, у которой
-// уже есть настоящая подпись (группа отделки, цвет, размер, категория ткани).
-// Разные подписи при любой цене остаются: это разные комплектации.
+// Матрица прайса. Пустая шапка колонки получает запасное имя «вариант N».
+// Такая строка — эхо, если рядом уже есть настоящая подпись с тем же
+// хвостом артикула и той же ценой. Текст «вариант 4», «вариант4» или «Цена»
+// сам по себе эхом не считается: это может быть настоящий заголовок.
+// Цвет, размер, группа и категория ткани не склеиваются.
 (function (root, factory) {
   var api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -13,18 +14,16 @@
   function norm(s) {
     return clean(s).toLowerCase().replace(/ё/g, 'е');
   }
-  // Запасное имя из _collectMulti: пустая шапка колонки c → «вариант »+(c+1).
-  function syntheticLabel(label) {
-    return /^вариант \d+$/i.test(clean(label));
+  // Пустая шапка → запасное имя. Настоящий заголовок, даже «Вариант 4»,
+  // «вариант4» или «Цена», остаётся подписью колонки.
+  function labelFromHeader(raw, columnIndex) {
+    var text = clean(raw);
+    if (text) return { label: text, fromEmptyHeader: false };
+    var n = (parseInt(columnIndex, 10) || 0) + 1;
+    return { label: 'вариант ' + n, fromEmptyHeader: true };
   }
-  // Не комплектация, а вторая запись той же цены. «2 группа», «венге», «1200»,
-  // «кат. 1» сюда не входят.
-  function altPriceLabel(label) {
-    var t = norm(label).replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
-    return /^(цена|оптовая цена|опт|оптовая|стоимость|сумма|итого|ррц|ррц мр)$/.test(t);
-  }
-  function echoLabel(label) {
-    return syntheticLabel(label) || altPriceLabel(label);
+  function generatedEcho(row) {
+    return !!(row && row._fromEmptyHeader);
   }
   function splitArticle(article) {
     var s = clean(article);
@@ -43,15 +42,22 @@
       String(price)
     ].join('\u0001');
   }
-  // Убирает эхо-строку, только если рядом есть строка с настоящей подписью,
-  // тем же хвостом артикула и той же ценой. Подписи «1 группа» и «2 группа»,
-  // цвета и размеры не трогает, даже когда цены совпали.
+  function withoutFlag(row) {
+    if (!row || !row._fromEmptyHeader) return row;
+    var out = {};
+    for (var k in row) if (k !== '_fromEmptyHeader') out[k] = row[k];
+    return out;
+  }
+  // Снимает только строку, которую сборщик пометил как пустую шапку,
+  // и только когда рядом есть другая подпись с тем же хвостом и той же ценой.
+  // Совпадение одной цены без этой пометки строку не удаляет.
   function dropEchoRows(rows) {
     var list = rows || [];
     var hasReal = {};
     for (var i = 0; i < list.length; i++) {
+      if (generatedEcho(list[i])) continue;
       var parts = splitArticle(list[i].article);
-      if (!echoLabel(parts.label)) hasReal[rowIdentity(list[i], parts)] = 1;
+      hasReal[rowIdentity(list[i], parts)] = 1;
     }
     var seenEcho = {};
     var out = [];
@@ -59,12 +65,12 @@
       var row = list[j];
       var sp = splitArticle(row.article);
       var id = rowIdentity(row, sp);
-      if (echoLabel(sp.label)) {
+      if (generatedEcho(row)) {
         if (hasReal[id]) continue;
         if (seenEcho[id]) continue;
         seenEcho[id] = 1;
       }
-      out.push(row);
+      out.push(withoutFlag(row));
     }
     return out;
   }
@@ -86,9 +92,8 @@
   return {
     clean: clean,
     norm: norm,
-    syntheticLabel: syntheticLabel,
-    altPriceLabel: altPriceLabel,
-    echoLabel: echoLabel,
+    labelFromHeader: labelFromHeader,
+    generatedEcho: generatedEcho,
     splitArticle: splitArticle,
     dropEchoRows: dropEchoRows,
     reimport: reimport

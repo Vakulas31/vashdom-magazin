@@ -239,6 +239,14 @@ S.withFreshOwner('Правка смен').then(function (ok) {
   return S.withFreshOwner('Правка смен');
 }).then(function (ok) {
   assert(ok === false && global.window._isOwner === false, 'если права не удалось проверить, запись не делаем');
+  global.window._isOwner = true;
+  global.window.sbGet = function () { return Promise.resolve([]); };
+  return S.withFreshOwner('Правка смен');
+}).then(function (ok) {
+  assert(ok === false, 'нет строки владельца — заднюю дату не пишем; роль продавца для этого не нужна');
+  var row = S.dbPayload({ work_date: '2026-11-20', manager: 'Учебный Иван', created_at: 'не отправлять', time_from: '09:00' });
+  eq(Object.keys(row).sort().join(','), 'manager,work_date', 'в базу уходят только дата и имя');
+  assert(S.humanDbError(new Error('duplicate key value violates unique constraint 23505')).indexOf('уже есть') >= 0, 'повтор даты и имени база уже не примет');
   delete global.window;
   finish();
 }).catch(function (e) {
@@ -268,6 +276,8 @@ function finish() {
   lacks(src, 'DROP POLICY', 'в коде нет команды, которая меняет права базы');
   lacks(src, 'create policy', 'политика базы не спрятана в программу');
   lacks(html, 'DROP POLICY', 'журнал не получил миграцию');
+  lacks(src, 'vd_is_owner', 'свою функцию владельца не придумываем');
+  lacks(html, 'vd_is_owner', 'в журнале нет чужой функции владельца');
   eq(S.safeErr({ message: 'eyJhbGciOiJIUzI1NiJ9.payload.sig broke' }).indexOf('eyJ'), -1, 'текст ошибки прячет ключ');
   assert(S.humanDbError(new Error('permission denied')).indexOf('не разрешила') >= 0, 'отказ базы объясняется словами');
 

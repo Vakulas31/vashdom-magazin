@@ -2,8 +2,8 @@
    Смена попадает в зарплату только из таблицы manager_days.
    Утренний выбор «кто сегодня работает» пишет туда сам, и только если есть связь.
    Этот файл даёт владельцу дописать пропущенный день или исправить ошибочный.
-   В базу уходят только дата и имя. Часы проверяются, но не хранятся:
-   оклад по-прежнему «число смен × ставка», премия — процент от оборота.
+   В базу уходят только дата и имя. Оклад по-прежнему «число смен × ставка»,
+   премия — процент от оборота. Отдельные часы не спрашиваем: они не хранятся.
    Правила цен и оплат здесь не считаются.
    Серверное ограничение (чтобы продавец не записал старую дату в обход экрана)
    в этот файл не входит и само не выполняется — его нужно показать владельцу отдельно. */
@@ -143,6 +143,9 @@
     var m = safeErr(e);
     if (/manager_days|does not exist|pgrst205|schema cache/i.test(m)) {
       return 'В базе ещё нет таблицы смен. Нужен уже существующий шаг SQL 7.0. Этот экран новые таблицы не создаёт.';
+    }
+    if (/23505|duplicate key|unique constraint/i.test(m)) {
+      return 'Такая смена уже есть: этот человек в этот день записан. Вторую такую же база не примет.';
     }
     if (/42501|permission denied|row-level|rls/i.test(m)) {
       return 'База не разрешила эту запись. Смену не изменили.';
@@ -373,7 +376,7 @@
     if (!host) return '';
     if (st.loading) return 'Загружаю смены…';
     if (st.loadError) return st.loadError;
-    if (!st.date && !cleanName(st.name)) return 'Укажите день и сотрудника. Часы заполняйте, только если помните: на зарплату они не влияют.';
+    if (!st.date && !cleanName(st.name)) return 'Укажите день и сотрудника. Одна смена — один день и одна ставка.';
     var prev = findRow(st.rows, st.editId);
     var ctx = ctxFrom(st.rows || [], host, st.editId, prev ? { work_date: dayOf(prev), manager: prev.manager } : null);
     var d = decideSave({
@@ -449,10 +452,8 @@
     h += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">';
     h += '<label style="font-size:11px;color:var(--text2)">День<br><input data-f="date" type="date" min="' + EARLIEST + '" max="' + esc(today) + '" value="' + esc(st.date) + '" style="width:150px;padding:6px 8px"></label>';
     h += '<label style="font-size:11px;color:var(--text2)">Кто работал<br><input data-f="name" list="vd-sh-names" autocomplete="off" value="' + esc(st.name) + '" placeholder="имя" style="width:180px;padding:6px 8px"></label>';
-    h += '<label style="font-size:11px;color:var(--text2)">Начало<br><input data-f="timeFrom" type="time" value="' + esc(st.timeFrom) + '" style="width:120px;padding:6px 8px"></label>';
-    h += '<label style="font-size:11px;color:var(--text2)">Конец<br><input data-f="timeTo" type="time" value="' + esc(st.timeTo) + '" style="width:120px;padding:6px 8px"></label>';
     h += '</div>';
-    h += '<div style="font-size:11px;color:var(--text2);margin-top:6px">Часы — по желанию. Если не помните, оставьте пустыми. В базу они не пишутся и зарплату не меняют: день либо есть, либо его нет.</div>';
+    h += '<div style="font-size:11px;color:var(--text2);margin-top:6px">Записывается день и имя. Оклад — одна ставка за этот день. Часы не спрашиваем: в расчёте их нет.</div>';
     var hint = st.note || liveText(st);
     var col = st.noteKind === 'err' ? '#c62828' : (st.noteKind === 'ok' ? '#1B5E20' : 'var(--text2)');
     h += '<div id="vd-sh-hint" style="font-size:12.5px;line-height:1.45;margin-top:8px;color:' + col + '">' + esc(hint) + '</div>';
@@ -654,8 +655,7 @@
         } else {
           text.push('Записать смену: ' + fresh.row.manager + ', ' + fmtDate(fresh.row.work_date) + '.');
         }
-        if (fresh.value.time_from) text.push('Время ' + fresh.value.time_from + '–' + fresh.value.time_to + ' в базу не пишем. Оно только для проверки. В зарплате по-прежнему одна смена за день.');
-        else text.push('Часы не указаны. В зарплату идёт одна смена за этот день.');
+        text.push('В зарплату идёт одна смена за этот день.');
         text = text.concat(lines).concat(fresh.warnings || []);
         if (host.periodHint) text.push(host.periodHint(fresh.row.work_date));
         text.push('Заказы и оплаты не изменятся. «Отмена» ничего не запишет.');
@@ -761,6 +761,8 @@
     }
     if (typeof window.sbGet !== 'function') return Promise.resolve(false);
     return window.sbGet('app_roles', 'select=role&user_id=eq.' + encodeURIComponent(uid)).then(function (r) {
+      // Пустой ответ — не владелец. Отдельной строки «продавец» в ролях нет и она не нужна:
+      // сегодняшнюю отметку пишет утреннее окно, эта проверка его не касается.
       var ok = !!(r && r[0] && r[0].role === 'owner');
       window._isOwner = ok;
       if (window._applyRole) window._applyRole();

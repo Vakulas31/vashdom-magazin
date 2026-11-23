@@ -15,12 +15,15 @@ function row(article, opt, extra) {
     price_retail: 0
   }, extra || {});
 }
+function echo(article, opt, extra) {
+  return row(article, opt, Object.assign({ _fromEmptyHeader: true }, extra || {}));
+}
 
 test('ПКС-15: безымянная колонка «вариант 4» с той же ценой, что «2 группа», не остаётся', function () {
   var rows = pm.dropEchoRows([
-    row('вариант 4 · ПКС-15', 6700),
+    echo('вариант 4 · ПКС-15', 6700),
     row('2 группа · ПКС-15', 6700),
-    row('вариант 4 · ПКС-17', 10500),
+    echo('вариант 4 · ПКС-17', 10500),
     row('2 группа · ПКС-17', 10500)
   ]);
   assert.deepEqual(rows.map(function (r) { return r.article; }), [
@@ -33,7 +36,7 @@ test('ПКС-15: безымянная колонка «вариант 4» с т�
 
 test('повторный разбор того же листа не добавляет вторую копию', function () {
   var parsed = pm.dropEchoRows([
-    row('вариант 4 · ПКС-15', 6700),
+    echo('вариант 4 · ПКС-15', 6700),
     row('2 группа · ПКС-15', 6700),
     row('2 группа · ПКС-3', 5450)
   ]);
@@ -47,7 +50,7 @@ test('повторный разбор того же листа не добавл
 
 test('повторный импорт заменяет лист и не трогает другую полку', function () {
   var oldSheet = [
-    row('вариант 4 · ПКС-15', 6700),
+    echo('вариант 4 · ПКС-15', 6700),
     row('2 группа · ПКС-15', 6700),
     row('2 группа · АН-1', 8800, { product_name: '"Анечка"' })
   ];
@@ -82,7 +85,7 @@ test('группы отделки сосуществуют и при одина�
     row('4 группа · ПКС-15', 8300),
     row('1 группа · М-5', 6650, { product_name: 'Шкаф 2-дверный' }),
     row('2 группа · М-5', 6650, { product_name: 'Шкаф 2-дверный' }),
-    row('вариант 4 · ПКС-15', 6700)
+    echo('вариант 4 · ПКС-15', 6700)
   ]);
   assert.deepEqual(rows.map(function (r) { return r.article; }), [
     '1 группа · ПКС-15',
@@ -103,7 +106,7 @@ test('настоящие варианты: цвет, размер и друга�
     row('кат. 1 · ткань до 300 ₽/м · диван', 24000, { product_name: 'Диван' }),
     row('кат. 2 · ткань 300–400 ₽/м · диван', 26000, { product_name: 'Диван' }),
     row('3 ВАРИАНТ · винный', 2035, { supplier: 'Браво', product_name: 'Карина-5' }),
-    row('вариант 4 · ПКС-15', 7100)
+    echo('вариант 4 · ПКС-15', 7100)
   ]);
   assert.equal(rows.length, 8);
   assert.ok(rows.some(function (r) { return r.article === 'вариант 4 · ПКС-15' && r.price_opt === 7100; }));
@@ -112,22 +115,47 @@ test('настоящие варианты: цвет, размер и друга�
   assert.ok(rows.some(function (r) { return r.article === 'дуб молочный · КВ2/60/1.3/0з'; }));
 });
 
-test('колонка «Цена» с той же суммой, что группа, не задваивает товар; одинокая «Цена» остаётся', function () {
+test('настоящие заголовки «вариант4», «Вариант 4» и «Цена» не склеиваются по одной цене', function () {
   var rows = pm.dropEchoRows([
+    row('вариант4 · ПКС-15', 6700),
+    row('Вариант 4 · ПКС-15', 6700),
     row('Цена · ПКС-15', 6700),
     row('2 группа · ПКС-15', 6700),
-    row('Цена · СВ-15', 5550, { product_name: 'Комод' })
+    echo('вариант 4 · ПКС-15', 6700)
   ]);
   assert.deepEqual(rows.map(function (r) { return r.article; }), [
-    '2 группа · ПКС-15',
-    'Цена · СВ-15'
+    'вариант4 · ПКС-15',
+    'Вариант 4 · ПКС-15',
+    'Цена · ПКС-15',
+    '2 группа · ПКС-15'
   ]);
+  assert.ok(rows.every(function (r) { return !r._fromEmptyHeader; }));
+});
+
+test('пустая шапка отличается от написанного заголовка', function () {
+  assert.deepEqual(pm.labelFromHeader('', 3), { label: 'вариант 4', fromEmptyHeader: true });
+  assert.equal(pm.labelFromHeader('вариант4', 3).fromEmptyHeader, false);
+  assert.equal(pm.labelFromHeader('Вариант 4', 3).fromEmptyHeader, false);
+  assert.equal(pm.labelFromHeader('Цена', 3).fromEmptyHeader, false);
+  assert.equal(pm.labelFromHeader('2 группа', 3).label, '2 группа');
+});
+
+test('22 кухни с подписью «Интерьер» остаются, эхо пустой шапки снимается', function () {
+  var rows = [];
+  for (var i = 1; i <= 22; i++) {
+    rows.push(row('Интерьер · К-' + i, 10000 + i, { product_name: 'Кухня ' + i }));
+  }
+  rows.push(echo('вариант 4 · К-1', 10001, { product_name: 'Кухня 1' }));
+  var out = pm.dropEchoRows(rows);
+  assert.equal(out.length, 22);
+  assert.ok(out.every(function (r) { return r.article.indexOf('Интерьер · ') === 0; }));
+  assert.equal(out.filter(function (r) { return r.article === 'Интерьер · К-1'; }).length, 1);
 });
 
 test('эхо без пары не выбрасывается: это единственная цена товара', function () {
   var rows = pm.dropEchoRows([
-    row('вариант 4 · ПН-1', 1150, { product_name: 'Полка навесная' }),
-    row('вариант 4 · ПН-1', 1150, { product_name: 'Полка навесная' })
+    echo('вариант 4 · ПН-1', 1150, { product_name: 'Полка навесная' }),
+    echo('вариант 4 · ПН-1', 1150, { product_name: 'Полка навесная' })
   ]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].article, 'вариант 4 · ПН-1');
