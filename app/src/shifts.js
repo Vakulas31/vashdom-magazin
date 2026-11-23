@@ -365,7 +365,7 @@
       container._vd = {
         month: '', editId: '', date: '', name: '', timeFrom: '', timeTo: '',
         note: '', noteKind: '', confirm: null, busy: false, rows: null,
-        loadError: '', loading: false, token: 0, host: null
+        loadError: '', loading: false, token: 0, host: null, open: false
       };
     }
     return container._vd;
@@ -410,7 +410,9 @@
     opts.sort();
     var pending = host.pending ? host.pending() : [];
     var h = '';
-    h += '<div style="font-weight:700;font-size:13px;margin-bottom:6px">Пропущенные и ошибочные смены</div>';
+    h += '<details id="vd-sh-fold"' + (st.open ? ' open' : '') + '>';
+    h += '<summary style="font-weight:700;font-size:13px;cursor:pointer;color:var(--text)">Пропущенные и ошибочные смены</summary>';
+    h += '<div style="margin-top:8px">';
     h += '<div style="font-size:12.5px;line-height:1.5;color:var(--text2);margin-bottom:10px">Смена попадает в зарплату только если она записана в базу. Утренний выбор «кто сегодня работает» делает это сам, но без интернета остаётся лишь на этом компьютере. Здесь владелец может дописать такой день или поправить ошибку. Заказы, цены и процент от оборота не меняются. Одна смена — одна ставка за день.</div>';
     if (pending.length) {
       h += '<div style="background:#fbf0e2;border:1px solid #e6c284;border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.5;margin-bottom:10px">На этом устройстве есть смены, которые не дошли до базы. Они сами не отправятся. Проверьте и нажмите «Подставить», затем «Записать смену».<div style="margin-top:6px">';
@@ -470,7 +472,7 @@
       h += '</div>';
       h += '<div style="font-size:11px;color:var(--text2);margin-top:6px">Перед записью программа ещё раз спросит базу, владелец ли это. Кнопки продавца для старых дат нет.</div>';
     }
-    h += '</div>';
+    h += '</div></div></details>';
     container.innerHTML = h;
   }
   function paintGate(container, kind) {
@@ -515,6 +517,11 @@
       container.addEventListener('input', onInput);
       container.addEventListener('change', onInput);
       container.addEventListener('click', onClick);
+      container.addEventListener('toggle', function (e) {
+        var d = e.target;
+        if (!d || d.id !== 'vd-sh-fold') return;
+        stateOf(container).open = !!d.open;
+      }, true);
     }
     if (!host || (host.roleReady && !host.roleReady())) { paintGate(container, 'check'); return; }
     if (host.isOwner && !host.isOwner()) { container.innerHTML = ''; return; }
