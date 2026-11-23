@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Проверка смен — не сайт магазина</title>
+<script src="shifts.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a1a;font-size:14px}
+  .wrap{max-width:880px;margin:0 auto;padding:20px}
+  .banner{background:#fff3e0;border:1px solid #e6c284;border-radius:10px;padding:12px 14px;line-height:1.45;margin-bottom:14px}
+  .card{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px 18px;margin-bottom:14px}
+  .card h2{margin:0 0 8px;font-size:16px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:6px 8px;border-bottom:1px solid #e0e0e0;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit}
+  .btn-primary{background:#1F4E79;color:#fff}
+  .btn-outline{background:none;border:1px solid #e0e0e0;color:#666}
+  button:disabled{opacity:.5;cursor:default}
+  .tools{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .note{font-size:12.5px;color:#666;line-height:1.45}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="banner">
+    <b>Это локальная проверка экрана, не сайт магазина.</b>
+    Имена учебные. Оборот выдуман. Настоящая база, заказы и зарплата сотрудников отсюда не меняются.
+  </div>
+  <div class="card">
+    <h2>Зарплата за ноябрь — та же формула, что в журнале</h2>
+    <p class="note">Оклад = округление(смены × ставка). Премия = округление(оборот × процент ÷ 100). К выплате = оклад + премия. Смена добавляет только оклад.</p>
+    <div id="salary"></div>
+  </div>
+  <div class="tools">
+    <button type="button" class="btn btn-outline" id="lost">Показать смену, которая не дошла из-за интернета</button>
+    <label><input type="checkbox" id="seller"> Смотреть как продавец</label>
+    <button type="button" class="btn btn-outline" id="try-write">Попытаться записать смену</button>
+  </div>
+  <p id="try-out" class="note"></p>
+  <div class="card" id="editor"></div>
+</div>
+<script>
+(function () {
+  try { localStorage.removeItem('vd_shift_unsaved'); } catch (e) {}
+  var people = {
+    'Учебный Иван': { rate: 1650, pct: 1, rev: 100000 },
+    'Учебная Мария': { rate: 1650, pct: 1, rev: 80000 }
+  };
+  var db = {
+    owner: true,
+    rows: [
+      { id: 1, work_date: '2026-11-18', manager: 'Учебный Иван' },
+      { id: 2, work_date: '2026-11-19', manager: 'Учебная Мария' }
+    ],
+    next: 3,
+    writes: 0
+  };
+  function monthRows(month) {
+    var b = VdShifts.monthBounds(month);
+    if (!b) return [];
+    return db.rows.filter(function (r) { return r.work_date >= b.from && r.work_date < b.to; });
+  }
+  function copy(r) { return { id: r.id, work_date: r.work_date, manager: r.manager }; }
+  function onlyPayload(row) {
+    var keys = Object.keys(row).sort().join(',');
+    if (keys !== 'manager,work_date') throw new Error('В запись пришло лишнее поле');
+    return { work_date: row.work_date, manager: row.manager };
+  }
+  var host = {
+    roleReady: function () { return true; },
+    isOwner: function () { return db.owner; },
+    today: function () { return VdShifts.todayLocal(); },
+    nowMinutes: function () { return VdShifts.nowMinutes(); },
+    knownNames: function () { return Object.keys(people); },
+    pending: function () { return VdShifts.readUnsaved(); },
+    forget: function (d, n) { VdShifts.forgetUnsaved(d, n); },
+    rateOf: function (name) {
+      var keys = Object.keys(people), i;
+      for (i = 0; i < keys.length; i++) if (keys[i] === name || VdShifts.samePerson(keys[i], name)) return people[keys[i]].rate;
+      return 1650;
+    },
+    loadMonth: function (month) { return Promise.resolve(monthRows(month).map(copy)); },
+    loadDate: function (date) {
+      return Promise.resolve(db.rows.filter(function (r) { return r.work_date === date; }).map(copy));
+    },
+    insert: function (row) {
+      var p = onlyPayload(row);
+      var item = { id: db.next++, work_date: p.work_date, manager: p.manager };
+      db.rows.push(item);
+      db.writes++;
+      return Promise.resolve([copy(item)]);
+    },
+    update: function (id, row) {
+      var p = onlyPayload(row);
+      var found = null;
+      db.rows.forEach(function (r) { if (String(r.id) === String(id)) found = r; });
+      if (!found) return Promise.resolve([]);
+      found.work_date = p.work_date;
+      found.manager = p.manager;
+      db.writes++;
+      return Promise.resolve([copy(found)]);
+    },
+    remove: function (id) {
+      var next = [];
+      db.rows.forEach(function (r) { if (String(r.id) !== String(id)) next.push(r); });
+      if (next.length === db.rows.length) return Promise.resolve(null);
+      db.rows = next;
+      db.writes++;
+      return Promise.resolve(null);
+    },
+    ensureOwner: function () { return Promise.resolve(!!db.owner); },
+    afterChange: function () { renderSalary(); },
+    periodHint: function () { return 'Учебный экран: оборот выдуман, в настоящую базу ничего не уходит.'; }
+  };
+  function bonus(rev, pct) { return Math.round(rev * pct / 100); }
+  function renderSalary() {
+    var counts = VdShifts.countShiftsForSalary(db.rows, VdShifts.monthRange('2026-11'));
+    var names = Object.keys(people);
+    var html = '<table><tr><th>Сотрудник</th><th>Смен</th><th>Оклад</th><th>Оборот</th><th>Премия 1%</th><th>К выплате</th></tr>';
+    names.forEach(function (n) {
+      var days = counts[n] || 0;
+      var base = VdShifts.salaryBase(days, people[n].rate);
+      var prem = bonus(people[n].rev, people[n].pct);
+      html += '<tr><td>' + n + '</td><td>' + days + '</td><td>' + VdShifts.fmtRub(base) + '</td><td>' + VdShifts.fmtRub(people[n].rev) + '</td><td>' + VdShifts.fmtRub(prem) + '</td><td><b>' + VdShifts.fmtRub(base + prem) + '</b></td></tr>';
+    });
+    html += '</table><p class="note">Учебных записей отправлено: ' + db.writes + '. Часы в них не входят.</p>';
+    document.getElementById('salary').innerHTML = html;
+  }
+  function openEditor() { VdShifts.renderEditor(document.getElementById('editor'), host); }
+  document.getElementById('lost').addEventListener('click', function () {
+    VdShifts.rememberUnsaved('2026-11-21', 'Учебный Иван');
+    openEditor();
+  });
+  document.getElementById('seller').addEventListener('change', function () {
+    db.owner = !this.checked;
+    document.getElementById('try-out').textContent = this.checked
+      ? 'Сейчас экран как у продавца: блока правки нет.'
+      : '';
+    openEditor();
+  });
+  document.getElementById('try-write').addEventListener('click', function () {
+    host.ensureOwner().then(function (ok) {
+      document.getElementById('try-out').textContent = ok
+        ? 'Проверка владельца пройдена. Сама кнопка ничего не пишет — запись только из формы после подтверждения.'
+        : 'Запись не отправлена: это не владелец. Учебных смен не прибавилось.';
+      renderSalary();
+    });
+  });
+  renderSalary();
+  openEditor();
+})();
+</script>
+</body>
+</html>
