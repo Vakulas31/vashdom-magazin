@@ -277,6 +277,40 @@ function finish() {
   lacks(src, 'create policy', 'политика базы не спрятана в программу');
   lacks(html, 'DROP POLICY', 'журнал не получил миграцию');
   lacks(src, 'vd_is_owner', 'свою функцию владельца не придумываем');
+  var box = { innerHTML: 'было', addEventListener: function () {} };
+  S.renderEditor(box, {
+    roleReady: function () { return true; },
+    isOwner: function () { return false; },
+    today: function () { return '2026-11-23'; }
+  });
+  eq(box.innerHTML, '', 'продавец блок смен не видит');
+  var owner = { innerHTML: '', addEventListener: function () {} };
+  owner._vd = {
+    month: '2026-11', editId: '', date: '', name: '', timeFrom: '', timeTo: '',
+    note: '', noteKind: '', confirm: null, busy: false,
+    rows: [
+      { id: 1, work_date: '2026-11-18', manager: 'Проверка Анна' },
+      { id: 2, work_date: '2026-11-19', manager: 'Проверка Борис' }
+    ],
+    loadError: '', loading: false, token: 1, host: null, open: false
+  };
+  var ownerHost = {
+    roleReady: function () { return true; },
+    isOwner: function () { return true; },
+    today: function () { return '2026-11-23'; },
+    nowMinutes: function () { return 600; },
+    knownNames: function () { return ['Проверка Анна', 'Проверка Борис']; },
+    pending: function () { return []; },
+    rateOf: function () { return 1650; }
+  };
+  S.renderEditor(owner, ownerHost);
+  assert(owner.innerHTML.indexOf('<details id="vd-sh-fold">') >= 0, 'по умолчанию список смен свёрнут');
+  assert(owner.innerHTML.indexOf('Добавить смену') > owner.innerHTML.indexOf('<details'), 'форма внутри сворачиваемого блока');
+  assert(owner.innerHTML.indexOf('Зарплата продавцов') < 0, 'итоги зарплаты этот блок не рисует');
+  owner._vd.open = true;
+  S.renderEditor(owner, ownerHost);
+  assert(owner.innerHTML.indexOf('<details id="vd-sh-fold" open>') >= 0, 'после раскрытия перерисовка не схлопывает блок');
+  assert(owner.innerHTML.indexOf('18.11.2026') >= 0, 'раскрытый список показывает смены');
   lacks(html, 'vd_is_owner', 'в журнале нет чужой функции владельца');
   eq(S.safeErr({ message: 'eyJhbGciOiJIUzI1NiJ9.payload.sig broke' }).indexOf('eyJ'), -1, 'текст ошибки прячет ключ');
   assert(S.humanDbError(new Error('permission denied')).indexOf('не разрешила') >= 0, 'отказ базы объясняется словами');
