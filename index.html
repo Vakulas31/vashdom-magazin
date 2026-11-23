@@ -1843,6 +1843,7 @@ var allSuppliers=[],_supLoaded=false,_supTableOk=true,_supPickItem=null,_supMana
 var itemCount=0,itemPrices={};
 var deleteOrderId=null;
 </script>
+<script src="app/src/price-matrix.js"></script>
 <script>
 
 // ═══ v7.26: ВХОД ПО ЛОГИНУ ═══════════════════════════════════════════
@@ -7388,6 +7389,10 @@ function _collectMulti(data,cfg){
       rows.push({supplier:cfg.supplier,product_name:nm,price_opt:p,price_retail:0,article:artStr,category:cat||'',sheet_name:cfg.sheetName||'',dim_w:_at.dim_w,dim_h:_at.dim_h,dim_d:_at.dim_d,ptype:_at.ptype,color:_at.color,doors:_at.doors,material:_at.material});
     });
   }
+  // v8.32: пустая шапка даёт «вариант N» и повторяет соседнюю группу
+  // (Восход, «2 группа Ноябрь26»: ПКС-15 и как «вариант 4», и как «2 группа»,
+  // опт один и тот же). Настоящие группы, цвета и размеры функция не склеивает.
+  if(typeof priceMatrix!=='undefined'&&priceMatrix.dropEchoRows)rows=priceMatrix.dropEchoRows(rows);
   return rows;
 }
 // Автоопределение матрицы общего вида (≥2 ценоплотных несервисных колонок).
