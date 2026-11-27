@@ -29,6 +29,12 @@
       { id: 1, work_date: '2026-11-18', manager: 'Проверка Анна' },
       { id: 2, work_date: '2026-11-19', manager: 'Проверка Борис' }
     ];
+    var cards = [
+      { id: 11, supplier: 'Учебный', factory: 'Учебная', model: 'Кровать пример', variant: '', item_kind: 'кровать', note: '' },
+      { id: 12, supplier: 'Учебный', factory: 'МИФ', model: 'Ларго', variant: '800', item_kind: 'другое', note: 'Вид: шкаф. учебная строка, не из магазина' },
+      { id: 13, supplier: 'Учебный', factory: 'МИФ', model: 'Элегант', variant: '', item_kind: 'шкаф-купе', note: '' },
+      { id: 14, supplier: 'Учебный', factory: 'МИФ', model: 'Флэш', variant: '', item_kind: 'пенал', note: '' }
+    ];
     var nextId = 3;
     var rates = [
       { manager: 'Проверка Анна', rate_day: 1650, bonus_pct: 1 },
@@ -87,6 +93,29 @@
       var method = String(opts.method || 'GET').toUpperCase();
       var table = tableOf(u);
       var qs = queryOf(u);
+      if (table === 'product_cards') {
+        if (method === 'GET') return json(cards);
+        if (method === 'PATCH') {
+          var body = JSON.parse(opts.body || '{}');
+          var keys = Object.keys(body);
+          if (keys.length !== 1 || keys[0] !== 'item_kind') {
+            return json({ message: 'В карточку пришло не только поле вида' }, 400);
+          }
+          if (!window.ProductCardKinds || !window.ProductCardKinds.isItemKind(body.item_kind)) {
+            return json({ message: 'item_kind check violation', code: '23514' }, 400);
+          }
+          var idm = qs.match(/id=eq\.([^&]+)/);
+          var id = idm ? decodeURIComponent(idm[1]) : '';
+          var found = null;
+          cards.forEach(function (r) {
+            if (String(r.id) === String(id)) {
+              r.item_kind = body.item_kind;
+              found = r;
+            }
+          });
+          return json(found ? [found] : []);
+        }
+      }
       if (table === 'manager_days') {
         if (method === 'GET') return json(filterShifts(qs));
         if (method === 'POST') {
@@ -127,7 +156,7 @@
       return json([]);
     };
     function bannerText() {
-      var lines = ['Локальная проверка журнала v8.32. Это не сайт магазина. Запросы в базу не уходят. Имена учебные.'];
+      var lines = ['Локальная проверка журнала v8.33. Это не сайт магазина. Запросы в базу не уходят. Имена учебные.'];
       if (window.VariantMatch && window.VariantMatch.shopQty) {
         var hall = [
           { name: 'Матрас Prime Hit 160×200', qty: 2, dims: '' },
