@@ -11,12 +11,12 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 
 test('скрипты журнала относительные и лежат рядом с index.html', function () {
-  ['shifts.js', 'variant-match.js', 'price-matrix.js', 'local-fixture.js'].forEach(function (name) {
+  ['shifts.js', 'product-card-kinds.js', 'variant-match.js', 'price-matrix.js', 'local-fixture.js'].forEach(function (name) {
     assert.ok(html.indexOf('src="app/src/' + name + '"') >= 0, name);
     assert.ok(fs.existsSync(path.join(root, 'app/src', name)), name + ' файл');
   });
   assert.equal(html.indexOf('src="/app/src/'), -1);
-  assert.ok(html.indexOf('>v8.32<') >= 0);
+  assert.ok(html.indexOf('>v8.33<') >= 0);
 });
 
 test('формулы цены и зарплаты на месте', function () {
